@@ -205,7 +205,7 @@ struct RunFlagsMappingTests {
         let options = RunOptions(
             reference: "local/web:1.0",
             platform: "linux/arm64",
-            network: "app-net",
+            networks: ["app-net"],
             entrypoint: "/bin/sh",
             readOnly: true,
             initProcess: true,
@@ -227,6 +227,28 @@ struct RunFlagsMappingTests {
         #expect(flags.shmSize == "64m")
         #expect(flags.tmpFs == ["/tmp/scratch"])
         #expect(registry.scheme == "http")
+    }
+
+    @Test func managementFlagsMapMultipleNetworksAndMounts() {
+        let options = RunOptions(
+            reference: "local/web:1.0",
+            networks: ["app-net", "data-net,mtu=1400"],
+            mounts: ["type=bind,source=/host/data,target=/data,readonly"]
+        )
+        let flags = LiveContainerService.runManagementFlags(for: options)
+        #expect(flags.networks == ["app-net", "data-net,mtu=1400"])
+        #expect(flags.mounts == ["type=bind,source=/host/data,target=/data,readonly"])
+    }
+
+    @Test func processFlagsMapEnvFileAndUlimits() {
+        let options = RunOptions(
+            reference: "local/web:1.0",
+            envFile: ["/host/.env"],
+            ulimits: ["nofile=1024:2048"]
+        )
+        let flags = LiveContainerService.runProcessFlags(for: options)
+        #expect(flags.envFile == ["/host/.env"])
+        #expect(flags.ulimits == ["nofile=1024:2048"])
     }
 
     @Test func managementFlagsMapInteractiveVirtualizationCapsAndCidFile() {
@@ -295,7 +317,6 @@ struct RunFlagsMappingTests {
             reference: "local/web:1.0",
             name: "",
             platform: "",
-            network: "",
             workdir: "",
             user: "",
             entrypoint: "",

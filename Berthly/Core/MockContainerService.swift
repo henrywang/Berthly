@@ -215,7 +215,7 @@ final class MockContainerService: ContainerServiceBase {
             uptime: isRunning ? "0m" : "–",
             command: command.isEmpty ? "–" : command,
             mounts: [],
-            networks: options.network.map { [$0] } ?? [],
+            networks: options.networks,
             environment: options.env.map { "\($0.key)=\($0.value)" }.sorted(),
             startedDate: isRunning ? Date() : nil
         ))

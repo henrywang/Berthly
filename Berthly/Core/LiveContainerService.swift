@@ -947,12 +947,12 @@ final class LiveContainerService: ContainerServiceBase {
         Flags.Process(
             cwd: nilIfEmpty(options.workdir),
             env: options.env.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
-            envFile: [],
+            envFile: options.envFile,
             gid: nil,
             interactive: options.interactive,
             tty: options.tty,
             uid: nil,
-            ulimits: [],
+            ulimits: options.ulimits,
             user: nilIfEmpty(options.user)
         )
     }
@@ -978,9 +978,9 @@ final class LiveContainerService: ContainerServiceBase {
             initImage: nil,
             kernel: nil,
             labels: options.labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
-            mounts: [],
+            mounts: options.mounts,
             name: nilIfEmpty(options.name),
-            networks: nilIfEmpty(options.network).map { [$0] } ?? [],
+            networks: options.networks,
             os: "linux",
             platform: nilIfEmpty(options.platform),
             publishPorts: options.ports,

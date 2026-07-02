@@ -166,6 +166,72 @@ struct PortRowsEditor: View {
     }
 }
 
+// MARK: - Mount row editor (--mount)
+
+enum MountType: String, CaseIterable {
+    case bind, volume, tmpfs
+}
+
+struct MountEntry: Identifiable {
+    let id = UUID()
+    var type: MountType = .bind
+    var source: String = ""
+    var target: String = ""
+    var readOnly: Bool = false
+}
+
+struct MountRowsEditor: View {
+    let title: String
+    @Binding var entries: [MountEntry]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                ForEach($entries) { $entry in
+                    HStack(spacing: 8) {
+                        Picker("", selection: $entry.type) {
+                            ForEach(MountType.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
+                        }
+                        .labelsHidden()
+                        .fixedSize()
+                        if entry.type != .tmpfs {
+                            TextField("source", text: $entry.source)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(.callout, design: .monospaced))
+                        }
+                        Image(systemName: "arrow.right")
+                            .foregroundStyle(.tertiary)
+                            .font(.caption)
+                        TextField("target path", text: $entry.target)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.callout, design: .monospaced))
+                        Toggle("RO", isOn: $entry.readOnly)
+                            .toggleStyle(.checkbox)
+                        Button {
+                            entries.removeAll { $0.id == entry.id }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                Button {
+                    entries.append(MountEntry())
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+        }
+    }
+}
+
 // MARK: - Shared platform picker (Build / Pull / Run sheets)
 
 enum SheetPlatformChoice: String, CaseIterable {

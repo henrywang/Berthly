@@ -38,19 +38,48 @@ private enum HomeMountChoice: String, CaseIterable {
     }
 }
 
+/// Groups the ~30 container-run options into tabs so the sheet isn't one long scroll of
+/// everything at once. Machine create has too few fields (6) to need this — it stays a flat form.
+private enum RunCategory: String, CaseIterable, Identifiable {
+    case general = "General"
+    case storage = "Storage"
+    case network = "Network"
+    case dns = "DNS"
+    case resources = "Resources"
+    case environment = "Environment"
+    case security = "Security"
+
+    var id: String { rawValue }
+
+    var icon: String {
+        switch self {
+        case .general:     return "gearshape"
+        case .storage:     return "externaldrive"
+        case .network:     return "network"
+        case .dns:         return "globe"
+        case .resources:   return "cpu"
+        case .environment: return "leaf"
+        case .security:    return "lock.shield"
+        }
+    }
+}
+
 struct RunContainerSheet: View {
     let service: ContainerServiceBase
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var targetType: RunTargetType = .container
+    @State private var selectedCategory: RunCategory = .general
 
     @State private var reference = ""
     @State private var name = ""
     @State private var command = ""
     @State private var ports: [PortEntry] = []
     @State private var volumes: [StringEntry] = []
+    @State private var mounts: [MountEntry] = []
     @State private var env: [KeyValuePair] = []
+    @State private var envFile: [StringEntry] = []
     @State private var platformChoice: SheetPlatformChoice = .default
     @State private var startImmediately = true
     @State private var attachAndShowOutput = false
@@ -65,9 +94,9 @@ struct RunContainerSheet: View {
     @State private var homeMountChoice: HomeMountChoice = .default
     @State private var setDefault = false
 
-    @State private var showAdvanced = false
+    @State private var showMachineAdvanced = false
     @State private var labels: [KeyValuePair] = []
-    @State private var network = ""
+    @State private var networks: [StringEntry] = []
     @State private var workdir = ""
     @State private var user = ""
     @State private var entrypoint = ""
@@ -79,6 +108,7 @@ struct RunContainerSheet: View {
     @State private var ssh = false
     @State private var shmSize = ""
     @State private var tmpfs: [StringEntry] = []
+    @State private var ulimits: [StringEntry] = []
     @State private var insecureRegistry = false
     @State private var interactive = false
     @State private var tty = false
@@ -123,17 +153,15 @@ struct RunContainerSheet: View {
 
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    if state.isRunning || state.result != nil {
-                        activeContent
-                    } else {
-                        idleContent
-                    }
+            if state.isRunning || state.result != nil {
+                ScrollView {
+                    activeContent
+                        .padding(20)
                 }
-                .padding(20)
+                .frame(maxHeight: 520)
+            } else {
+                idleContent
             }
-            .frame(maxHeight: 520)
 
             Divider()
 
@@ -172,7 +200,7 @@ struct RunContainerSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
-        .frame(width: 520)
+        .frame(width: targetType == .container ? 720 : 520)
     }
 
     private var canRun: Bool {
@@ -197,39 +225,98 @@ struct RunContainerSheet: View {
 
     @ViewBuilder
     private var idleContent: some View {
-        Picker("Type", selection: $targetType) {
-            ForEach(RunTargetType.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.segmented)
-        .labelsHidden()
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("Type", selection: $targetType) {
+                ForEach(RunTargetType.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Image")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-            TextField("local/myapp:1.0", text: $reference)
-                .textFieldStyle(.roundedBorder)
-                .fontDesign(.monospaced)
-                .onSubmit { if canRun { startSubmit() } }
-        }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Image")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("local/myapp:1.0", text: $reference)
+                    .textFieldStyle(.roundedBorder)
+                    .fontDesign(.monospaced)
+                    .onSubmit { if canRun { startSubmit() } }
+            }
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Name")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-            TextField("Optional — auto-generated if left blank", text: $name)
-                .textFieldStyle(.roundedBorder)
-                .fontDesign(.monospaced)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Name")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("Optional — auto-generated if left blank", text: $name)
+                    .textFieldStyle(.roundedBorder)
+                    .fontDesign(.monospaced)
+            }
         }
+        .padding(20)
+        .padding(.bottom, 0)
 
         switch targetType {
-        case .container: containerFields
-        case .machine:   machineFields
+        case .container: containerCategorizedForm
+        case .machine:   machineFields.padding(20).padding(.top, 0)
+        }
+    }
+
+    // MARK: - Container: categorized sidebar form
+
+    @ViewBuilder
+    private var containerCategorizedForm: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(RunCategory.allCases) { category in
+                    Button {
+                        selectedCategory = category
+                    } label: {
+                        Label(category.rawValue, systemImage: category.icon)
+                            .font(.callout)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 6)
+                            .padding(.horizontal, 10)
+                            .background(
+                                selectedCategory == category ? Color.accentColor.opacity(0.15) : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6)
+                            )
+                            .foregroundStyle(selectedCategory == category ? Color.accentColor : .primary)
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+            .padding(10)
+            .frame(width: 170, alignment: .top)
+            .background(.background.secondary)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    containerCategoryFields
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .frame(height: 420)
+    }
+
+    @ViewBuilder
+    private var containerCategoryFields: some View {
+        switch selectedCategory {
+        case .general:     generalFields
+        case .storage:     storageFields
+        case .network:     networkFields
+        case .dns:         dnsFields
+        case .resources:   resourcesFields
+        case .environment: environmentFields
+        case .security:    securityFields
         }
     }
 
     @ViewBuilder
-    private var containerFields: some View {
+    private var generalFields: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Command")
                 .font(.caption.weight(.medium))
@@ -238,16 +325,6 @@ struct RunContainerSheet: View {
                 .textFieldStyle(.roundedBorder)
                 .fontDesign(.monospaced)
         }
-
-        PortRowsEditor(title: "Ports", entries: $ports)
-
-        StringListEditor(
-            title: "Volumes",
-            placeholder: "myvolume:/var/lib/data or /host/path:/container/path",
-            entries: $volumes
-        )
-
-        KeyValueEditor(title: "Environment variables", keyPlaceholder: "KEY", valuePlaceholder: "value", pairs: $env)
 
         PlatformPicker(title: "Platform", selection: $platformChoice)
 
@@ -266,147 +343,57 @@ struct RunContainerSheet: View {
         }
         Toggle("Remove when stopped", isOn: $removeWhenStopped)
             .toggleStyle(.checkbox)
-
-        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 14) {
-                KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", pairs: $labels)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Network")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("Optional — defaults to the standard network", text: $network)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
-                }
-
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Working directory")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("/app", text: $workdir)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.callout, design: .monospaced))
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("User")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("name|uid[:gid]", text: $user)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.callout, design: .monospaced))
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Entrypoint override")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("Optional", text: $entrypoint)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
-                }
-
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("CPUs")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. 2", text: $cpus)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Memory")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("e.g. 1g", text: $memory)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                }
-
-                Toggle("Read-only root filesystem", isOn: $readOnly)
-                    .toggleStyle(.checkbox)
-                Toggle("Run an init process", isOn: $initProcess)
-                    .toggleStyle(.checkbox)
-                Toggle("Enable Rosetta", isOn: $rosetta)
-                    .toggleStyle(.checkbox)
-                Toggle("Forward SSH agent", isOn: $ssh)
-                    .toggleStyle(.checkbox)
-                Toggle("Keep stdin open (-i)", isOn: $interactive)
-                    .toggleStyle(.checkbox)
-                Toggle("Allocate a TTY (-t)", isOn: $tty)
-                    .toggleStyle(.checkbox)
-                Toggle("Expose virtualization capabilities", isOn: $virtualization)
-                    .toggleStyle(.checkbox)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Shared memory size")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. 64m", text: $shmSize)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
-                        .frame(width: 100)
-                }
-
-                StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", entries: $tmpfs)
-
-                StringListEditor(title: "Add capabilities", placeholder: "CAP_NET_RAW, or ALL", entries: $capAdd)
-                StringListEditor(title: "Drop capabilities", placeholder: "CAP_SYS_ADMIN, or ALL", entries: $capDrop)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Container ID file")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("Optional — path to write the container ID to", text: $cidFile)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
-                }
-
-                Toggle("Disable DNS configuration", isOn: $noDns)
-                    .toggleStyle(.checkbox)
-                if !noDns {
-                    StringListEditor(title: "DNS servers", placeholder: "1.1.1.1", entries: $dns)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("DNS domain")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("Optional", text: $dnsDomain)
-                            .textFieldStyle(.roundedBorder)
-                            .font(.system(.callout, design: .monospaced))
-                    }
-                    StringListEditor(title: "DNS options", placeholder: "ndots:5", entries: $dnsOptions)
-                    StringListEditor(title: "DNS search domains", placeholder: "corp.example.com", entries: $dnsSearch)
-                }
-
-                Toggle(isOn: $insecureRegistry) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Allow insecure registry")
-                            .font(.caption.weight(.medium))
-                        Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-            }
-            .padding(.top, 10)
-        }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
     }
 
     @ViewBuilder
-    private var machineFields: some View {
+    private var storageFields: some View {
+        StringListEditor(
+            title: "Volumes",
+            placeholder: "myvolume:/var/lib/data or /host/path:/container/path",
+            entries: $volumes
+        )
+        MountRowsEditor(title: "Mounts", entries: $mounts)
+        StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", entries: $tmpfs)
+    }
+
+    @ViewBuilder
+    private var networkFields: some View {
+        PortRowsEditor(title: "Ports", entries: $ports)
+        StringListEditor(
+            title: "Networks",
+            placeholder: "name, or name,mtu=1400",
+            helpText: "Attach to one or more networks. Leave empty for the standard network.",
+            entries: $networks
+        )
+    }
+
+    @ViewBuilder
+    private var dnsFields: some View {
+        Toggle("Disable DNS configuration", isOn: $noDns)
+            .toggleStyle(.checkbox)
+        if !noDns {
+            StringListEditor(title: "DNS servers", placeholder: "1.1.1.1", entries: $dns)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("DNS domain")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("Optional", text: $dnsDomain)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.callout, design: .monospaced))
+            }
+            StringListEditor(title: "DNS options", placeholder: "ndots:5", entries: $dnsOptions)
+            StringListEditor(title: "DNS search domains", placeholder: "corp.example.com", entries: $dnsSearch)
+        }
+    }
+
+    @ViewBuilder
+    private var resourcesFields: some View {
         HStack(spacing: 20) {
             VStack(alignment: .leading, spacing: 6) {
                 Text("CPUs")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                TextField("e.g. 4", text: $machineCpus)
+                TextField("e.g. 2", text: $cpus)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -414,51 +401,166 @@ struct RunContainerSheet: View {
                 Text("Memory")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                TextField("e.g. 8G", text: $machineMemory)
+                TextField("e.g. 1g", text: $memory)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
         }
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Shared memory size")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField("e.g. 64m", text: $shmSize)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.callout, design: .monospaced))
+                .frame(width: 100)
+        }
+        StringListEditor(
+            title: "Resource limits (ulimit)",
+            placeholder: "nofile=1024:2048",
+            entries: $ulimits
+        )
+    }
 
-        PlatformPicker(title: "Platform", selection: $platformChoice)
+    @ViewBuilder
+    private var environmentFields: some View {
+        KeyValueEditor(title: "Environment variables", keyPlaceholder: "KEY", valuePlaceholder: "value", pairs: $env)
+        StringListEditor(title: "Env files", placeholder: "/host/path/.env", entries: $envFile)
+        KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", pairs: $labels)
+    }
 
-        Toggle("Boot immediately", isOn: $bootImmediately)
+    @ViewBuilder
+    private var securityFields: some View {
+        HStack(spacing: 20) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Working directory")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("/app", text: $workdir)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.callout, design: .monospaced))
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("User")
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                TextField("name|uid[:gid]", text: $user)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.callout, design: .monospaced))
+            }
+        }
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Entrypoint override")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField("Optional", text: $entrypoint)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.callout, design: .monospaced))
+        }
+
+        Toggle("Read-only root filesystem", isOn: $readOnly)
+            .toggleStyle(.checkbox)
+        Toggle("Run an init process", isOn: $initProcess)
+            .toggleStyle(.checkbox)
+        Toggle("Enable Rosetta", isOn: $rosetta)
+            .toggleStyle(.checkbox)
+        Toggle("Forward SSH agent", isOn: $ssh)
+            .toggleStyle(.checkbox)
+        Toggle("Keep stdin open (-i)", isOn: $interactive)
+            .toggleStyle(.checkbox)
+        Toggle("Allocate a TTY (-t)", isOn: $tty)
+            .toggleStyle(.checkbox)
+        Toggle("Expose virtualization capabilities", isOn: $virtualization)
             .toggleStyle(.checkbox)
 
-        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("Home directory mount")
+        StringListEditor(title: "Add capabilities", placeholder: "CAP_NET_RAW, or ALL", entries: $capAdd)
+        StringListEditor(title: "Drop capabilities", placeholder: "CAP_SYS_ADMIN, or ALL", entries: $capDrop)
+
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Container ID file")
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField("Optional — path to write the container ID to", text: $cidFile)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.callout, design: .monospaced))
+        }
+
+        Toggle(isOn: $insecureRegistry) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Allow insecure registry")
+                    .font(.caption.weight(.medium))
+                Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .toggleStyle(.checkbox)
+    }
+
+    // MARK: - Machine: flat form (few enough fields not to need categories)
+
+    @ViewBuilder
+    private var machineFields: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("CPUs")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
-                    Picker("Home directory mount", selection: $homeMountChoice) {
-                        ForEach(HomeMountChoice.allCases, id: \.self) {
-                            Text($0.label).tag($0)
+                    TextField("e.g. 4", text: $machineCpus)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Memory")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    TextField("e.g. 8G", text: $machineMemory)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                }
+            }
+
+            PlatformPicker(title: "Platform", selection: $platformChoice)
+
+            Toggle("Boot immediately", isOn: $bootImmediately)
+                .toggleStyle(.checkbox)
+
+            DisclosureGroup("Advanced", isExpanded: $showMachineAdvanced) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Home directory mount")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Picker("Home directory mount", selection: $homeMountChoice) {
+                            ForEach(HomeMountChoice.allCases, id: \.self) {
+                                Text($0.label).tag($0)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
+                    Toggle("Set as default machine", isOn: $setDefault)
+                        .toggleStyle(.checkbox)
+
+                    Toggle(isOn: $insecureRegistry) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Allow insecure registry")
+                                .font(.caption.weight(.medium))
+                            Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize()
-                }
-
-                Toggle("Set as default machine", isOn: $setDefault)
                     .toggleStyle(.checkbox)
-
-                Toggle(isOn: $insecureRegistry) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Allow insecure registry")
-                            .font(.caption.weight(.medium))
-                        Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
                 }
-                .toggleStyle(.checkbox)
+                .padding(.top, 10)
             }
-            .padding(.top, 10)
+            .font(.caption.weight(.medium))
+            .foregroundStyle(.secondary)
         }
-        .font(.caption.weight(.medium))
-        .foregroundStyle(.secondary)
     }
 
     // MARK: - Active / done
@@ -555,6 +657,21 @@ struct RunContainerSheet: View {
         entries.map { $0.value.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
+    private func mountSpecs(from entries: [MountEntry]) -> [String] {
+        entries.compactMap { entry in
+            let target = entry.target.trimmingCharacters(in: .whitespaces)
+            guard !target.isEmpty else { return nil }
+            var parts = ["type=\(entry.type.rawValue)"]
+            let source = entry.source.trimmingCharacters(in: .whitespaces)
+            if entry.type != .tmpfs, !source.isEmpty {
+                parts.append("source=\(source)")
+            }
+            parts.append("target=\(target)")
+            if entry.readOnly { parts.append("readonly") }
+            return parts.joined(separator: ",")
+        }
+    }
+
     private func startSubmit() {
         guard canRun, !state.isRunning else { return }
         switch targetType {
@@ -569,7 +686,6 @@ struct RunContainerSheet: View {
         let commandParts = command.trimmingCharacters(in: .whitespaces)
             .split(separator: " ").map(String.init)
         let platform = platformChoice == .default ? nil : platformChoice.rawValue
-        let networkTrimmed = network.trimmingCharacters(in: .whitespaces)
         let workdirTrimmed = workdir.trimmingCharacters(in: .whitespaces)
         let userTrimmed = user.trimmingCharacters(in: .whitespaces)
         let entrypointTrimmed = entrypoint.trimmingCharacters(in: .whitespaces)
@@ -594,7 +710,7 @@ struct RunContainerSheet: View {
             attach: startImmediately && attachAndShowOutput,
             remove: removeWhenStopped,
             labels: dict(from: labels),
-            network: networkTrimmed.isEmpty ? nil : networkTrimmed,
+            networks: strings(from: networks),
             workdir: workdirTrimmed.isEmpty ? nil : workdirTrimmed,
             user: userTrimmed.isEmpty ? nil : userTrimmed,
             entrypoint: entrypointTrimmed.isEmpty ? nil : entrypointTrimmed,
@@ -606,6 +722,9 @@ struct RunContainerSheet: View {
             ssh: ssh,
             shmSize: shmSizeTrimmed.isEmpty ? nil : shmSizeTrimmed,
             tmpfs: strings(from: tmpfs),
+            mounts: mountSpecs(from: mounts),
+            envFile: strings(from: envFile),
+            ulimits: strings(from: ulimits),
             insecureRegistry: insecureRegistry,
             interactive: interactive,
             tty: tty,

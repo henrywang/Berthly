@@ -313,7 +313,7 @@ nonisolated struct RunOptions {
     var attach: Bool = false
     var remove: Bool = false
     var labels: [String: String] = [:]
-    var network: String?
+    var networks: [String] = []
     var workdir: String?
     var user: String?
     var entrypoint: String?
@@ -325,6 +325,9 @@ nonisolated struct RunOptions {
     var ssh: Bool = false
     var shmSize: String?
     var tmpfs: [String] = []
+    var mounts: [String] = []
+    var envFile: [String] = []
+    var ulimits: [String] = []
     var insecureRegistry: Bool = false
     var interactive: Bool = false
     var tty: Bool = false
