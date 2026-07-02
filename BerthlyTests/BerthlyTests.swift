@@ -407,6 +407,20 @@ struct MockContainerServiceTests {
         #expect(mock.buildContexts["local/web:1.4"]?.contextPath == "/Users/dev/projects/web")
     }
 
+    /// Catches retain cycles (e.g. a Task or closure capturing `self` strongly instead of
+    /// weakly): if nothing outside this scope holds a reference, ARC deallocates `service` the
+    /// moment the `do` block ends, so `weakRef` reads nil. Scoped to the mock rather than
+    /// `LiveContainerService` because the live service dials a real daemon and writes to
+    /// Application Support on init — not appropriate for a unit test's side effects.
+    @Test func doesNotLeakAfterGoingOutOfScope() {
+        weak var weakRef: MockContainerService?
+        do {
+            let service = MockContainerService()
+            weakRef = service
+        }
+        #expect(weakRef == nil)
+    }
+
     @Test func startDaemonTransitionsStoppedToConnected() async {
         let mock = MockContainerService()
         mock.daemonState = .installedButStopped
