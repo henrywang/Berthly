@@ -7,12 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = F66A582A8B95234B7827C89F /* NIOPosix */; };
+		74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 96820BCC7D9F569A1EA97615 /* NIOCore */; };
+		B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = ECDA028CF797475EAD0334FE /* ContainerPlugin */; };
 		F86446362FF182CC0064946B /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446352FF182CC0064946B /* ContainerAPIClient */; };
 		F86446382FF182CC0064946B /* ContainerBuild in Frameworks */ = {isa = PBXBuildFile; productRef = F86446372FF182CC0064946B /* ContainerBuild */; };
-		FFB4C5DBF9FC72E9430E5635 /* ContainerImagesServiceClient in Frameworks */ = {isa = PBXBuildFile; productRef = 5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */; };
-		74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 96820BCC7D9F569A1EA97615 /* NIOCore */; };
-		3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = F66A582A8B95234B7827C89F /* NIOPosix */; };
-		B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = ECDA028CF797475EAD0334FE /* ContainerPlugin */; };
 		F864463A2FF182CC0064946B /* ContainerLog in Frameworks */ = {isa = PBXBuildFile; productRef = F86446392FF182CC0064946B /* ContainerLog */; };
 		F864463C2FF182CC0064946B /* ContainerNetworkClient in Frameworks */ = {isa = PBXBuildFile; productRef = F864463B2FF182CC0064946B /* ContainerNetworkClient */; };
 		F864463E2FF182CC0064946B /* ContainerResource in Frameworks */ = {isa = PBXBuildFile; productRef = F864463D2FF182CC0064946B /* ContainerResource */; };
@@ -22,6 +21,7 @@
 		F86446462FF182CC0064946B /* ContainerXPC in Frameworks */ = {isa = PBXBuildFile; productRef = F86446452FF182CC0064946B /* ContainerXPC */; };
 		F86446482FF182CC0064946B /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446472FF182CC0064946B /* MachineAPIClient */; };
 		F864464A2FF182CC0064946B /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = F86446492FF182CC0064946B /* TerminalProgress */; };
+		FFB4C5DBF9FC72E9430E5635 /* ContainerImagesService in Frameworks */ = {isa = PBXBuildFile; productRef = 5AACB2A4268291A3C9712767 /* ContainerImagesService */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,7 +81,7 @@
 				F864463C2FF182CC0064946B /* ContainerNetworkClient in Frameworks */,
 				F86446382FF182CC0064946B /* ContainerBuild in Frameworks */,
 				F86446422FF182CC0064946B /* ContainerRuntimeLinuxClient in Frameworks */,
-				FFB4C5DBF9FC72E9430E5635 /* ContainerImagesServiceClient in Frameworks */,
+				FFB4C5DBF9FC72E9430E5635 /* ContainerImagesService in Frameworks */,
 				74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */,
 				3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */,
 				B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */,
@@ -147,7 +147,7 @@
 			packageProductDependencies = (
 				F86446352FF182CC0064946B /* ContainerAPIClient */,
 				F86446372FF182CC0064946B /* ContainerBuild */,
-				5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */,
+				5AACB2A4268291A3C9712767 /* ContainerImagesService */,
 				F86446392FF182CC0064946B /* ContainerLog */,
 				F864463B2FF182CC0064946B /* ContainerNetworkClient */,
 				F864463D2FF182CC0064946B /* ContainerResource */,
@@ -617,14 +617,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/container";
-			requirement = {
-				kind = exactVersion;
-				version = 1.0.0;
-			};
-		};
 		E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-nio.git";
@@ -633,25 +625,18 @@
 				version = 2.101.2;
 			};
 		};
+		F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/container";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		F86446352FF182CC0064946B /* ContainerAPIClient */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
-			productName = ContainerAPIClient;
-		};
-		F86446372FF182CC0064946B /* ContainerBuild */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
-			productName = ContainerBuild;
-		};
-		F86446392FF182CC0064946B /* ContainerLog */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
-			productName = ContainerLog;
-		};
-		5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */ = {
+		5AACB2A4268291A3C9712767 /* ContainerImagesService */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
 			productName = ContainerImagesService;
@@ -670,6 +655,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */;
 			productName = NIOPosix;
+		};
+		F86446352FF182CC0064946B /* ContainerAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerAPIClient;
+		};
+		F86446372FF182CC0064946B /* ContainerBuild */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerBuild;
+		};
+		F86446392FF182CC0064946B /* ContainerLog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerLog;
 		};
 		F864463B2FF182CC0064946B /* ContainerNetworkClient */ = {
 			isa = XCSwiftPackageProductDependency;
