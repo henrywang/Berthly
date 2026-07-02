@@ -87,6 +87,52 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    /// Deterministic via `MockContainerService` (`UITEST_USE_MOCK_SERVICE`) — unlike the tests
+    /// above, this doesn't depend on whether a real daemon is installed or its actual
+    /// running/stopped state, so it can assert the disconnected screen and the transition it
+    /// triggers without needing to force that state in a live `container` install.
+    @MainActor
+    func testDaemonStoppedShowsStartButtonAndConnectsOnTap() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "installedButStopped"
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Container System Stopped"].waitForExistence(timeout: 10))
+        let startButton = app.buttons["Start Container System"]
+        XCTAssertTrue(startButton.exists)
+
+        startButton.click()
+
+        // MockContainerService.startDaemon() moves installedButStopped -> connecting -> connected;
+        // once connected, the gated content pane swaps to the seeded compute list.
+        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Start Container System"].exists)
+    }
+
+    /// Exercises the Container/Machine segmented toggle in the Run sheet — pure UI state with no
+    /// daemon operation involved, so the mock just needs the toolbar's Run button enabled.
+    @MainActor
+    func testRunSheetTogglesBetweenContainerAndMachine() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        let runButton = app.buttons["Run"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 10))
+        runButton.click()
+
+        XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5))
+
+        app.radioButtons["Machine"].click()
+        XCTAssertTrue(app.staticTexts["Create machine"].waitForExistence(timeout: 5))
+
+        app.radioButtons["Container"].click()
+        XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5))
+
+        app.buttons["Cancel"].click()
+    }
+
     @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {

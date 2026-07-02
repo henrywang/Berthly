@@ -407,6 +407,13 @@ struct MockContainerServiceTests {
         #expect(mock.buildContexts["local/web:1.4"]?.contextPath == "/Users/dev/projects/web")
     }
 
+    @Test func startDaemonTransitionsStoppedToConnected() async {
+        let mock = MockContainerService()
+        mock.daemonState = .installedButStopped
+        await mock.startDaemon()
+        #expect(mock.daemonState.isConnectedCase)
+    }
+
     @Test func startContainerFlipsStatusToRunning() async throws {
         let mock = MockContainerService()
         guard let stopped = mock.containers.first(where: { $0.status == .stopped }) else {

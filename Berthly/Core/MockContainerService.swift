@@ -247,6 +247,12 @@ final class MockContainerService: ContainerServiceBase {
         ))
     }
 
+    override func startDaemon() async {
+        daemonState = .connecting
+        try? await Task.sleep(for: .milliseconds(200))
+        daemonState = .connected
+    }
+
     override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
         let layerCount = 8
         let totalBytes: Int64 = 145_000_000
