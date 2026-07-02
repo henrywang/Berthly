@@ -17,29 +17,9 @@ private final class RunState {
 
 // MARK: - Sheet
 
-private enum RunTargetType: String, CaseIterable {
-    case container = "Container"
-    case machine = "Machine"
-}
-
-private enum HomeMountChoice: String, CaseIterable {
-    case `default` = ""
-    case rw = "rw"
-    case ro = "ro"
-    case none = "none"
-
-    var label: String {
-        switch self {
-        case .default: return "Default (rw)"
-        case .rw:      return "Read/write"
-        case .ro:      return "Read-only"
-        case .none:    return "None"
-        }
-    }
-}
-
 /// Groups the ~30 container-run options into tabs so the sheet isn't one long scroll of
-/// everything at once. Machine create has too few fields (6) to need this — it stays a flat form.
+/// everything at once. MachineCreateSheet has too few fields (6) to need this — it stays a
+/// flat form.
 private enum RunCategory: String, CaseIterable, Identifiable {
     case general = "General"
     case storage = "Storage"
@@ -69,7 +49,6 @@ struct RunContainerSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var targetType: RunTargetType = .container
     @State private var selectedCategory: RunCategory = .general
 
     @State private var reference = ""
@@ -85,16 +64,6 @@ struct RunContainerSheet: View {
     @State private var attachAndShowOutput = false
     @State private var removeWhenStopped = false
 
-    // Machine-only main fields
-    @State private var machineCpus = ""
-    @State private var machineMemory = ""
-    @State private var bootImmediately = true
-
-    // Machine-only advanced fields
-    @State private var homeMountChoice: HomeMountChoice = .default
-    @State private var setDefault = false
-
-    @State private var showMachineAdvanced = false
     @State private var labels: [KeyValuePair] = []
     @State private var networks: [StringEntry] = []
     @State private var workdir = ""
@@ -128,22 +97,17 @@ struct RunContainerSheet: View {
         self.service = service
     }
 
-    fileprivate init(service: ContainerServiceBase, targetType: RunTargetType) {
-        self.service = service
-        _targetType = State(initialValue: targetType)
-    }
-
     var body: some View {
         VStack(spacing: 0) {
             // Header
             HStack(alignment: .top, spacing: 12) {
-                Image(systemName: targetType == .container ? "shippingbox" : "desktopcomputer")
+                Image(systemName: "shippingbox")
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(targetType == .container ? "Run container" : "Create machine")
+                    Text("Run container")
                         .font(.headline)
-                    Text(targetType == .container ? "Start a new container from an image" : "Provision a new container machine from an image")
+                    Text("Start a new container from an image")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -200,7 +164,7 @@ struct RunContainerSheet: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
-        .frame(width: targetType == .container ? 720 : 520)
+        .frame(width: 720)
     }
 
     private var canRun: Bool {
@@ -208,17 +172,11 @@ struct RunContainerSheet: View {
     }
 
     private var submitLabel: String {
-        switch targetType {
-        case .container: return startImmediately ? "Run" : "Create"
-        case .machine:   return "Create"
-        }
+        startImmediately ? "Run" : "Create"
     }
 
     private var progressLabel: String {
-        switch targetType {
-        case .container: return startImmediately ? "Starting…" : "Creating…"
-        case .machine:   return "Creating…"
-        }
+        startImmediately ? "Starting…" : "Creating…"
     }
 
     // MARK: - Idle
@@ -226,12 +184,6 @@ struct RunContainerSheet: View {
     @ViewBuilder
     private var idleContent: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Picker("Type", selection: $targetType) {
-                ForEach(RunTargetType.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-
             VStack(alignment: .leading, spacing: 6) {
                 Text("Image")
                     .font(.caption.weight(.medium))
@@ -254,13 +206,10 @@ struct RunContainerSheet: View {
         .padding(20)
         .padding(.bottom, 0)
 
-        switch targetType {
-        case .container: containerCategorizedForm
-        case .machine:   machineFields.padding(20).padding(.top, 0)
-        }
+        containerCategorizedForm
     }
 
-    // MARK: - Container: categorized sidebar form
+    // MARK: - Categorized sidebar form
 
     @ViewBuilder
     private var containerCategorizedForm: some View {
@@ -497,72 +446,6 @@ struct RunContainerSheet: View {
         .toggleStyle(.checkbox)
     }
 
-    // MARK: - Machine: flat form (few enough fields not to need categories)
-
-    @ViewBuilder
-    private var machineFields: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("CPUs")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. 4", text: $machineCpus)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Memory")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("e.g. 8G", text: $machineMemory)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 100)
-                }
-            }
-
-            PlatformPicker(title: "Platform", selection: $platformChoice)
-
-            Toggle("Boot immediately", isOn: $bootImmediately)
-                .toggleStyle(.checkbox)
-
-            DisclosureGroup("Advanced", isExpanded: $showMachineAdvanced) {
-                VStack(alignment: .leading, spacing: 14) {
-                    HStack {
-                        Text("Home directory mount")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        Picker("Home directory mount", selection: $homeMountChoice) {
-                            ForEach(HomeMountChoice.allCases, id: \.self) {
-                                Text($0.label).tag($0)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .labelsHidden()
-                        .fixedSize()
-                    }
-
-                    Toggle("Set as default machine", isOn: $setDefault)
-                        .toggleStyle(.checkbox)
-
-                    Toggle(isOn: $insecureRegistry) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Allow insecure registry")
-                                .font(.caption.weight(.medium))
-                            Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .toggleStyle(.checkbox)
-                }
-                .padding(.top, 10)
-            }
-            .font(.caption.weight(.medium))
-            .foregroundStyle(.secondary)
-        }
-    }
-
     // MARK: - Active / done
 
     @ViewBuilder
@@ -626,10 +509,7 @@ struct RunContainerSheet: View {
     }
 
     private var successLabel: String {
-        switch targetType {
-        case .container: return startImmediately ? "Container running" : "Container created"
-        case .machine:   return "Machine created"
-        }
+        startImmediately ? "Container running" : "Container created"
     }
 
     // MARK: - Actions
@@ -674,13 +554,6 @@ struct RunContainerSheet: View {
 
     private func startSubmit() {
         guard canRun, !state.isRunning else { return }
-        switch targetType {
-        case .container: startContainerRun()
-        case .machine:   startMachineCreate()
-        }
-    }
-
-    private func startContainerRun() {
         let ref = reference.trimmingCharacters(in: .whitespaces)
         let nameTrimmed = name.trimmingCharacters(in: .whitespaces)
         let commandParts = command.trimmingCharacters(in: .whitespaces)
@@ -753,43 +626,6 @@ struct RunContainerSheet: View {
         }
     }
 
-    private func startMachineCreate() {
-        let ref = reference.trimmingCharacters(in: .whitespaces)
-        let nameTrimmed = name.trimmingCharacters(in: .whitespaces)
-        let platform = platformChoice == .default ? nil : platformChoice.rawValue
-        let cpusValue = Int(machineCpus.trimmingCharacters(in: .whitespaces))
-        let memoryTrimmed = machineMemory.trimmingCharacters(in: .whitespaces)
-        let homeMount = homeMountChoice == .default ? nil : homeMountChoice.rawValue
-
-        state.isRunning = true
-        state.result = nil
-
-        let options = MachineCreateOptions(
-            reference: ref,
-            name: nameTrimmed.isEmpty ? nil : nameTrimmed,
-            platform: platform,
-            cpus: cpusValue,
-            memory: memoryTrimmed.isEmpty ? nil : memoryTrimmed,
-            homeMount: homeMount,
-            boot: bootImmediately,
-            setDefault: setDefault,
-            insecureRegistry: insecureRegistry
-        )
-
-        state.runTask = Task {
-            do {
-                try await service.createMachine(options: options)
-                state.result = .success(reference: nameTrimmed.isEmpty ? ref : nameTrimmed, output: "")
-            } catch is CancellationError {
-                state.result = nil
-            } catch {
-                state.result = .failure(message: error.localizedDescription)
-            }
-            state.isRunning = false
-            state.runTask = nil
-        }
-    }
-
     private func cancelRun() {
         state.runTask?.cancel()
         state.runTask = nil
@@ -798,12 +634,8 @@ struct RunContainerSheet: View {
     }
 }
 
-// MARK: - Previews
+// MARK: - Preview
 
-#Preview("Run – empty") {
+#Preview {
     RunContainerSheet(service: MockContainerService())
-}
-
-#Preview("Run – machine") {
-    RunContainerSheet(service: MockContainerService(), targetType: .machine)
 }

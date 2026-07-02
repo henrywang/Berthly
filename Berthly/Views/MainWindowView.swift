@@ -10,7 +10,9 @@ struct MainWindowView: View {
     @State private var refreshRotation = 0.0
     @State private var showPullSheet = false
     @State private var showBuildSheet = false
+    @State private var showRunMenu = false
     @State private var showRunSheet = false
+    @State private var showMachineCreateSheet = false
 
     var body: some View {
         NavigationSplitView {
@@ -73,6 +75,9 @@ struct MainWindowView: View {
         .sheet(isPresented: $showRunSheet) {
             RunContainerSheet(service: service)
         }
+        .sheet(isPresented: $showMachineCreateSheet) {
+            MachineCreateSheet(service: service)
+        }
     }
 
     private var detailVisible: Bool { selectedCompute != nil || (selectedImageID != nil && sidebarSelection == .images) }
@@ -105,7 +110,7 @@ struct MainWindowView: View {
     private var toolbarContent: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
-                showRunSheet = true
+                showRunMenu = true
             } label: {
                 Label("Run", systemImage: "play.fill")
             }
@@ -113,6 +118,20 @@ struct MainWindowView: View {
             .tint(.berthlyAccent)
             .disabled(!service.isConnected)
             .keyboardShortcut("r", modifiers: [.command, .shift])
+            .background(
+                PopoverAnchor(isPresented: $showRunMenu) {
+                    RunTypeMenuContent(
+                        onSelectContainer: {
+                            showRunMenu = false
+                            showRunSheet = true
+                        },
+                        onSelectMachine: {
+                            showRunMenu = false
+                            showMachineCreateSheet = true
+                        }
+                    )
+                }
+            )
 
             Button {
                 showBuildSheet = true

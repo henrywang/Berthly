@@ -65,7 +65,9 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
-    /// Same crash class as the Build sheet, exercised for Run instead.
+    /// Same crash class as the Build sheet, exercised for Run instead. Run now opens a popover
+    /// (PopoverAnchor/RunTypeMenuContent) before the sheet, since Container/Machine are separate
+    /// sheets.
     @MainActor
     func testRunSheetOpensAndClosesWithoutCrashing() throws {
         let app = XCUIApplication()
@@ -78,8 +80,12 @@ final class BerthlyUITests: XCTestCase {
 
         runButton.click()
 
+        let containerOption = app.buttons["Run Container"]
+        XCTAssertTrue(containerOption.waitForExistence(timeout: 5), "Run menu popover should appear")
+        containerOption.click()
+
         let cancelButton = app.buttons["Cancel"]
-        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Run sheet should appear")
+        XCTAssertTrue(cancelButton.waitForExistence(timeout: 5), "Run container sheet should appear")
 
         cancelButton.click()
 
@@ -110,10 +116,11 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
-    /// Exercises the Container/Machine segmented toggle in the Run sheet — pure UI state with no
-    /// daemon operation involved, so the mock just needs the toolbar's Run button enabled.
+    /// The Run button opens a popover with both choices before landing on either sheet — pure UI
+    /// state with no daemon operation involved, so the mock just needs the toolbar's Run button
+    /// enabled. Covers both routes: Container -> RunContainerSheet, Machine -> MachineCreateSheet.
     @MainActor
-    func testRunSheetTogglesBetweenContainerAndMachine() throws {
+    func testRunMenuOpensEitherContainerOrMachineSheet() throws {
         let app = XCUIApplication()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
@@ -122,14 +129,17 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(runButton.waitForExistence(timeout: 10))
         runButton.click()
 
-        XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Run Container"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Create Machine"].exists)
 
-        app.radioButtons["Machine"].click()
+        app.buttons["Create Machine"].click()
         XCTAssertTrue(app.staticTexts["Create machine"].waitForExistence(timeout: 5))
+        app.buttons["Cancel"].click()
 
-        app.radioButtons["Container"].click()
+        runButton.click()
+        XCTAssertTrue(app.buttons["Run Container"].waitForExistence(timeout: 5))
+        app.buttons["Run Container"].click()
         XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5))
-
         app.buttons["Cancel"].click()
     }
 
@@ -154,6 +164,9 @@ final class BerthlyUITests: XCTestCase {
         measure(metrics: [XCTMemoryMetric(), XCTCPUMetric()], options: options) {
             for _ in 0..<5 {
                 runButton.click()
+                let containerOption = app.buttons["Run Container"]
+                _ = containerOption.waitForExistence(timeout: 5)
+                containerOption.click()
                 let cancelButton = app.buttons["Cancel"]
                 _ = cancelButton.waitForExistence(timeout: 5)
                 cancelButton.click()
