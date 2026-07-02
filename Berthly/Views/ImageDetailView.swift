@@ -1,0 +1,395 @@
+
+import SwiftUI
+
+// MARK: - ImageDetailView
+
+struct ImageDetailView: View {
+    let imageID: String
+    @Environment(ContainerServiceBase.self) private var service
+
+    var body: some View {
+        if service.images.contains(where: { $0.id == imageID }) {
+            ImageDetailContent(imageID: imageID)
+        } else {
+            ContentUnavailableView("Image not found", systemImage: "shippingbox")
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+// MARK: - ImageDetailContent
+
+private struct RebuildParams: Identifiable {
+    let id = UUID()
+    let tag: String
+    let context: BuildContext?
+}
+
+private struct ImageDetailContent: View {
+    let imageID: String
+    @Environment(ContainerServiceBase.self) private var service
+    @State private var errorMessage: String?
+    @State private var rebuildParams: RebuildParams?
+
+    private var image: ContainerImage? {
+        service.images.first(where: { $0.id == imageID })
+    }
+
+    private var inspect: ImageInspectData? {
+        service.imageInspectData[imageID]
+    }
+
+    var body: some View {
+        if let image {
+            VStack(alignment: .leading, spacing: 0) {
+                detailHeader(image)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, 16)
+
+                Divider()
+
+                if let inspect {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            PlatformsSection(indexDigest: image.id, variants: inspect.variants)
+
+                            let configRows = configRows(inspect)
+                            if !configRows.isEmpty {
+                                InspectSection(title: "Config", rows: configRows, monoKeys: ["Command", "Work Dir"])
+                            }
+                            if !inspect.env.isEmpty {
+                                MonoListSection(title: "Environment", items: inspect.env)
+                            }
+                            if !inspect.labels.isEmpty {
+                                LabelsSection(labels: inspect.labels)
+                            }
+                            if !inspect.history.isEmpty {
+                                HistorySection(history: inspect.history)
+                            }
+                        }
+                        .padding(24)
+                    }
+                } else {
+                    ContentUnavailableView("Details unavailable", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .sheet(item: $rebuildParams) { params in
+                BuildImageSheet(
+                    service: service,
+                    prefillTag: params.tag,
+                    prefillContext: params.context
+                )
+            }
+        }
+    }
+
+    private func configRows(_ d: ImageInspectData) -> [(String, String)] {
+        var rows: [(String, String)] = []
+        if !d.command.isEmpty   { rows.append(("Command",     d.command)) }
+        if !d.workDir.isEmpty   { rows.append(("Work Dir",    d.workDir)) }
+        if !d.user.isEmpty      { rows.append(("User",        d.user)) }
+        if !d.stopSignal.isEmpty { rows.append(("Stop Signal", d.stopSignal)) }
+        return rows
+    }
+
+    private func detailHeader(_ image: ContainerImage) -> some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(systemName: image.source == .built ? "hammer" : "shippingbox")
+                .font(.title2)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(image.fullName)
+                    .font(.title3.weight(.semibold))
+                    .fontDesign(.monospaced)
+                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    ForEach(image.arch, id: \.self) { arch in
+                        Text(arch)
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+                    }
+                    if image.sizeBytes > 0 {
+                        Text(formatSize(image.sizeBytes)).font(.caption).foregroundStyle(.secondary)
+                    }
+                    if image.created != "–" {
+                        Text("·").font(.caption).foregroundStyle(.tertiary)
+                        Text(image.created).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .layoutPriority(1)
+
+            Spacer(minLength: 8)
+
+            if image.source == .built {
+                Button {
+                    rebuildParams = RebuildParams(
+                        tag: image.fullName,
+                        context: service.buildContext(for: image.fullName)
+                    )
+                } label: {
+                    Label("Rebuild", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(image.id, forType: .string)
+            } label: {
+                Label("Copy Digest", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
+    private func formatSize(_ bytes: Int64) -> String {
+        let mb = Double(bytes) / 1_048_576
+        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
+        if mb >= 1    { return String(format: "%.0f MB", mb) }
+        let kb = Double(bytes) / 1024
+        if kb >= 1    { return String(format: "%.0f KB", kb) }
+        return "\(bytes) B"
+    }
+}
+
+// MARK: - Platforms Section
+
+private struct PlatformsSection: View {
+    let indexDigest: String
+    let variants: [ImageVariantInfo]
+
+    var body: some View {
+        DetailSection(title: "Platforms") {
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Text("Index")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 64, alignment: .leading)
+                    copyableDigest(indexDigest)
+                    Spacer()
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 16)
+
+                ForEach(variants, id: \.digest) { variant in
+                    Divider().padding(.horizontal, 16)
+                    HStack {
+                        HStack(spacing: 4) {
+                            Text(variant.arch)
+                                .font(.system(.callout, design: .monospaced, weight: .medium))
+                            if let v = variant.archVariant {
+                                Text(v).font(.caption).foregroundStyle(.tertiary)
+                            }
+                        }
+                        .frame(width: 80, alignment: .leading)
+                        Text(variantSize(variant.sizeBytes))
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        copyableDigest(variant.digest)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+
+    @ViewBuilder
+    private func copyableDigest(_ d: String) -> some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(d, forType: .string)
+        } label: {
+            Text(shortDigest(d))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.tertiary)
+        }
+        .buttonStyle(.plain)
+        .help("Click to copy · \(d)")
+    }
+
+    private func shortDigest(_ d: String) -> String {
+        let hex = d.hasPrefix("sha256:") ? String(d.dropFirst(7)) : d
+        return "sha256:\(hex.prefix(12))…"
+    }
+
+    private func variantSize(_ bytes: Int64) -> String {
+        let mb = Double(bytes) / 1_048_576
+        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
+        if mb >= 1    { return String(format: "%.0f MB", mb) }
+        return "<1 MB"
+    }
+}
+
+// MARK: - Generic key/value rows
+
+private struct InspectSection: View {
+    let title: String
+    let rows: [(String, String)]
+    let monoKeys: [String]
+
+    var body: some View {
+        DetailSection(title: title) {
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { idx, pair in
+                    HStack(alignment: .top, spacing: 0) {
+                        Text(pair.0)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 100, alignment: .leading)
+                        Text(pair.1)
+                            .fontDesign(monoKeys.contains(pair.0) ? .monospaced : .default)
+                            .textSelection(.enabled)
+                            .lineLimit(3)
+                        Spacer()
+                    }
+                    .font(.callout)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+                    if idx < rows.count - 1 {
+                        Divider().padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - Mono list (env vars)
+
+private struct MonoListSection: View {
+    let title: String
+    let items: [String]
+
+    var body: some View {
+        DetailSection(title: title) {
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.offset) { idx, item in
+                    HStack {
+                        Text(item)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    if idx < items.count - 1 {
+                        Divider().padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - Labels
+
+private struct LabelsSection: View {
+    let labels: [String: String]
+    private var sorted: [(String, String)] { labels.sorted { $0.key < $1.key } }
+
+    var body: some View {
+        DetailSection(title: "Labels") {
+            VStack(spacing: 0) {
+                ForEach(Array(sorted.enumerated()), id: \.offset) { idx, pair in
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(pair.0).font(.system(size: 10, design: .monospaced)).foregroundStyle(.secondary)
+                        Text(pair.1).font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    if idx < sorted.count - 1 {
+                        Divider().padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - History
+
+private struct HistorySection: View {
+    let history: [String]
+
+    var body: some View {
+        DetailSection(title: "History") {
+            VStack(spacing: 0) {
+                ForEach(Array(history.enumerated()), id: \.offset) { idx, line in
+                    HStack(alignment: .top, spacing: 10) {
+                        Text("\(idx + 1)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 24, alignment: .trailing)
+                        Text(line)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(2)
+                        Spacer()
+                    }
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    if idx < history.count - 1 {
+                        Divider().padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - Section wrapper
+
+private struct DetailSection<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
+            content()
+        }
+    }
+}
+
+// MARK: - Preview
+
+#Preview {
+    let mock = MockContainerService()
+    ImageDetailView(imageID: mock.images[0].id)
+        .environment(mock as ContainerServiceBase)
+        .frame(width: 480, height: 700)
+}
+
+#Preview("Pulled image – no inspect data") {
+    let mock = MockContainerService()
+    ImageDetailView(imageID: mock.images[4].id)
+        .environment(mock as ContainerServiceBase)
+        .frame(width: 480, height: 700)
+}

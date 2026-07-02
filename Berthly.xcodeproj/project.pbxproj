@@ -1,0 +1,717 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F86446362FF182CC0064946B /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446352FF182CC0064946B /* ContainerAPIClient */; };
+		F86446382FF182CC0064946B /* ContainerBuild in Frameworks */ = {isa = PBXBuildFile; productRef = F86446372FF182CC0064946B /* ContainerBuild */; };
+		FFB4C5DBF9FC72E9430E5635 /* ContainerImagesServiceClient in Frameworks */ = {isa = PBXBuildFile; productRef = 5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */; };
+		74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 96820BCC7D9F569A1EA97615 /* NIOCore */; };
+		3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = F66A582A8B95234B7827C89F /* NIOPosix */; };
+		B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = ECDA028CF797475EAD0334FE /* ContainerPlugin */; };
+		F864463A2FF182CC0064946B /* ContainerLog in Frameworks */ = {isa = PBXBuildFile; productRef = F86446392FF182CC0064946B /* ContainerLog */; };
+		F864463C2FF182CC0064946B /* ContainerNetworkClient in Frameworks */ = {isa = PBXBuildFile; productRef = F864463B2FF182CC0064946B /* ContainerNetworkClient */; };
+		F864463E2FF182CC0064946B /* ContainerResource in Frameworks */ = {isa = PBXBuildFile; productRef = F864463D2FF182CC0064946B /* ContainerResource */; };
+		F86446402FF182CC0064946B /* ContainerRuntimeClient in Frameworks */ = {isa = PBXBuildFile; productRef = F864463F2FF182CC0064946B /* ContainerRuntimeClient */; };
+		F86446422FF182CC0064946B /* ContainerRuntimeLinuxClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446412FF182CC0064946B /* ContainerRuntimeLinuxClient */; };
+		F86446442FF182CC0064946B /* ContainerVersion in Frameworks */ = {isa = PBXBuildFile; productRef = F86446432FF182CC0064946B /* ContainerVersion */; };
+		F86446462FF182CC0064946B /* ContainerXPC in Frameworks */ = {isa = PBXBuildFile; productRef = F86446452FF182CC0064946B /* ContainerXPC */; };
+		F86446482FF182CC0064946B /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446472FF182CC0064946B /* MachineAPIClient */; };
+		F864464A2FF182CC0064946B /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = F86446492FF182CC0064946B /* TerminalProgress */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F80E29522FF1647500094CE8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F80E293C2FF1647500094CE8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F80E29432FF1647500094CE8;
+			remoteInfo = Berthly;
+		};
+		F80E295C2FF1647500094CE8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F80E293C2FF1647500094CE8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F80E29432FF1647500094CE8;
+			remoteInfo = Berthly;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		F80E29442FF1647500094CE8 /* Berthly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Berthly.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		F80E29512FF1647500094CE8 /* BerthlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BerthlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BerthlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		F80E29462FF1647500094CE8 /* Berthly */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Berthly;
+			sourceTree = "<group>";
+		};
+		F80E29542FF1647500094CE8 /* BerthlyTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BerthlyTests;
+			sourceTree = "<group>";
+		};
+		F80E295E2FF1647500094CE8 /* BerthlyUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BerthlyUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		F80E29412FF1647500094CE8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F864463E2FF182CC0064946B /* ContainerResource in Frameworks */,
+				F86446442FF182CC0064946B /* ContainerVersion in Frameworks */,
+				F86446462FF182CC0064946B /* ContainerXPC in Frameworks */,
+				F864463A2FF182CC0064946B /* ContainerLog in Frameworks */,
+				F86446402FF182CC0064946B /* ContainerRuntimeClient in Frameworks */,
+				F86446362FF182CC0064946B /* ContainerAPIClient in Frameworks */,
+				F86446482FF182CC0064946B /* MachineAPIClient in Frameworks */,
+				F864464A2FF182CC0064946B /* TerminalProgress in Frameworks */,
+				F864463C2FF182CC0064946B /* ContainerNetworkClient in Frameworks */,
+				F86446382FF182CC0064946B /* ContainerBuild in Frameworks */,
+				F86446422FF182CC0064946B /* ContainerRuntimeLinuxClient in Frameworks */,
+				FFB4C5DBF9FC72E9430E5635 /* ContainerImagesServiceClient in Frameworks */,
+				74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */,
+				3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */,
+				B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E294E2FF1647500094CE8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E29582FF1647500094CE8 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		F80E293B2FF1647500094CE8 = {
+			isa = PBXGroup;
+			children = (
+				F80E29462FF1647500094CE8 /* Berthly */,
+				F80E29542FF1647500094CE8 /* BerthlyTests */,
+				F80E295E2FF1647500094CE8 /* BerthlyUITests */,
+				F80E29452FF1647500094CE8 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F80E29452FF1647500094CE8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F80E29442FF1647500094CE8 /* Berthly.app */,
+				F80E29512FF1647500094CE8 /* BerthlyTests.xctest */,
+				F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		F80E29432FF1647500094CE8 /* Berthly */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F80E29652FF1647500094CE8 /* Build configuration list for PBXNativeTarget "Berthly" */;
+			buildPhases = (
+				F80E29402FF1647500094CE8 /* Sources */,
+				F80E29412FF1647500094CE8 /* Frameworks */,
+				F80E29422FF1647500094CE8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				F80E29462FF1647500094CE8 /* Berthly */,
+			);
+			name = Berthly;
+			packageProductDependencies = (
+				F86446352FF182CC0064946B /* ContainerAPIClient */,
+				F86446372FF182CC0064946B /* ContainerBuild */,
+				5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */,
+				F86446392FF182CC0064946B /* ContainerLog */,
+				F864463B2FF182CC0064946B /* ContainerNetworkClient */,
+				F864463D2FF182CC0064946B /* ContainerResource */,
+				F864463F2FF182CC0064946B /* ContainerRuntimeClient */,
+				F86446412FF182CC0064946B /* ContainerRuntimeLinuxClient */,
+				F86446432FF182CC0064946B /* ContainerVersion */,
+				F86446452FF182CC0064946B /* ContainerXPC */,
+				F86446472FF182CC0064946B /* MachineAPIClient */,
+				F86446492FF182CC0064946B /* TerminalProgress */,
+				96820BCC7D9F569A1EA97615 /* NIOCore */,
+				F66A582A8B95234B7827C89F /* NIOPosix */,
+				ECDA028CF797475EAD0334FE /* ContainerPlugin */,
+			);
+			productName = Berthly;
+			productReference = F80E29442FF1647500094CE8 /* Berthly.app */;
+			productType = "com.apple.product-type.application";
+		};
+		F80E29502FF1647500094CE8 /* BerthlyTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F80E29682FF1647500094CE8 /* Build configuration list for PBXNativeTarget "BerthlyTests" */;
+			buildPhases = (
+				F80E294D2FF1647500094CE8 /* Sources */,
+				F80E294E2FF1647500094CE8 /* Frameworks */,
+				F80E294F2FF1647500094CE8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F80E29532FF1647500094CE8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F80E29542FF1647500094CE8 /* BerthlyTests */,
+			);
+			name = BerthlyTests;
+			packageProductDependencies = (
+			);
+			productName = BerthlyTests;
+			productReference = F80E29512FF1647500094CE8 /* BerthlyTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		F80E295A2FF1647500094CE8 /* BerthlyUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F80E296B2FF1647500094CE8 /* Build configuration list for PBXNativeTarget "BerthlyUITests" */;
+			buildPhases = (
+				F80E29572FF1647500094CE8 /* Sources */,
+				F80E29582FF1647500094CE8 /* Frameworks */,
+				F80E29592FF1647500094CE8 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F80E295D2FF1647500094CE8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F80E295E2FF1647500094CE8 /* BerthlyUITests */,
+			);
+			name = BerthlyUITests;
+			packageProductDependencies = (
+			);
+			productName = BerthlyUITests;
+			productReference = F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F80E293C2FF1647500094CE8 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					F80E29432FF1647500094CE8 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					F80E29502FF1647500094CE8 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F80E29432FF1647500094CE8;
+					};
+					F80E295A2FF1647500094CE8 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F80E29432FF1647500094CE8;
+					};
+				};
+			};
+			buildConfigurationList = F80E293F2FF1647500094CE8 /* Build configuration list for PBXProject "Berthly" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = F80E293B2FF1647500094CE8;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */,
+				E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F80E29452FF1647500094CE8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				F80E29432FF1647500094CE8 /* Berthly */,
+				F80E29502FF1647500094CE8 /* BerthlyTests */,
+				F80E295A2FF1647500094CE8 /* BerthlyUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		F80E29422FF1647500094CE8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E294F2FF1647500094CE8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E29592FF1647500094CE8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		F80E29402FF1647500094CE8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E294D2FF1647500094CE8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F80E29572FF1647500094CE8 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		F80E29532FF1647500094CE8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F80E29432FF1647500094CE8 /* Berthly */;
+			targetProxy = F80E29522FF1647500094CE8 /* PBXContainerItemProxy */;
+		};
+		F80E295D2FF1647500094CE8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F80E29432FF1647500094CE8 /* Berthly */;
+			targetProxy = F80E295C2FF1647500094CE8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		F80E29632FF1647500094CE8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		F80E29642FF1647500094CE8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		F80E29662FF1647500094CE8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.Berthly;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F80E29672FF1647500094CE8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = NO;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.Berthly;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				REGISTER_APP_GROUPS = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F80E29692FF1647500094CE8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Berthly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Berthly";
+			};
+			name = Debug;
+		};
+		F80E296A2FF1647500094CE8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.5;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Berthly.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Berthly";
+			};
+			name = Release;
+		};
+		F80E296C2FF1647500094CE8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Berthly;
+			};
+			name = Debug;
+		};
+		F80E296D2FF1647500094CE8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Berthly;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		F80E293F2FF1647500094CE8 /* Build configuration list for PBXProject "Berthly" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F80E29632FF1647500094CE8 /* Debug */,
+				F80E29642FF1647500094CE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F80E29652FF1647500094CE8 /* Build configuration list for PBXNativeTarget "Berthly" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F80E29662FF1647500094CE8 /* Debug */,
+				F80E29672FF1647500094CE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F80E29682FF1647500094CE8 /* Build configuration list for PBXNativeTarget "BerthlyTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F80E29692FF1647500094CE8 /* Debug */,
+				F80E296A2FF1647500094CE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		F80E296B2FF1647500094CE8 /* Build configuration list for PBXNativeTarget "BerthlyUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F80E296C2FF1647500094CE8 /* Debug */,
+				F80E296D2FF1647500094CE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/container";
+			requirement = {
+				kind = exactVersion;
+				version = 1.0.0;
+			};
+		};
+		E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-nio.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.101.2;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		F86446352FF182CC0064946B /* ContainerAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerAPIClient;
+		};
+		F86446372FF182CC0064946B /* ContainerBuild */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerBuild;
+		};
+		F86446392FF182CC0064946B /* ContainerLog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerLog;
+		};
+		5AACB2A4268291A3C9712767 /* ContainerImagesServiceClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerImagesService;
+		};
+		96820BCC7D9F569A1EA97615 /* NIOCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOCore;
+		};
+		ECDA028CF797475EAD0334FE /* ContainerPlugin */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerPlugin;
+		};
+		F66A582A8B95234B7827C89F /* NIOPosix */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */;
+			productName = NIOPosix;
+		};
+		F864463B2FF182CC0064946B /* ContainerNetworkClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerNetworkClient;
+		};
+		F864463D2FF182CC0064946B /* ContainerResource */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerResource;
+		};
+		F864463F2FF182CC0064946B /* ContainerRuntimeClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerRuntimeClient;
+		};
+		F86446412FF182CC0064946B /* ContainerRuntimeLinuxClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerRuntimeLinuxClient;
+		};
+		F86446432FF182CC0064946B /* ContainerVersion */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerVersion;
+		};
+		F86446452FF182CC0064946B /* ContainerXPC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = ContainerXPC;
+		};
+		F86446472FF182CC0064946B /* MachineAPIClient */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = MachineAPIClient;
+		};
+		F86446492FF182CC0064946B /* TerminalProgress */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;
+			productName = TerminalProgress;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = F80E293C2FF1647500094CE8 /* Project object */;
+}
