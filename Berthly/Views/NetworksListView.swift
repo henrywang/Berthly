@@ -69,7 +69,7 @@ private struct NetworkRow: View {
                         Image(systemName: "trash")
                             .foregroundStyle(network.isDefault ? Color.secondary : Color.red)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.hoverIcon)
                     .disabled(network.isDefault)
                     .help(network.isDefault ? "The default network can't be deleted" : "Delete Network")
                 } else {

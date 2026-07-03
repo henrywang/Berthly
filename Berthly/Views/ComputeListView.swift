@@ -120,7 +120,7 @@ private struct ContainerComputeRow: View {
                     Image(systemName: "trash")
                         .foregroundStyle(container.status == .running ? Color.secondary : Color.red)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.hoverIcon)
                 .disabled(container.status == .running)
                 .help(container.status == .running ? "Stop the container first" : "Delete Container")
             } else if !container.portsDisplayString.isEmpty {
@@ -185,7 +185,7 @@ private struct MachineComputeRow: View {
                     Image(systemName: "trash")
                         .foregroundStyle(machine.status == .running ? Color.secondary : Color.red)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.hoverIcon)
                 .disabled(machine.status == .running)
                 .help(machine.status == .running ? "Stop the machine first" : "Delete Machine")
             } else {

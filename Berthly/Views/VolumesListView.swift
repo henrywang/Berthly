@@ -70,7 +70,7 @@ private struct VolumeRow: View {
                         Image(systemName: "trash")
                             .foregroundStyle(.red)
                     }
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.hoverIcon)
                     .help("Delete Volume")
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {

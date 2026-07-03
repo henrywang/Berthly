@@ -85,14 +85,14 @@ private struct ImageRow: View {
                             Image(systemName: "play.fill")
                                 .foregroundStyle(Color.berthlyAccent)
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.hoverIcon)
                         .help("Run from this image")
 
                         Button(role: .destructive) { showDeleteConfirm = true } label: {
                             Image(systemName: "trash")
                                 .foregroundStyle(.red)
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.hoverIcon)
                         .help("Delete Image")
                     }
                 } else {
