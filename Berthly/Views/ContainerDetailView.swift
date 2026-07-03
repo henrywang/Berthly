@@ -29,7 +29,6 @@ private struct ContainerDetailContent: View {
     @State private var isWorking    = false
     @State private var errorMessage: String?
     @State private var showStopConfirm   = false
-    @State private var showDeleteConfirm = false
 
     // Reads directly from service so every `container.xxx` access in body/computed-props
     // is tracked by @Observable — re-renders immediately when status/stats change.
@@ -97,12 +96,6 @@ private struct ContainerDetailContent: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The container process will be terminated.")
-        }
-        .alert("Delete \(container.name)?", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive) { run { try await service.deleteContainer(container.id) } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone.")
         }
         .alert("Error", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") { errorMessage = nil }
@@ -177,11 +170,6 @@ private struct ContainerDetailContent: View {
                 } label: {
                     Label("Copy ID", systemImage: "doc.on.doc")
                 }
-                Divider()
-                Button(role: .destructive) { showDeleteConfirm = true } label: {
-                    Label("Delete…", systemImage: "trash")
-                }
-                .disabled(container.status == .running)
             } label: {
                 Image(systemName: "ellipsis")
             }

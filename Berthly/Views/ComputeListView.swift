@@ -95,6 +95,11 @@ struct ComputeListView: View {
 
 private struct ContainerComputeRow: View {
     let container: Container
+    @Environment(ContainerServiceBase.self) private var service
+    @State private var isHovered = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -110,13 +115,44 @@ private struct ContainerComputeRow: View {
 
             Spacer()
 
-            if !container.portsDisplayString.isEmpty {
+            if isHovered {
+                Button(role: .destructive) { showDeleteConfirm = true } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(container.status == .running ? Color.secondary : Color.red)
+                }
+                .buttonStyle(.borderless)
+                .disabled(container.status == .running)
+                .help(container.status == .running ? "Stop the container first" : "Delete Container")
+            } else if !container.portsDisplayString.isEmpty {
                 Text(container.portsDisplayString)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
         }
         .padding(.vertical, 2)
+        .opacity(isDeleting ? 0.4 : 1)
+        .onHover { isHovered = $0 }
+        .alert("Delete \(container.name)?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do { try await service.deleteContainer(container.id) }
+                    catch { errorMessage = error.localizedDescription }
+                    isDeleting = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone.")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 }
 
@@ -124,6 +160,11 @@ private struct ContainerComputeRow: View {
 
 private struct MachineComputeRow: View {
     let machine: Machine
+    @Environment(ContainerServiceBase.self) private var service
+    @State private var isHovered = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
@@ -139,11 +180,44 @@ private struct MachineComputeRow: View {
 
             Spacer()
 
-            Text(machine.resources)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
+            if isHovered {
+                Button(role: .destructive) { showDeleteConfirm = true } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(machine.status == .running ? Color.secondary : Color.red)
+                }
+                .buttonStyle(.borderless)
+                .disabled(machine.status == .running)
+                .help(machine.status == .running ? "Stop the machine first" : "Delete Machine")
+            } else {
+                Text(machine.resources)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.vertical, 2)
+        .opacity(isDeleting ? 0.4 : 1)
+        .onHover { isHovered = $0 }
+        .alert("Delete \(machine.name)?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do { try await service.deleteMachine(machine.id) }
+                    catch { errorMessage = error.localizedDescription }
+                    isDeleting = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone.")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 }
 

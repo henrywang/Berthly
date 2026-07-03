@@ -23,7 +23,6 @@ private struct MachineDetailContent: View {
     @State private var isWorking         = false
     @State private var errorMessage: String?
     @State private var showStopConfirm   = false
-    @State private var showDeleteConfirm = false
 
     private var machine: Machine? {
         service.machines.first(where: { $0.id == machineID })
@@ -73,12 +72,6 @@ private struct MachineDetailContent: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("The virtual machine will be shut down.")
-            }
-            .alert("Delete \(machine.name)?", isPresented: $showDeleteConfirm) {
-                Button("Delete", role: .destructive) { run { try await service.deleteMachine(machine.id) } }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("This action cannot be undone.")
             }
             .alert("Error", isPresented: Binding(
                 get: { errorMessage != nil },
@@ -147,11 +140,6 @@ private struct MachineDetailContent: View {
                 } label: {
                     Label("Copy ID", systemImage: "doc.on.doc")
                 }
-                Divider()
-                Button(role: .destructive) { showDeleteConfirm = true } label: {
-                    Label("Delete…", systemImage: "trash")
-                }
-                .disabled(machine.status == .running)
             } label: {
                 Image(systemName: "ellipsis")
             }
