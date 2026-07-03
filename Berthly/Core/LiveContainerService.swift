@@ -7,6 +7,7 @@ import ContainerImagesServiceClient
 import ContainerResource
 import Containerization
 import ContainerizationError
+import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
 import Logging
@@ -315,7 +316,7 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func fetchNetworks() async throws -> [Network] {
-        try await NetworkClient().list().map { r in mapNetwork(r) }
+        try await NetworkClient().list().map { r in Self.mapNetwork(r) }
     }
 
     private func fetchMachines() async throws -> [Machine] {
@@ -444,13 +445,13 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    private func mapNetwork(_ r: NetworkResource) -> Network {
+    nonisolated static func mapNetwork(_ r: NetworkResource) -> Network {
         Network(
             id: r.id,
             name: r.name,
             driver: r.configuration.plugin.lowercased().contains("host") ? .hostOnly : .nat,
-            subnet: "–",
-            gateway: "–",
+            subnet: r.status.ipv4Subnet.description,
+            gateway: r.status.ipv4Gateway.description,
             isDefault: r.name == NetworkClient.defaultNetworkName,
             scope: "local",
             ipv6Enabled: r.configuration.ipv6Subnet != nil,

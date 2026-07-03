@@ -6,6 +6,8 @@
 //
 
 import ContainerAPIClient
+import ContainerResource
+import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
 import MachineAPIClient
@@ -412,6 +414,44 @@ struct MachineCreateMappingTests {
             for: MachineCreateOptions(reference: "alpine:3.22", memory: "", homeMount: "")
         )
         #expect(overrides.isEmpty)
+    }
+}
+
+// MARK: - LiveContainerService.mapNetwork (NetworkResource -> Network)
+
+struct NetworkMappingTests {
+
+    private func makeResource(name: String, subnet: String, gateway: String) throws -> NetworkResource {
+        let configuration = try NetworkConfiguration(
+            name: name,
+            mode: .nat,
+            plugin: "container-network-vmnet"
+        )
+        let status = NetworkStatus(
+            ipv4Subnet: try CIDRv4(subnet),
+            ipv4Gateway: try IPv4Address(gateway),
+            ipv6Subnet: nil
+        )
+        return NetworkResource(configuration: configuration, status: status)
+    }
+
+    @Test func mapNetworkReadsSubnetAndGatewayFromRuntimeStatus() throws {
+        let resource = try makeResource(name: "default", subnet: "192.168.64.0/24", gateway: "192.168.64.1")
+        let network = LiveContainerService.mapNetwork(resource)
+        #expect(network.subnet == "192.168.64.0/24")
+        #expect(network.gateway == "192.168.64.1")
+    }
+
+    @Test func mapNetworkFlagsTheDefaultNetworkByName() throws {
+        let resource = try makeResource(name: "default", subnet: "192.168.64.0/24", gateway: "192.168.64.1")
+        let network = LiveContainerService.mapNetwork(resource)
+        #expect(network.isDefault == true)
+    }
+
+    @Test func mapNetworkDoesNotFlagCustomNetworksAsDefault() throws {
+        let resource = try makeResource(name: "app-net", subnet: "192.168.65.0/24", gateway: "192.168.65.1")
+        let network = LiveContainerService.mapNetwork(resource)
+        #expect(network.isDefault == false)
     }
 }
 

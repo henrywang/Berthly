@@ -305,13 +305,20 @@ struct RunContainerSheet: View {
         StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", entries: $tmpfs)
     }
 
+    private var defaultNetworkHelpText: String {
+        guard let defaultNetwork = service.networks.first(where: \.isDefault) else {
+            return "Attach to one or more networks. Leave empty for the standard network."
+        }
+        return "Attach to one or more networks. Leave empty to use the standard network (\(defaultNetwork.subnet))."
+    }
+
     @ViewBuilder
     private var networkFields: some View {
         PortRowsEditor(title: "Ports", entries: $ports)
         StringListEditor(
             title: "Networks",
             placeholder: "name, or name,mtu=1400",
-            helpText: "Attach to one or more networks. Leave empty for the standard network.",
+            helpText: defaultNetworkHelpText,
             entries: $networks
         )
     }
