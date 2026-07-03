@@ -41,7 +41,7 @@ struct BerthlyApp: App {
             Text("Berthly")
                 .padding()
         } label: {
-            Image(systemName: "shippingbox.fill")
+            Image("MenuBarIcon")
         }
         .menuBarExtraStyle(.window)
     }
