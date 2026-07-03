@@ -80,7 +80,7 @@ private struct ImageRow: View {
                 Spacer()
 
                 if isHovered {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 12) {
                         Button { showRunSheet = true } label: {
                             Image(systemName: "play.fill")
                                 .foregroundStyle(Color.berthlyAccent)
