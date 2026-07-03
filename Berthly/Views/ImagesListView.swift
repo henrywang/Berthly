@@ -42,6 +42,7 @@ private struct ImageRow: View {
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
     @State private var errorMessage: String?
+    @State private var showRunSheet = false
 
     private var image: ContainerImage? {
         service.images.first(where: { $0.id == imageID })
@@ -79,12 +80,21 @@ private struct ImageRow: View {
                 Spacer()
 
                 if isHovered {
-                    Button(role: .destructive) { showDeleteConfirm = true } label: {
-                        Image(systemName: "trash")
-                            .foregroundStyle(.red)
+                    HStack(spacing: 4) {
+                        Button { showRunSheet = true } label: {
+                            Image(systemName: "play.fill")
+                                .foregroundStyle(Color.berthlyAccent)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Run from this image")
+
+                        Button(role: .destructive) { showDeleteConfirm = true } label: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.red)
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Delete Image")
                     }
-                    .buttonStyle(.borderless)
-                    .help("Delete Image")
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(formatSize(image.sizeBytes))
@@ -115,6 +125,9 @@ private struct ImageRow: View {
                 } else {
                     Text("This will remove the image from local storage.")
                 }
+            }
+            .sheet(isPresented: $showRunSheet) {
+                RunContainerSheet(service: service, initialReference: image.fullName)
             }
             .alert("Error", isPresented: Binding(
                 get: { errorMessage != nil },

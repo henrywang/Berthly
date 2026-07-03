@@ -93,8 +93,9 @@ struct RunContainerSheet: View {
 
     @State private var state = RunState()
 
-    init(service: ContainerServiceBase) {
+    init(service: ContainerServiceBase, initialReference: String = "") {
         self.service = service
+        _reference = State(initialValue: initialReference)
     }
 
     var body: some View {
