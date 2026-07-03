@@ -163,18 +163,15 @@ private struct ContainerDetailContent: View {
                 .help("Start")
             }
 
-            Menu {
-                Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(container.id, forType: .string)
-                } label: {
-                    Label("Copy ID", systemImage: "doc.on.doc")
-                }
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(container.id, forType: .string)
             } label: {
-                Image(systemName: "ellipsis")
+                Label("Copy ID", systemImage: "doc.on.doc")
             }
-            .menuIndicator(.hidden)
+            .labelStyle(.iconOnly)
             .buttonStyle(.bordered)
+            .help("Copy ID")
         }
     }
 
