@@ -113,13 +113,6 @@ private struct MachineDetailContent: View {
                 .tint(.statusError)
                 .disabled(isWorking)
                 .help("Stop")
-
-                Button { tab = .terminal } label: {
-                    Label("Shell", systemImage: "terminal")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.bordered)
-                .help("Shell")
             } else {
                 Button {
                     run { try await service.startMachine(machine.id) }

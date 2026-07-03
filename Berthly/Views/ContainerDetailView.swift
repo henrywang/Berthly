@@ -140,13 +140,6 @@ private struct ContainerDetailContent: View {
                 .tint(.statusError)
                 .disabled(isWorking)
                 .help("Stop")
-
-                Button { tab = .terminal } label: {
-                    Label("Shell", systemImage: "terminal")
-                }
-                .labelStyle(.iconOnly)
-                .buttonStyle(.bordered)
-                .help("Shell")
             } else {
                 Button {
                     run {
