@@ -162,16 +162,6 @@ private struct ContainerDetailContent: View {
                 .disabled(isWorking)
                 .help("Start")
             }
-
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(container.id, forType: .string)
-            } label: {
-                Label("Copy ID", systemImage: "doc.on.doc")
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
-            .help("Copy ID")
         }
     }
 

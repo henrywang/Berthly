@@ -132,16 +132,6 @@ private struct MachineDetailContent: View {
                 .disabled(isWorking)
                 .help("Start")
             }
-
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(machine.id, forType: .string)
-            } label: {
-                Label("Copy ID", systemImage: "doc.on.doc")
-            }
-            .labelStyle(.iconOnly)
-            .buttonStyle(.bordered)
-            .help("Copy ID")
         }
     }
 
