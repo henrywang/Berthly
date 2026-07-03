@@ -588,6 +588,11 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    override func deleteNetwork(_ id: String) async throws {
+        try await NetworkClient().delete(id: id)
+        await refresh()
+    }
+
     /// Resolves the Dockerfile to build from: an explicit path if given, else the CLI's own
     /// fallback (`Dockerfile`, then `Containerfile`, in `contextPath`) via `BuildFile.resolvePath`.
     nonisolated static func resolveDockerfilePath(for options: BuildOptions) throws -> String {

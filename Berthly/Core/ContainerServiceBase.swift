@@ -45,6 +45,7 @@ class ContainerServiceBase {
     func deleteMachine(_ id: String) async throws {}
     func deleteImage(_ reference: String) async throws {}
     func deleteVolume(_ name: String) async throws {}
+    func deleteNetwork(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
     func startDaemon() async {}

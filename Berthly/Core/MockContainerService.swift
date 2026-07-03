@@ -147,6 +147,10 @@ final class MockContainerService: ContainerServiceBase {
         volumes.removeAll { $0.name == name }
     }
 
+    override func deleteNetwork(_ id: String) async throws {
+        networks.removeAll { $0.id == id }
+    }
+
     override func buildImage(
         options: BuildOptions,
         onLog: @MainActor @escaping (String) -> Void

@@ -27,6 +27,10 @@ struct NetworksListView: View {
 private struct NetworkRow: View {
     let networkID: String
     @Environment(ContainerServiceBase.self) private var service
+    @State private var isHovered = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
 
     private var network: Network? {
         service.networks.first(where: { $0.id == networkID })
@@ -60,16 +64,53 @@ private struct NetworkRow: View {
 
                 Spacer()
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(endpointSummary(network))
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.primary)
-                    Text(driverLabel(network.driver))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                if isHovered {
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(network.isDefault ? Color.secondary : Color.red)
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(network.isDefault)
+                    .help(network.isDefault ? "The default network can't be deleted" : "Delete Network")
+                } else {
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(endpointSummary(network))
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.primary)
+                        Text(driverLabel(network.driver))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
             .padding(.vertical, 2)
+            .opacity(isDeleting ? 0.4 : 1)
+            .onHover { isHovered = $0 }
+            .alert("Delete \(network.name)?", isPresented: $showDeleteConfirm) {
+                Button("Delete", role: .destructive) {
+                    isDeleting = true
+                    Task {
+                        do { try await service.deleteNetwork(network.id) }
+                        catch { errorMessage = error.localizedDescription }
+                        isDeleting = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                if !network.endpoints.isEmpty {
+                    Text("This network has \(network.endpoints.count) endpoint\(network.endpoints.count == 1 ? "" : "s"). Deleting it may disrupt connectivity.")
+                } else {
+                    Text("This action cannot be undone.")
+                }
+            }
+            .alert("Error", isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )) {
+                Button("OK") { errorMessage = nil }
+            } message: {
+                Text(errorMessage ?? "")
+            }
         }
     }
 
