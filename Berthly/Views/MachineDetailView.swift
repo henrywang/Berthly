@@ -150,57 +150,216 @@ private struct OverviewTab: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 12) {
-                StatCard(
-                    label: "Disk",
-                    value: String(format: "%.1f GB", machine.diskUsedGB),
-                    detail: String(format: "of %.1f GB · %d%%", machine.diskTotalGB,
-                                   Int(machine.diskUsagePercent * 100))
-                )
-                StatCard(
-                    label: "Resources",
-                    value: machine.resources,
-                    detail: "allocated"
-                )
-                StatCard(
-                    label: "Uptime",
-                    value: machine.status == .running ? machine.uptimeString : "–",
-                    detail: machine.status == .running ? "since boot" : "not running"
-                )
-                StatCard(
-                    label: "Created",
-                    value: machine.created,
-                    detail: "date created"
-                )
-            }
+            BootPipelineSection(machine: machine)
+            DiskCapacitySection(machine: machine)
+            MountsSection(machine: machine)
             InspectSection(machine: machine)
         }
     }
 }
 
-private struct StatCard: View {
-    let label: String
-    let value: String
-    let detail: String
+// MARK: - Boot pipeline
+
+private struct BootPipelineSection: View {
+    let machine: Machine
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Text(value)
-                .font(.title2.weight(.bold))
-                .fontDesign(.rounded)
+        VStack(alignment: .leading, spacing: 10) {
+            Text("BOOT PIPELINE")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+
+            HStack(spacing: 0) {
+                PipelineBox(
+                    icon: "square.3.layers.3d",
+                    label: "OCI IMAGE",
+                    title: machine.image,
+                    caption: "pulled · read-only"
+                )
+                PipelineArrow(topLabel: "extract", bottomLabel: "create")
+                PipelineBox(
+                    icon: "cylinder.fill",
+                    label: "PERSISTENT DISK",
+                    title: "rootfs.ext4",
+                    caption: String(format: "%.1f GB · survives restarts", machine.diskTotalGB),
+                    accented: true
+                )
+                PipelineArrow(topLabel: "boot", bottomLabel: "kernel.bin")
+                PipelineBox(
+                    icon: "desktopcomputer",
+                    label: "LIGHTWEIGHT VM",
+                    title: machine.name,
+                    caption: machine.status == .running
+                        ? "systemd · Running · up \(machine.uptimeString)"
+                        : "systemd · Stopped",
+                    statusRunning: machine.status == .running
+                )
+            }
+            .padding(16)
+            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+}
+
+private struct PipelineBox: View {
+    let icon: String
+    let label: String
+    let title: String
+    let caption: String
+    var accented: Bool = false
+    var statusRunning: Bool? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                    .foregroundStyle(accented ? Color.berthlyAccent : Color.secondary)
+                Text(label)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(accented ? Color.berthlyAccent : Color.secondary)
+                Spacer(minLength: 4)
+                if let statusRunning {
+                    Circle()
+                        .fill(statusRunning ? Color.statusRunning : Color.secondary.opacity(0.4))
+                        .frame(width: 6, height: 6)
+                }
+            }
+            Text(title)
+                .font(.system(.callout, design: .monospaced, weight: .semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(detail)
+            Text(caption)
                 .font(.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.background, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(accented ? Color.berthlyAccent.opacity(0.5) : Color.secondary.opacity(0.2),
+                              lineWidth: accented ? 1.5 : 1)
+        )
+    }
+}
+
+private struct PipelineArrow: View {
+    let topLabel: String
+    let bottomLabel: String
+
+    var body: some View {
+        VStack(spacing: 2) {
+            Text(topLabel)
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+            HStack(spacing: 2) {
+                Rectangle()
+                    .fill(Color.secondary.opacity(0.3))
+                    .frame(width: 20, height: 1.5)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+            }
+            Text(bottomLabel)
+                .font(.system(size: 9, design: .monospaced))
                 .foregroundStyle(.tertiary)
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 6)
+        .fixedSize()
+    }
+}
+
+// MARK: - Disk capacity
+
+private struct DiskCapacitySection: View {
+    let machine: Machine
+
+    var body: some View {
+        HStack {
+            Text("DISK")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Text(String(format: "%.1f GB capacity", machine.diskTotalGB))
+                .font(.callout.weight(.medium))
+                .fontDesign(.rounded)
+        }
+    }
+}
+
+// MARK: - Mounts
+
+private struct MountsSection: View {
+    let machine: Machine
+
+    private struct MountRow: Identifiable {
+        let id: String
+        let icon: String
+        let path: String
+        let caption: String
+        let readOnly: Bool
+    }
+
+    private var rows: [MountRow] {
+        var result = [
+            MountRow(id: "sbin", icon: "wrench.and.screwdriver", path: "/sbin.machine",
+                      caption: "injected init helper", readOnly: true)
+        ]
+        switch machine.homeMount {
+        case .readWrite:
+            result.append(MountRow(id: "home", icon: "house.fill", path: "~", caption: "your macOS home", readOnly: false))
+        case .readOnly:
+            result.append(MountRow(id: "home", icon: "house.fill", path: "~", caption: "your macOS home", readOnly: true))
+        case .none:
+            break
+        }
+        return result
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("MOUNTS · VIRTIOFS")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+
+            VStack(spacing: 0) {
+                ForEach(rows) { row in
+                    HStack(spacing: 10) {
+                        Image(systemName: row.icon)
+                            .foregroundStyle(.secondary)
+                            .imageScale(.small)
+                            .frame(width: 16)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(row.path)
+                                .font(.system(.callout, design: .monospaced, weight: .medium))
+                            Text(row.caption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(row.readOnly ? "RO" : "RW")
+                            .font(.caption2.weight(.semibold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                (row.readOnly ? Color.statusPaused : Color.berthlyAccent).opacity(0.15),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(row.readOnly ? Color.statusPaused : Color.berthlyAccent)
+                    }
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 14)
+
+                    if row.id != rows.last?.id {
+                        Divider().padding(.horizontal, 14)
+                    }
+                }
+            }
+            .background(.background, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(.separator, lineWidth: 0.5))
+        }
     }
 }
 

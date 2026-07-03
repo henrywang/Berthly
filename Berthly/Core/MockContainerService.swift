@@ -40,9 +40,9 @@ final class MockContainerService: ContainerServiceBase {
             Network(id: "default",  name: "default",  driver: .nat,      subnet: "192.168.64.0/24", gateway: "192.168.64.1", isDefault: true,  scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e3", name: "dev",        ipv4: "192.168.64.3", kind: "MACHINE",   isRunning: true,  aliases: ["machine"]), NetworkEndpoint(id: "e4", name: "ci-runner", ipv4: "192.168.64.4", kind: "MACHINE", isRunning: false, aliases: ["machine"]), NetworkEndpoint(id: "e5", name: "default", ipv4: "192.168.64.2", kind: "MACHINE", isRunning: true, aliases: ["machine", "utility VM"])]),
         ]
         machines = [
-            Machine(id: "dev",       name: "dev",       image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20"),
-            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22",  status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–",      kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22"),
-            Machine(id: "default",   name: "default",   image: "debian:12",    status: .running, isUtility: true,  diskUsedGB: 1.2,  diskTotalGB: 4.0, uptimeString: "6d 4h",  kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15"),
+            Machine(id: "dev",       name: "dev",       image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite),
+            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22",  status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–",      kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
+            Machine(id: "default",   name: "default",   image: "debian:12",    status: .running, isUtility: true,  diskUsedGB: 1.2,  diskTotalGB: 4.0, uptimeString: "6d 4h",  kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none),
         ]
         builders = [
             Builder(id: "default", name: "default", image: "buildkit:0.13", status: .running, autoStarted: true, cpus: 2, memoryGB: 2),
@@ -116,7 +116,8 @@ final class MockContainerService: ContainerServiceBase {
         machines[i] = Machine(id: m.id, name: m.name, image: m.image, status: .running,
                               isUtility: m.isUtility, diskUsedGB: m.diskUsedGB,
                               diskTotalGB: m.diskTotalGB, uptimeString: "0m",
-                              kernel: m.kernel, resources: m.resources, created: m.created)
+                              kernel: m.kernel, resources: m.resources, created: m.created,
+                              homeMount: m.homeMount)
     }
 
     override func stopMachine(_ id: String) async throws {
@@ -125,7 +126,8 @@ final class MockContainerService: ContainerServiceBase {
         machines[i] = Machine(id: m.id, name: m.name, image: m.image, status: .stopped,
                               isUtility: m.isUtility, diskUsedGB: m.diskUsedGB,
                               diskTotalGB: m.diskTotalGB, uptimeString: "–",
-                              kernel: m.kernel, resources: m.resources, created: m.created)
+                              kernel: m.kernel, resources: m.resources, created: m.created,
+                              homeMount: m.homeMount)
     }
 
     override func deleteMachine(_ id: String) async throws {
@@ -236,6 +238,13 @@ final class MockContainerService: ContainerServiceBase {
         let cpus = options.cpus ?? 2
         let memory = options.memory ?? "4G"
 
+        let homeMount: MachineHomeMount
+        switch options.homeMount {
+        case "ro":   homeMount = .readOnly
+        case "none": homeMount = .none
+        default:     homeMount = .readWrite
+        }
+
         machines.append(Machine(
             id: id,
             name: id,
@@ -247,7 +256,8 @@ final class MockContainerService: ContainerServiceBase {
             uptimeString: options.boot ? "0m" : "–",
             kernel: "–",
             resources: "\(cpus) CPU · \(memory)",
-            created: "just now"
+            created: "just now",
+            homeMount: homeMount
         ))
     }
 

@@ -168,6 +168,12 @@ struct Network: Identifiable, Hashable {
 
 // MARK: - Machine
 
+enum MachineHomeMount: String, Hashable {
+    case readOnly
+    case readWrite
+    case none
+}
+
 struct Machine: Identifiable, Hashable {
     let id: String
     let name: String
@@ -180,6 +186,7 @@ struct Machine: Identifiable, Hashable {
     let kernel: String
     let resources: String
     let created: String
+    let homeMount: MachineHomeMount
 
     var diskUsagePercent: Double {
         guard diskTotalGB > 0 else { return 0 }

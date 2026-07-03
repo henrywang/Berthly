@@ -6,6 +6,7 @@
 //
 
 import ContainerAPIClient
+import ContainerPersistence
 import ContainerResource
 import ContainerizationExtras
 import ContainerizationOCI
@@ -452,6 +453,23 @@ struct NetworkMappingTests {
         let resource = try makeResource(name: "app-net", subnet: "192.168.65.0/24", gateway: "192.168.65.1")
         let network = LiveContainerService.mapNetwork(resource)
         #expect(network.isDefault == false)
+    }
+}
+
+// MARK: - LiveContainerService.mapHomeMount (MachineConfig.HomeMountOption -> MachineHomeMount)
+
+struct MachineHomeMountMappingTests {
+
+    @Test func mapsReadOnly() {
+        #expect(LiveContainerService.mapHomeMount(.ro) == .readOnly)
+    }
+
+    @Test func mapsReadWrite() {
+        #expect(LiveContainerService.mapHomeMount(.rw) == .readWrite)
+    }
+
+    @Test func mapsNone() {
+        #expect(LiveContainerService.mapHomeMount(.none) == .none)
     }
 }
 

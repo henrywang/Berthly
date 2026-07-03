@@ -483,8 +483,17 @@ final class LiveContainerService: ContainerServiceBase {
             uptimeString: uptimeString(from: snap.startedDate),
             kernel: "–",
             resources: resources,
-            created: created
+            created: created,
+            homeMount: Self.mapHomeMount(snap.bootConfig.homeMount)
         )
+    }
+
+    nonisolated static func mapHomeMount(_ option: MachineConfig.HomeMountOption) -> MachineHomeMount {
+        switch option {
+        case .ro:   .readOnly
+        case .rw:   .readWrite
+        case .none: .none
+        }
     }
 
     private func mapBuilder(_ snap: ContainerSnapshot) -> Builder {
