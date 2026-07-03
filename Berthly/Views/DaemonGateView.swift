@@ -24,6 +24,9 @@ struct DaemonGateView<Content: View>: View {
         case .connecting:
             progressScreen(message: "Starting container system…")
 
+        case .stopping:
+            progressScreen(message: "Stopping container system…")
+
         case .notInstalled:
             ContentUnavailableView {
                 Label("Container Not Installed", systemImage: "xmark.circle")

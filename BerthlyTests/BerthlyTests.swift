@@ -473,6 +473,55 @@ struct MachineHomeMountMappingTests {
     }
 }
 
+// MARK: - ContainerCompatibility
+
+struct ContainerCompatibilityTests {
+
+    @Test func exactMatchIsCompatible() {
+        #expect(ContainerCompatibility.isCompatible(installed: "1.0.0", required: "1.0.0"))
+    }
+
+    @Test func patchDifferenceIsCompatible() {
+        #expect(ContainerCompatibility.isCompatible(installed: "1.0.7", required: "1.0.0"))
+    }
+
+    @Test func minorDifferenceIsIncompatible() {
+        #expect(!ContainerCompatibility.isCompatible(installed: "1.1.0", required: "1.0.0"))
+    }
+
+    @Test func majorDifferenceIsIncompatible() {
+        #expect(!ContainerCompatibility.isCompatible(installed: "2.0.0", required: "1.0.0"))
+    }
+
+    @Test func untaggedBuildSuffixIsIgnored() {
+        #expect(ContainerCompatibility.isCompatible(installed: "1.0.0-3-gabcdef", required: "1.0.0"))
+    }
+
+    @Test func malformedVersionIsIncompatible() {
+        #expect(!ContainerCompatibility.isCompatible(installed: "not-a-version", required: "1.0.0"))
+    }
+
+    // Regression: `apiServerVersion` from the health-check ping is `ReleaseVersion.singleLine`'s
+    // full descriptive output, not a bare semver — "container-apiserver" contains its own hyphen,
+    // which previously broke a naive split(separator: "-") into treating "container" as the version.
+    @Test func realApiServerVersionStringIsCompatible() {
+        #expect(ContainerCompatibility.isCompatible(
+            installed: "container-apiserver version 1.0.0 (build: release, commit: abc1234)",
+            required: "1.0.0"
+        ))
+    }
+
+    @Test func extractVersionPullsNumberOutOfDescriptiveString() {
+        #expect(ContainerCompatibility.extractVersion(
+            from: "container-apiserver version 1.0.0 (build: release, commit: abc1234)"
+        ) == "1.0.0")
+    }
+
+    @Test func extractVersionReturnsNilWhenNoVersionPresent() {
+        #expect(ContainerCompatibility.extractVersion(from: "not-a-version") == nil)
+    }
+}
+
 // MARK: - MockContainerService
 
 @MainActor
@@ -505,6 +554,16 @@ struct MockContainerServiceTests {
         mock.daemonState = .installedButStopped
         await mock.startDaemon()
         #expect(mock.daemonState.isConnectedCase)
+    }
+
+    @Test func stopDaemonTransitionsConnectedToStopped() async {
+        let mock = MockContainerService()
+        mock.daemonState = .connected
+        await mock.stopDaemon()
+        guard case .installedButStopped = mock.daemonState else {
+            Issue.record("Expected .installedButStopped, got \(mock.daemonState)")
+            return
+        }
     }
 
     @Test func startContainerFlipsStatusToRunning() async throws {
@@ -630,6 +689,55 @@ struct MockContainerServiceTests {
         try await mock.pullImage(reference: "docker.io/library/redis:7")
         #expect(mock.images.count == countBefore + 1)
         #expect(mock.images.last?.source == .pulled)
+    }
+}
+
+@MainActor
+struct ContainerServiceBaseSummaryTests {
+
+    private func makeContainer(id: String, status: Berthly.ContainerStatus) -> Container {
+        Container(id: id, name: id, image: "i", status: status, ports: [], cpuPercent: 0,
+                  memoryMB: 0, memoryLimitMB: 0, networkIOString: "", uptime: "", command: "",
+                  mounts: [], networks: [], environment: [])
+    }
+
+    private func makeMachine(id: String, status: Berthly.ContainerStatus, isUtility: Bool = false) -> Machine {
+        Machine(id: id, name: id, image: "i", status: status, isUtility: isUtility, diskUsedGB: 0,
+                diskTotalGB: 0, uptimeString: "", kernel: "", resources: "", created: "",
+                homeMount: .none)
+    }
+
+    @Test func runningContainersAndErrorCountFilterByStatus() {
+        let mock = MockContainerService()
+        mock.containers = [
+            makeContainer(id: "1", status: .running),
+            makeContainer(id: "2", status: .stopped),
+            makeContainer(id: "3", status: .error),
+        ]
+        #expect(mock.runningContainers.map(\.id) == ["1"])
+        #expect(mock.errorContainerCount == 1)
+    }
+
+    @Test func runningMachinesAndErrorCountFilterByStatus() {
+        let mock = MockContainerService()
+        mock.machines = [
+            makeMachine(id: "m1", status: .running),
+            makeMachine(id: "m2", status: .stopped),
+            makeMachine(id: "m3", status: .error),
+        ]
+        #expect(mock.runningMachines.map(\.id) == ["m1"])
+        #expect(mock.errorMachineCount == 1)
+    }
+
+    @Test func runningMachinesAndErrorCountExcludeUtilityMachines() {
+        let mock = MockContainerService()
+        mock.machines = [
+            makeMachine(id: "m1", status: .running),
+            makeMachine(id: "util-running", status: .running, isUtility: true),
+            makeMachine(id: "util-error", status: .error, isUtility: true),
+        ]
+        #expect(mock.runningMachines.map(\.id) == ["m1"])
+        #expect(mock.errorMachineCount == 0)
     }
 }
 

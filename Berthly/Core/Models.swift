@@ -15,6 +15,7 @@ enum DaemonState {
     case installedButStopped
     case versionMismatch(installed: String, required: String)
     case connecting
+    case stopping
     case connected
     case error(String)
 }

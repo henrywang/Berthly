@@ -23,6 +23,7 @@ final class LiveContainerService: ContainerServiceBase {
 
     private var pollTask: Task<Void, Never>?
     private var isStarting = false
+    private var isStopping = false
     private var isBuilding = false
     private var systemConfig: ContainerSystemConfig?
     private static let log = Logger(label: "app.berthly.container")
@@ -81,11 +82,22 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func poll() async {
-        guard !isStarting else { return }
+        // While `stopDaemon()` is tearing things down, the daemon may still answer a ping for a
+        // moment — without this guard, this independent 5-second timer would see it as still
+        // `.connected` and stomp on `.stopping`, or on the `.installedButStopped` `stopDaemon()`
+        // just set, flipping the UI back to "running" for a container system that's mid-shutdown.
+        guard !isStarting && !isStopping else { return }
         do {
-            _ = try await ClientHealthCheck.ping(timeout: .seconds(5))
+            let health = try await ClientHealthCheck.ping(timeout: .seconds(5))
+            // apiServerVersion is a full descriptive string (e.g. "container-apiserver version
+            // 1.0.0 (build: release, commit: abc1234)"), not a bare version — pull just the
+            // number out for both the compatibility check and anywhere this is displayed.
+            let installedVersion = ContainerCompatibility.extractVersion(from: health.apiServerVersion) ?? health.apiServerVersion
+            installedContainerVersion = installedVersion
             await refreshAll()
-            daemonState = .connected
+            daemonState = ContainerCompatibility.isCompatible(installed: installedVersion)
+                ? .connected
+                : .versionMismatch(installed: installedVersion, required: ContainerCompatibility.requiredVersion)
         } catch {
             if isXPCConnectionError(error) {
                 daemonState = .installedButStopped
@@ -102,6 +114,7 @@ final class LiveContainerService: ContainerServiceBase {
     // to `container` under `/usr/local/bin`, confirmed on disk).
     private static let installRootPath = "/usr/local"
     private static let apiServerLabel = "com.apple.container.apiserver"
+    private static let servicePrefix = "com.apple.container."
 
     /// Native (launchd, no CLI shelling) implementation of `container system start`: registers
     /// (or restarts) the `container-apiserver` launchd service, waits for it to respond, and
@@ -109,7 +122,7 @@ final class LiveContainerService: ContainerServiceBase {
     /// this app has no interactive terminal to ask the CLI's "install the kernel? [Y/n]" prompt,
     /// and a daemon without a kernel can't run anything anyway.
     override func startDaemon() async {
-        guard !isStarting else { return }
+        guard !isStarting, !isStopping else { return }
         guard FileManager.default.fileExists(atPath: Self.apiServerExecutablePath) else {
             daemonState = .notInstalled
             return
@@ -136,6 +149,162 @@ final class LiveContainerService: ContainerServiceBase {
         // before the call below, not in a `defer` (which wouldn't fire until after `poll()` returns).
         isStarting = false
         await poll()
+    }
+
+    /// Native (launchd, no CLI shelling) implementation of `container system stop`, mirroring
+    /// `SystemStop.swift`: stops every running container on the machine — not just ones Berthly
+    /// shows; CLI-launched and machine-backed containers are included, matching the real command —
+    /// waits for them to exit, then deregisters the apiserver plus every other
+    /// `com.apple.container.*` launchd service. Every UI entry point into this must make that
+    /// blast radius explicit before calling it; this method itself doesn't ask for confirmation.
+    override func stopDaemon() async {
+        // Without this guard, the independent 5-second `poll()` timer keeps running underneath
+        // this (which can itself take 20+ seconds waiting for containers to exit) and races it —
+        // see the guard in `poll()`. `isStarting` is also checked so a stop can't overlap a
+        // start. Logged because a silent early-return here (stuck flag from a prior call that
+        // never reached its `defer`) is otherwise indistinguishable from the toggle doing nothing.
+        guard !isStarting, !isStopping else {
+            Self.log.warning("stopDaemon() skipped — already in progress", metadata: ["isStarting": "\(isStarting)", "isStopping": "\(isStopping)"])
+            return
+        }
+        isStopping = true
+        daemonState = .stopping
+        defer { isStopping = false }
+        Self.log.info("stopDaemon() starting")
+
+        let apiServerRunning = (try? await ClientHealthCheck.ping(timeout: .seconds(5))) != nil
+        Self.log.info("stopDaemon(): initial ping", metadata: ["apiServerRunning": "\(apiServerRunning)"])
+
+        if apiServerRunning {
+            let client = ContainerClient()
+            if let allContainers = try? await client.list() {
+                Self.log.info("stopDaemon(): stopping containers", metadata: ["count": "\(allContainers.count)"])
+                for snapshot in allContainers {
+                    do {
+                        try await client.stop(id: snapshot.id)
+                    } catch {
+                        Self.log.warning("stopDaemon(): failed to stop container", metadata: ["id": "\(snapshot.id)", "error": "\(error)"])
+                    }
+                }
+            } else {
+                Self.log.warning("stopDaemon(): client.list() failed before stopping containers")
+            }
+            // Matches SystemStop's shutdownTimeoutSeconds budget.
+            for _ in 0..<20 {
+                let stillRunning = (try? await client.list(filters: ContainerListFilters(status: .running))) ?? []
+                if stillRunning.isEmpty { break }
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+
+        do {
+            let domain = try ServiceManager.getDomainString()
+            let fullLabel = "\(domain)/\(Self.apiServerLabel)"
+            if apiServerRunning {
+                do {
+                    try ServiceManager.deregister(fullServiceLabel: fullLabel)
+                    Self.log.info("stopDaemon(): deregistered apiserver", metadata: ["label": "\(fullLabel)"])
+                } catch {
+                    Self.log.error("stopDaemon(): failed to deregister apiserver", metadata: ["label": "\(fullLabel)", "error": "\(error)"])
+                }
+            }
+            // Sibling services (e.g. network-vmnet) registered under the same prefix —
+            // deregistered unconditionally, even if the apiserver ping failed, in case they're
+            // still around.
+            let siblingLabels = (try? ServiceManager.enumerate()) ?? []
+            for label in siblingLabels where label.hasPrefix(Self.servicePrefix) && "\(domain)/\(label)" != fullLabel {
+                do {
+                    try ServiceManager.deregister(fullServiceLabel: "\(domain)/\(label)")
+                    Self.log.info("stopDaemon(): deregistered sibling service", metadata: ["label": "\(label)"])
+                } catch {
+                    Self.log.warning("stopDaemon(): failed to deregister sibling service", metadata: ["label": "\(label)", "error": "\(error)"])
+                }
+            }
+        } catch {
+            Self.log.error("stopDaemon(): couldn't determine launchd domain — skipping deregistration", metadata: ["error": "\(error)"])
+        }
+
+        // Every step above is soft-failed (deregistering a service that's in a weird state
+        // shouldn't abort the whole shutdown), so confirm the daemon is actually gone rather than
+        // assuming success — otherwise a silent failure here reports "stopped" for a daemon that's
+        // still running, which the next `poll()` tick would immediately contradict anyway.
+        let stillResponding = (try? await ClientHealthCheck.ping(timeout: .seconds(3))) != nil
+        Self.log.info("stopDaemon(): final verification", metadata: ["stillResponding": "\(stillResponding)"])
+        if stillResponding {
+            daemonState = .error("Couldn't stop the container daemon — it's still responding after the stop sequence.")
+        } else {
+            daemonState = .installedButStopped
+        }
+    }
+
+    /// Stops the daemon, runs the upstream `update-container.sh` (already handles GitHub release
+    /// lookup, signed-vs-unsigned package selection, and download — reimplementing that natively
+    /// would just duplicate already-correct upstream logic) elevated via `osascript`'s native
+    /// admin-password prompt, then restarts the daemon. Callers must confirm with the user before
+    /// invoking this — `stopDaemon()` stops every running container on the machine.
+    override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        await stopDaemon()
+        guard case .installedButStopped = daemonState else {
+            throw ContainerizationError(.invalidState, message: "Couldn't stop the container daemon before upgrading.")
+        }
+
+        try await Self.runPrivilegedUpdateScript(version: ContainerCompatibility.requiredVersion, onLog: onLog)
+
+        await startDaemon()
+    }
+
+    /// Runs `update-container.sh` elevated via `osascript ... with administrator privileges`,
+    /// which shows the native macOS admin-password dialog — no custom UI, no deprecated
+    /// `AuthorizationExecuteWithPrivileges`. `nonisolated` so the blocking-until-exit machinery
+    /// below never touches the main thread; `onLog` hops back to `MainActor` per line.
+    private nonisolated static func runPrivilegedUpdateScript(
+        version: String,
+        onLog: @MainActor @escaping (String) -> Void
+    ) async throws {
+        let shellCommand = "/usr/local/bin/update-container.sh -v \(version)"
+        let appleScript = "do shell script \"\(shellCommand)\" with administrator privileges"
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        process.arguments = ["-e", appleScript]
+        process.standardInput = FileHandle.nullDevice
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+
+        let readHandle = pipe.fileHandleForReading
+        let drainTask = Task.detached(priority: .userInitiated) {
+            while true {
+                let data = readHandle.availableData
+                if data.isEmpty { return }
+                guard let str = String(data: data, encoding: .utf8) else { continue }
+                for line in str.components(separatedBy: .newlines) where !line.isEmpty {
+                    await MainActor.run { onLog(line) }
+                }
+            }
+        }
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { finishedProcess in
+                Task {
+                    await drainTask.value
+                    if finishedProcess.terminationStatus == 0 {
+                        continuation.resume()
+                    } else {
+                        continuation.resume(throwing: ContainerizationError(
+                            .internalError,
+                            message: "container update failed (exit code \(finishedProcess.terminationStatus)) — the admin prompt may have been cancelled, or the update script failed."
+                        ))
+                    }
+                }
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
     }
 
     /// Registers the `container-apiserver` launchd service, matching `SystemStart.run()`'s own

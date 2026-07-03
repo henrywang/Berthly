@@ -29,6 +29,11 @@ class ContainerServiceBase {
     /// `nil` means no warning; cleared at the start of every `startDaemon()` call.
     var lastStartupWarning: String? = nil
 
+    /// The running daemon's version, from the health-check ping. `nil` before the first
+    /// successful connect. Compared against `ContainerCompatibility.requiredVersion` to decide
+    /// `.connected` vs `.versionMismatch`.
+    var installedContainerVersion: String? = nil
+
     func buildContext(for reference: String) -> BuildContext? { buildContexts[reference] }
     func saveBuildContext(_ ctx: BuildContext, for reference: String) { buildContexts[reference] = ctx }
     func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {}
@@ -49,10 +54,19 @@ class ContainerServiceBase {
     func stopBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
     func startDaemon() async {}
+    func stopDaemon() async {}
+    func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
     func refresh() async {}
 
     var isConnected: Bool {
         if case .connected = daemonState { return true }
         return false
     }
+
+    var runningContainers: [Container] { containers.filter { $0.status == .running } }
+    // Excludes isUtility machines (e.g. the internal "default" VM) — same filter ComputeListView
+    // applies, since these are runtime implementation details, not user-facing compute resources.
+    var runningMachines: [Machine] { machines.filter { $0.status == .running && !$0.isUtility } }
+    var errorContainerCount: Int { containers.filter { $0.status == .error }.count }
+    var errorMachineCount: Int { machines.filter { $0.status == .error && !$0.isUtility }.count }
 }

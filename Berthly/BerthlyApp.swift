@@ -6,6 +6,7 @@ import SwiftUI
 @main
 struct BerthlyApp: App {
     @State private var service: ContainerServiceBase = Self.makeService()
+    @State private var menuBarBridge = MenuBarBridge()
 
     /// UI tests set `UITEST_USE_MOCK_SERVICE` to get deterministic state instead of a real
     /// daemon connection, optionally seeded via `UITEST_INITIAL_DAEMON_STATE`.
@@ -25,9 +26,10 @@ struct BerthlyApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("Berthly") {
+        WindowGroup("Berthly", id: "main") {
             MainWindowView()
                 .environment(service)
+                .environment(menuBarBridge)
         }
         .defaultSize(width: 1200, height: 780)
         .windowStyle(.titleBar)
@@ -37,11 +39,12 @@ struct BerthlyApp: App {
         }
 
         MenuBarExtra {
-            // TODO: M4 — MenuBarView()
-            Text("Berthly")
-                .padding()
+            MenuBarView()
+                .environment(service)
+                .environment(menuBarBridge)
         } label: {
             Image("MenuBarIcon")
+                .opacity(service.isConnected ? 1.0 : 0.4)
         }
         .menuBarExtraStyle(.window)
     }

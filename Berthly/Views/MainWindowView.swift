@@ -3,6 +3,7 @@ import TerminalProgress
 
 struct MainWindowView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @State private var sidebarSelection: SidebarSelection? = .compute
     @State private var selectedCompute: ComputeItem?
     @State private var selectedImageID: String?
@@ -59,6 +60,13 @@ struct MainWindowView: View {
                 selectedCompute = nil
                 selectedImageID = nil
             }
+            // `.onChange` only fires on a value change *after* this view is already observing it —
+            // if the menu bar sets `pendingIntent` in the same beat it creates a fresh window (the
+            // window was previously fully closed), this view mounts with the intent already set,
+            // and `.onChange` would never fire for it. `.onAppear` catches that case; `.onChange`
+            // covers the window-already-open case where a later menu bar action changes it.
+            .onAppear { handlePendingIntent() }
+            .onChange(of: bridge.pendingIntent) { _, _ in handlePendingIntent() }
         }
         .navigationTitle("Berthly")
         .toolbar { toolbarContent }
@@ -78,6 +86,26 @@ struct MainWindowView: View {
         .sheet(isPresented: $showMachineCreateSheet) {
             MachineCreateSheet(service: service)
         }
+        // Lets the menu bar tell whether a main window already exists before deciding whether to
+        // call `openWindow(id:)` — that API has no built-in single-instance behavior for a plain
+        // `WindowGroup`, so calling it unconditionally opens a duplicate window every time.
+        .onAppear { bridge.isMainWindowOpen = true }
+        .onDisappear { bridge.isMainWindowOpen = false }
+    }
+
+    private func handlePendingIntent() {
+        switch bridge.pendingIntent {
+        case .selectCompute(let item):
+            sidebarSelection = .compute
+            selectedCompute = item
+        case .openRunContainerSheet:
+            showRunSheet = true
+        case .openCreateMachineSheet:
+            showMachineCreateSheet = true
+        case nil:
+            return
+        }
+        bridge.pendingIntent = nil
     }
 
     private var detailVisible: Bool { selectedCompute != nil || (selectedImageID != nil && sidebarSelection == .images) }

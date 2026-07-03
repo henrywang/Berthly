@@ -7,6 +7,7 @@ final class MockContainerService: ContainerServiceBase {
     override init() {
         super.init()
         daemonState = .connected
+        installedContainerVersion = ContainerCompatibility.requiredVersion
         containers = [
             Container(id: "3f9a2b7c1d", name: "web-frontend",  image: "local/web:1.4",       status: .running, ports: [PortMapping(host: 3000, container: 3000)], cpuPercent: 12, memoryMB: 184,  memoryLimitMB: 1024, networkIOString: "1.2 MB/s", uptime: "2h 41m", command: #"nginx -g "daemon off;""#,   mounts: [ContainerMount(source: "./src", destination: "/app")], networks: ["app-net"], environment: ["NODE_ENV=production", "PORT=3000", "API_URL=http://api-service:8080"], startedDate: Date().addingTimeInterval(-(2*3600 + 41*60))),
             Container(id: "a17c44e9b2", name: "api-service",   image: "local/api:2.1",       status: .running, ports: [PortMapping(host: 8080, container: 8080)], cpuPercent: 34, memoryMB: 320,  memoryLimitMB: 2048, networkIOString: "3.4 MB/s", uptime: "5h 12m", command: "node server.js",               mounts: [], networks: ["app-net"], environment: ["NODE_ENV=production"],                                                                                            startedDate: Date().addingTimeInterval(-(5*3600 + 12*60))),
@@ -265,6 +266,21 @@ final class MockContainerService: ContainerServiceBase {
         daemonState = .connecting
         try? await Task.sleep(for: .milliseconds(200))
         daemonState = .connected
+    }
+
+    override func stopDaemon() async {
+        daemonState = .stopping
+        try? await Task.sleep(for: .milliseconds(200))
+        daemonState = .installedButStopped
+    }
+
+    override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        await stopDaemon()
+        onLog("Updating to version \(ContainerCompatibility.requiredVersion)...")
+        try? await Task.sleep(for: .milliseconds(200))
+        onLog("Updated successfully")
+        installedContainerVersion = ContainerCompatibility.requiredVersion
+        await startDaemon()
     }
 
     override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {

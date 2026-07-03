@@ -109,6 +109,7 @@ struct DaemonStatusBar: View {
         return switch state {
         case .connected:           "circle.fill"
         case .connecting:          "circle.dotted"
+        case .stopping:            "circle.dotted"
         case .notInstalled:        "xmark.circle"
         case .installedButStopped: "circle"
         case .versionMismatch:     "exclamationmark.triangle"
@@ -131,6 +132,7 @@ struct DaemonStatusBar: View {
         return switch state {
         case .connected:                   "Running"
         case .connecting:                  "Connecting…"
+        case .stopping:                    "Stopping…"
         case .notInstalled:                "Not installed"
         case .installedButStopped:         "Stopped"
         case .versionMismatch(let v, _):   "v\(v) mismatch"
