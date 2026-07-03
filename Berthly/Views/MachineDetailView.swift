@@ -117,6 +117,7 @@ private struct MachineDetailContent: View {
                 Button { tab = .terminal } label: {
                     Label("Shell", systemImage: "terminal")
                 }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
                 .help("Shell")
             } else {
