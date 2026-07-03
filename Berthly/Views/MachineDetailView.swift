@@ -113,6 +113,7 @@ private struct MachineDetailContent: View {
                 .tint(.statusError)
                 .disabled(isWorking)
                 .help("Stop")
+                .hoverScale()
             } else {
                 Button {
                     run { try await service.startMachine(machine.id) }
@@ -124,6 +125,7 @@ private struct MachineDetailContent: View {
                 .tint(.berthlyAccent)
                 .disabled(isWorking)
                 .help("Start")
+                .hoverScale()
             }
         }
     }

@@ -130,6 +130,7 @@ private struct ContainerDetailContent: View {
                     .foregroundStyle(isStarred ? Color(hex: "F59E0B") : Color.secondary)
             }
             .buttonStyle(.bordered)
+            .hoverScale()
 
             if container.status == .running {
                 Button(role: .destructive) { showStopConfirm = true } label: {
@@ -140,6 +141,7 @@ private struct ContainerDetailContent: View {
                 .tint(.statusError)
                 .disabled(isWorking)
                 .help("Stop")
+                .hoverScale()
             } else {
                 Button {
                     run {
@@ -154,6 +156,7 @@ private struct ContainerDetailContent: View {
                 .tint(.berthlyAccent)
                 .disabled(isWorking)
                 .help("Start")
+                .hoverScale()
             }
         }
     }
