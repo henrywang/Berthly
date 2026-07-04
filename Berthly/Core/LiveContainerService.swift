@@ -210,11 +210,20 @@ final class LiveContainerService: ContainerServiceBase {
             let client = ContainerClient()
             if let allContainers = try? await client.list() {
                 Self.log.info("stopDaemon(): stopping containers", metadata: ["count": "\(allContainers.count)"])
-                for snapshot in allContainers {
-                    do {
-                        try await client.stop(id: snapshot.id)
-                    } catch {
-                        Self.log.warning("stopDaemon(): failed to stop container", metadata: ["id": "\(snapshot.id)", "error": "\(error)"])
+                // Concurrent, not sequential — mirrors the CLI's own `ContainerStop.stopContainers`
+                // (TaskGroup over all containers). Each `stop` has its own ~5s graceful-shutdown
+                // timeout; stopping N containers one at a time turns that into an N*5s wait for no
+                // reason, since the containers are independent.
+                let log = Self.log
+                await withTaskGroup(of: Void.self) { group in
+                    for snapshot in allContainers {
+                        group.addTask {
+                            do {
+                                try await client.stop(id: snapshot.id)
+                            } catch {
+                                log.warning("stopDaemon(): failed to stop container", metadata: ["id": "\(snapshot.id)", "error": "\(error)"])
+                            }
+                        }
                     }
                 }
             } else {
