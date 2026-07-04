@@ -6,16 +6,34 @@ import SwiftUI
 /// tab switches that keep this view alive) don't restart the shell underneath the user.
 struct TerminalHostView: NSViewRepresentable {
     let containerID: String
+    @AppStorage("terminalTheme") private var themeRaw = TerminalTheme.dracula.rawValue
+
+    private var theme: TerminalTheme { TerminalTheme(rawValue: themeRaw) ?? .dracula }
 
     func makeNSView(context: Context) -> TerminalView {
         let view = TerminalView(frame: .zero)
         view.terminalDelegate = context.coordinator
         context.coordinator.terminalView = view
+        applyTheme(theme, to: view)
         context.coordinator.connect(containerID: containerID)
         return view
     }
 
-    func updateNSView(_ nsView: TerminalView, context: Context) {}
+    func updateNSView(_ nsView: TerminalView, context: Context) {
+        applyTheme(theme, to: nsView)
+    }
+
+    // `installColors` (not the lower-level `terminal.installPalette`) both installs the
+    // 16-color ANSI table and repaints, so a live theme change while the tab is open takes
+    // effect immediately via `updateNSView` — cheap and idempotent to reapply every time.
+    private func applyTheme(_ theme: TerminalTheme, to view: TerminalView) {
+        let colors = theme.colors
+        view.nativeBackgroundColor = NSColor(Color(hex: colors.background))
+        view.nativeForegroundColor = NSColor(Color(hex: colors.foreground))
+        view.caretColor = NSColor(Color(hex: colors.cursor))
+        view.selectedTextBackgroundColor = NSColor(Color(hex: colors.selection))
+        view.installColors(colors.ansi.map { SwiftTerm.Color(hex: $0) })
+    }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 

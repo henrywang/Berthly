@@ -89,7 +89,7 @@ final class TerminalSession {
         let handle = stdout.fileHandleForReading
         handle.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.isRunning else { return }
                 if data.isEmpty {
                     self.isRunning = false

@@ -12,6 +12,7 @@ import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
 import MachineAPIClient
+import SwiftTerm
 import Testing
 @testable import Berthly
 
@@ -196,6 +197,41 @@ struct ExecProcessConfigurationTests {
 
     @Test func shellCandidatesTryBashBeforeSh() {
         #expect(LiveContainerService.execShellCandidates == ["/bin/bash", "/bin/sh"])
+    }
+}
+
+// MARK: - Terminal themes
+
+struct TerminalThemeTests {
+
+    @Test(arguments: TerminalTheme.allCases)
+    func everyThemeHasExactlySixteenAnsiColors(theme: TerminalTheme) {
+        // `TerminalView.installColors` silently no-ops if this isn't 16 — a regression here
+        // wouldn't fail loudly at runtime, just quietly leave the old palette in place.
+        #expect(theme.colors.ansi.count == 16)
+    }
+
+    @Test(arguments: TerminalTheme.allCases)
+    func everyThemeHasANonEmptyDisplayName(theme: TerminalTheme) {
+        #expect(!theme.displayName.isEmpty)
+    }
+
+    @Test func rawValueRoundTripsForAllCases() {
+        for theme in TerminalTheme.allCases {
+            #expect(TerminalTheme(rawValue: theme.rawValue) == theme)
+        }
+    }
+
+    @Test func hexConversionMapsBlackAndWhiteToChannelExtremes() {
+        let black = SwiftTerm.Color(hex: "000000")
+        #expect(black.red == 0)
+        #expect(black.green == 0)
+        #expect(black.blue == 0)
+
+        let white = SwiftTerm.Color(hex: "FFFFFF")
+        #expect(white.red == 65535)
+        #expect(white.green == 65535)
+        #expect(white.blue == 65535)
     }
 }
 

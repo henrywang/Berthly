@@ -47,5 +47,9 @@ struct BerthlyApp: App {
                 .opacity(service.isConnected ? 1.0 : 0.4)
         }
         .menuBarExtraStyle(.window)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
