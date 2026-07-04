@@ -1160,6 +1160,21 @@ final class LiveContainerService: ContainerServiceBase {
         return s
     }
 
+    /// Shell fallback order tried when exec'ing into a running container — bash first (most
+    /// full-featured), falling back to `sh` for minimal images (e.g. Alpine) that lack it.
+    nonisolated static let execShellCandidates = ["/bin/bash", "/bin/sh"]
+
+    /// Builds the `ProcessConfiguration` for an exec'd shell session from the container's own
+    /// init process — same base the CLI's `container exec` uses (`ContainerExec.run()`) — so
+    /// env/user/cwd match what a real exec would see, rather than starting from a blank slate.
+    nonisolated static func execProcessConfiguration(basedOn initProcess: ProcessConfiguration, shell: String) -> ProcessConfiguration {
+        var config = initProcess
+        config.executable = shell
+        config.arguments = []
+        config.terminal = true
+        return config
+    }
+
     nonisolated static func runProcessFlags(for options: RunOptions) -> Flags.Process {
         Flags.Process(
             cwd: nilIfEmpty(options.workdir),

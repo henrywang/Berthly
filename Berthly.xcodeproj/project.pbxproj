@@ -21,6 +21,7 @@
 		F86446462FF182CC0064946B /* ContainerXPC in Frameworks */ = {isa = PBXBuildFile; productRef = F86446452FF182CC0064946B /* ContainerXPC */; };
 		F86446482FF182CC0064946B /* MachineAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446472FF182CC0064946B /* MachineAPIClient */; };
 		F864464A2FF182CC0064946B /* TerminalProgress in Frameworks */ = {isa = PBXBuildFile; productRef = F86446492FF182CC0064946B /* TerminalProgress */; };
+		F8850A2D2FF8B2FD0074AB1E /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = 2970A0938E89DE97EBCC0188 /* SwiftTerm */; };
 		FFB4C5DBF9FC72E9430E5635 /* ContainerImagesService in Frameworks */ = {isa = PBXBuildFile; productRef = 5AACB2A4268291A3C9712767 /* ContainerImagesService */; };
 /* End PBXBuildFile section */
 
@@ -70,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F8850A2D2FF8B2FD0074AB1E /* SwiftTerm in Frameworks */,
 				F864463E2FF182CC0064946B /* ContainerResource in Frameworks */,
 				F86446442FF182CC0064946B /* ContainerVersion in Frameworks */,
 				F86446462FF182CC0064946B /* ContainerXPC in Frameworks */,
@@ -160,6 +162,7 @@
 				96820BCC7D9F569A1EA97615 /* NIOCore */,
 				F66A582A8B95234B7827C89F /* NIOPosix */,
 				ECDA028CF797475EAD0334FE /* ContainerPlugin */,
+				2970A0938E89DE97EBCC0188 /* SwiftTerm */,
 			);
 			productName = Berthly;
 			productReference = F80E29442FF1647500094CE8 /* Berthly.app */;
@@ -246,6 +249,7 @@
 			packageReferences = (
 				F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */,
 				E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */,
+				9468CC2C48A393EB0BB748A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F80E29452FF1647500094CE8 /* Products */;
@@ -617,6 +621,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		9468CC2C48A393EB0BB748A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.13.0;
+			};
+		};
 		E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-nio.git";
@@ -636,6 +648,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2970A0938E89DE97EBCC0188 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 9468CC2C48A393EB0BB748A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
+		};
 		5AACB2A4268291A3C9712767 /* ContainerImagesService */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */;

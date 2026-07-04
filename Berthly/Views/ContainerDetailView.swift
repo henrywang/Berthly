@@ -82,7 +82,12 @@ private struct ContainerDetailContent: View {
                         StatsTab(container: container).padding(24)
                     }
                 case .terminal:
-                    TerminalPlaceholderTab()
+                    if container.status == .running {
+                        TerminalHostView(containerID: container.id)
+                            .id(container.id)
+                    } else {
+                        TerminalNotRunningTab()
+                    }
                 case .files:
                     FilesPlaceholderTab()
                 }
@@ -733,9 +738,9 @@ private struct MetricCard: View {
     }
 }
 
-// MARK: - Terminal Placeholder
+// MARK: - Terminal Not Running
 
-private struct TerminalPlaceholderTab: View {
+private struct TerminalNotRunningTab: View {
     var body: some View {
         ZStack {
             Color.codeBackground
@@ -746,16 +751,10 @@ private struct TerminalPlaceholderTab: View {
                 Text("Terminal")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("Interactive shell support is coming in M3.")
+                Text("Start the container to open a shell.")
                     .font(.callout)
                     .foregroundStyle(Color.white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                Text("Coming in M3")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.12), in: Capsule())
             }
             .padding(40)
         }

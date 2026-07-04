@@ -240,6 +240,30 @@ final class BerthlyUITests: XCTestCase {
     /// not the real daemon. XCTMemoryMetric/XCTCPUMetric have no built-in pass/fail threshold:
     /// Xcode records a baseline on first run and flags future measurements that regress against
     /// it (Test Report > set baseline), so this needs a baseline set once after landing.
+    /// Regression test for a real crash: `TerminalHostView.Coordinator.sizeChanged` used to force-
+    /// convert SwiftTerm's initial `newCols`/`newRows` (0, or momentarily negative, before the
+    /// zero-framed `TerminalView` is laid out) straight to `UInt16`, which traps. The mock service
+    /// can't substitute for a real exec session, but it exercises the exact code path that crashed
+    /// — opening the tab is enough to prove the fix without a live daemon.
+    @MainActor
+    func testTerminalTabOpensWithoutCrashing() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        let containerRow = app.staticTexts["web-frontend"]
+        XCTAssertTrue(containerRow.waitForExistence(timeout: 10))
+        containerRow.click()
+
+        let terminalTab = app.buttons["Terminal"]
+        XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
+        terminalTab.click()
+
+        // App must still be alive and responsive after the tab renders and lays out.
+        XCTAssertTrue(app.windows.firstMatch.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
     @MainActor
     func testMemoryAndCPUUsageDuringSheetChurn() throws {
         let app = XCUIApplication()
@@ -261,6 +285,37 @@ final class BerthlyUITests: XCTestCase {
                 let cancelButton = app.buttons["Cancel"]
                 _ = cancelButton.waitForExistence(timeout: 5)
                 cancelButton.click()
+            }
+        }
+    }
+
+    /// SwiftTerm's `TerminalView` defaults to CoreText/CoreGraphics rendering on macOS (its Metal
+    /// path is opt-in via `setUseMetal(_:)`, which `TerminalHostView` never calls), so this is a
+    /// CPU-side cost, not GPU — the same reason `XCTCPUMetric`/`XCTMemoryMetric` are the right
+    /// metrics here, matching `testMemoryAndCPUUsageDuringSheetChurn` above. Not baselined yet —
+    /// per CLAUDE.md, run once in Xcode's Report Navigator and set a baseline before treating a
+    /// future regression here as real rather than noise.
+    @MainActor
+    func testMemoryAndCPUUsageDuringTerminalTabChurn() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        let containerRow = app.staticTexts["web-frontend"]
+        XCTAssertTrue(containerRow.waitForExistence(timeout: 10))
+        containerRow.click()
+
+        let terminalTab = app.buttons["Terminal"]
+        let overviewTab = app.buttons["Overview"]
+        XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
+
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+
+        measure(metrics: [XCTMemoryMetric(), XCTCPUMetric()], options: options) {
+            for _ in 0..<5 {
+                terminalTab.click()
+                overviewTab.click()
             }
         }
     }

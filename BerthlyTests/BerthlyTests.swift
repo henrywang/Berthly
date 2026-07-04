@@ -170,6 +170,35 @@ struct BuildMappingTests {
 // CLI-argument-array construction is now pure `Flags.*` struct construction. These tests assert
 // on the resulting struct fields directly since `Flags.*` types aren't Equatable.
 
+// MARK: - Exec session config (Terminal, M3)
+
+struct ExecProcessConfigurationTests {
+
+    @Test func overridesExecutableArgumentsAndTerminalOnly() {
+        let initProcess = ProcessConfiguration(
+            executable: "/app/server",
+            arguments: ["--port", "8080"],
+            environment: ["NODE_ENV=production"],
+            workingDirectory: "/app",
+            terminal: false,
+            user: .raw(userString: "1000:1000")
+        )
+        let config = LiveContainerService.execProcessConfiguration(basedOn: initProcess, shell: "/bin/bash")
+        #expect(config.executable == "/bin/bash")
+        #expect(config.arguments == [])
+        #expect(config.terminal == true)
+        // Everything else carries over from the container's own init process so an exec'd
+        // shell sees the same env/user/cwd a real `container exec` would.
+        #expect(config.environment == ["NODE_ENV=production"])
+        #expect(config.workingDirectory == "/app")
+        #expect(config.user == .raw(userString: "1000:1000"))
+    }
+
+    @Test func shellCandidatesTryBashBeforeSh() {
+        #expect(LiveContainerService.execShellCandidates == ["/bin/bash", "/bin/sh"])
+    }
+}
+
 struct RunFlagsMappingTests {
 
     @Test func processFlagsMapWorkdirUserTtyAndInteractive() {
