@@ -1,11 +1,19 @@
 import SwiftTerm
 import SwiftUI
 
+/// Which running resource a `TerminalHostView` execs a shell into — a container (`exec`) or a
+/// container machine's VM (a login shell in the container backing the machine; see PLAN.md §8).
+enum TerminalTarget: Equatable {
+    case container(id: String)
+    case machine(id: String)
+}
+
 /// Wraps SwiftTerm's `TerminalView` and bridges it to a `TerminalSession` exec'd into a running
-/// container. One `Coordinator` per view identity owns the session so re-renders (e.g. sibling
-/// tab switches that keep this view alive) don't restart the shell underneath the user.
+/// container or machine. One `Coordinator` per view identity owns the session so re-renders
+/// (e.g. sibling tab switches that keep this view alive) don't restart the shell underneath the
+/// user.
 struct TerminalHostView: NSViewRepresentable {
-    let containerID: String
+    let target: TerminalTarget
     @AppStorage("terminalTheme") private var themeRaw = TerminalTheme.dracula.rawValue
 
     private var theme: TerminalTheme { TerminalTheme(rawValue: themeRaw) ?? .dracula }
@@ -15,7 +23,7 @@ struct TerminalHostView: NSViewRepresentable {
         view.terminalDelegate = context.coordinator
         context.coordinator.terminalView = view
         applyTheme(theme, to: view)
-        context.coordinator.connect(containerID: containerID)
+        context.coordinator.connect(target: target)
         return view
     }
 
@@ -49,7 +57,7 @@ struct TerminalHostView: NSViewRepresentable {
         let session = TerminalSession()
         private var started = false
 
-        func connect(containerID: String) {
+        func connect(target: TerminalTarget) {
             guard !started else { return }
             started = true
 
@@ -62,7 +70,10 @@ struct TerminalHostView: NSViewRepresentable {
 
             Task { [weak self] in
                 do {
-                    try await self?.session.start(containerID: containerID)
+                    switch target {
+                    case .container(let id): try await self?.session.start(containerID: id)
+                    case .machine(let id): try await self?.session.start(machineID: id)
+                    }
                 } catch {
                     self?.terminalView?.feed(text: "\u{1b}[31mFailed to start shell: \(error.localizedDescription)\u{1b}[0m\r\n")
                 }

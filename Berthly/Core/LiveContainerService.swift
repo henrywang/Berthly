@@ -1175,6 +1175,23 @@ final class LiveContainerService: ContainerServiceBase {
         return config
     }
 
+    /// Builds the `ProcessConfiguration` for a machine's login shell — same approach the CLI's
+    /// `container machine run` uses (`MachineRun.run()`): exec `/sbin.machine/init -s` (the
+    /// machine bundle's init binary, which resolves the right shell for the user itself) inside
+    /// the container backing the machine, rather than execing a shell directly. Takes `home`/
+    /// `user` directly rather than a whole `MachineSnapshot` — those are the only two fields
+    /// used, and it keeps this testable without constructing vendored OCI/platform fixtures.
+    nonisolated static func machineShellProcessConfiguration(home: String, user: ProcessConfiguration.User) -> ProcessConfiguration {
+        ProcessConfiguration(
+            executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
+            arguments: ["-s"],
+            environment: ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"],
+            workingDirectory: home,
+            terminal: true,
+            user: user
+        )
+    }
+
     nonisolated static func runProcessFlags(for options: RunOptions) -> Flags.Process {
         Flags.Process(
             cwd: nilIfEmpty(options.workdir),

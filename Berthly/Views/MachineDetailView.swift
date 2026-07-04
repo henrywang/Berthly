@@ -61,7 +61,12 @@ private struct MachineDetailContent: View {
                             OverviewTab(machine: machine).padding(24)
                         }
                     case .terminal:
-                        TerminalPlaceholder()
+                        if machine.status == .running {
+                            TerminalHostView(target: .machine(id: machine.id))
+                                .id(machine.id)
+                        } else {
+                            TerminalNotRunning()
+                        }
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -422,7 +427,7 @@ private struct InspectSection: View {
 
 // MARK: - Terminal Placeholder
 
-private struct TerminalPlaceholder: View {
+private struct TerminalNotRunning: View {
     var body: some View {
         ZStack {
             Color.codeBackground
@@ -433,16 +438,10 @@ private struct TerminalPlaceholder: View {
                 Text("Terminal")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(.white)
-                Text("Interactive shell support is coming in M3.")
+                Text("Start the machine to open a shell.")
                     .font(.callout)
                     .foregroundStyle(Color.white.opacity(0.5))
                     .multilineTextAlignment(.center)
-                Text("Coming in M3")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Color.white.opacity(0.6))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.12), in: Capsule())
             }
             .padding(40)
         }

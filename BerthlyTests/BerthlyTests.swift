@@ -198,6 +198,18 @@ struct ExecProcessConfigurationTests {
     @Test func shellCandidatesTryBashBeforeSh() {
         #expect(LiveContainerService.execShellCandidates == ["/bin/bash", "/bin/sh"])
     }
+
+    @Test func machineShellUsesMachineInitWithLoginShellFlag() {
+        let config = LiveContainerService.machineShellProcessConfiguration(
+            home: "/home/dev",
+            user: .id(uid: 501, gid: 20)
+        )
+        #expect(config.executable == "/sbin.machine/init")
+        #expect(config.arguments == ["-s"])
+        #expect(config.terminal == true)
+        #expect(config.workingDirectory == "/home/dev")
+        #expect(config.user == .id(uid: 501, gid: 20))
+    }
 }
 
 // MARK: - Terminal themes

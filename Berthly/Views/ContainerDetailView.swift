@@ -83,7 +83,7 @@ private struct ContainerDetailContent: View {
                     }
                 case .terminal:
                     if container.status == .running {
-                        TerminalHostView(containerID: container.id)
+                        TerminalHostView(target: .container(id: container.id))
                             .id(container.id)
                     } else {
                         TerminalNotRunningTab()

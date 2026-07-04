@@ -6,6 +6,7 @@ import ContainerResource
 import ContainerizationError
 import ContainerizationOS
 import Foundation
+import MachineAPIClient
 
 /// Bridges one exec'd shell session's PTY-backed stdio to byte callbacks a terminal view can
 /// render, decoupling `Views/` from the exec transport (anonymous pipes handed to the daemon
@@ -39,22 +40,9 @@ final class TerminalSession {
 
         var lastError: Error = ContainerizationError(.internalError, message: "no shell candidates provided")
         for shell in shellCandidates {
-            let stdin = Pipe()
-            let stdout = Pipe()
             let config = LiveContainerService.execProcessConfiguration(basedOn: snapshot.configuration.initProcess, shell: shell)
             do {
-                let proc = try await client.createProcess(
-                    containerId: containerID,
-                    processId: UUID().uuidString.lowercased(),
-                    configuration: config,
-                    stdio: [stdin.fileHandleForReading, stdout.fileHandleForWriting, nil]
-                )
-                try await proc.start()
-                self.stdinPipe = stdin
-                self.stdoutPipe = stdout
-                self.process = proc
-                self.isRunning = true
-                wireOutput(from: stdout)
+                try await startProcess(containerId: containerID, configuration: config, client: client)
                 return
             } catch {
                 lastError = error
@@ -62,6 +50,40 @@ final class TerminalSession {
             }
         }
         throw lastError
+    }
+
+    /// Starts a login shell in the container machine (VM), not a container — see PLAN.md §8.
+    /// A machine's shell is itself just an exec'd process in the container backing the machine
+    /// (`snapshot.containerId`), same `ContainerClient` as container exec; only how the target
+    /// container and process configuration are resolved differs (see
+    /// `LiveContainerService.machineShellProcessConfiguration(basedOn:)`).
+    func start(machineID: String) async throws {
+        let snapshot = try await MachineClient().inspect(id: machineID)
+        guard let containerId = snapshot.containerId else {
+            throw ContainerizationError(.invalidState, message: "container machine is running but has no container ID")
+        }
+        let config = LiveContainerService.machineShellProcessConfiguration(
+            home: snapshot.configuration.home,
+            user: snapshot.configuration.user
+        )
+        try await startProcess(containerId: containerId, configuration: config, client: ContainerClient())
+    }
+
+    private func startProcess(containerId: String, configuration: ProcessConfiguration, client: ContainerClient) async throws {
+        let stdin = Pipe()
+        let stdout = Pipe()
+        let proc = try await client.createProcess(
+            containerId: containerId,
+            processId: UUID().uuidString.lowercased(),
+            configuration: configuration,
+            stdio: [stdin.fileHandleForReading, stdout.fileHandleForWriting, nil]
+        )
+        try await proc.start()
+        self.stdinPipe = stdin
+        self.stdoutPipe = stdout
+        self.process = proc
+        self.isRunning = true
+        wireOutput(from: stdout)
     }
 
     /// Feeds keyboard/paste input from the terminal view to the session's stdin.
