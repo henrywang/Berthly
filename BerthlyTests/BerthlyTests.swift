@@ -61,6 +61,19 @@ struct BuildContextCodableTests {
     }
 }
 
+// MARK: - PinnedItems Codable
+
+struct PinnedItemsCodableTests {
+
+    @Test func roundTripPreservesBothSets() throws {
+        let original = PinnedItems(containers: ["c1", "c2"], machines: ["m1"])
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(PinnedItems.self, from: data)
+        #expect(decoded.containers == original.containers)
+        #expect(decoded.machines == original.machines)
+    }
+}
+
 // MARK: - LiveContainerService build*/resolve* (pure BuildOptions -> native-API mapping)
 //
 // `buildImage` now drives the vendored package's own gRPC `Builder` client natively instead of
@@ -583,6 +596,40 @@ struct MockContainerServiceTests {
         #expect(!mock.containers.contains { $0.id == id })
     }
 
+    @Test func togglePinContainerAddsThenRemoves() {
+        let mock = MockContainerService()
+        let id = mock.containers[0].id
+        mock.togglePinContainer(id)
+        #expect(mock.isContainerPinned(id))
+        mock.togglePinContainer(id)
+        #expect(!mock.isContainerPinned(id))
+    }
+
+    @Test func togglePinMachineAddsThenRemoves() {
+        let mock = MockContainerService()
+        let id = mock.machines[0].id
+        mock.togglePinMachine(id)
+        #expect(mock.isMachinePinned(id))
+        mock.togglePinMachine(id)
+        #expect(!mock.isMachinePinned(id))
+    }
+
+    @Test func deletingPinnedContainerRemovesThePin() async throws {
+        let mock = MockContainerService()
+        let id = mock.containers[0].id
+        mock.togglePinContainer(id)
+        try await mock.deleteContainer(id)
+        #expect(!mock.isContainerPinned(id))
+    }
+
+    @Test func deletingPinnedMachineRemovesThePin() async throws {
+        let mock = MockContainerService()
+        let id = mock.machines[0].id
+        mock.togglePinMachine(id)
+        try await mock.deleteMachine(id)
+        #expect(!mock.isMachinePinned(id))
+    }
+
     @Test func buildImageStreamsLogsAndAppendsBuiltImage() async throws {
         let mock = MockContainerService()
         let countBefore = mock.images.count
@@ -738,6 +785,27 @@ struct ContainerServiceBaseSummaryTests {
         ]
         #expect(mock.runningMachines.map(\.id) == ["m1"])
         #expect(mock.errorMachineCount == 0)
+    }
+
+    @Test func pinnedContainersFiltersByPinnedIDsRegardlessOfStatus() {
+        let mock = MockContainerService()
+        mock.containers = [
+            makeContainer(id: "1", status: .running),
+            makeContainer(id: "2", status: .stopped),
+            makeContainer(id: "3", status: .running),
+        ]
+        mock.pinnedContainerIDs = ["2", "3"]
+        #expect(Set(mock.pinnedContainers.map(\.id)) == ["2", "3"])
+    }
+
+    @Test func pinnedMachinesFiltersByPinnedIDsAndExcludesUtility() {
+        let mock = MockContainerService()
+        mock.machines = [
+            makeMachine(id: "m1", status: .stopped),
+            makeMachine(id: "util", status: .running, isUtility: true),
+        ]
+        mock.pinnedMachineIDs = ["m1", "util"]
+        #expect(mock.pinnedMachines.map(\.id) == ["m1"])
     }
 }
 

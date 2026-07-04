@@ -25,7 +25,6 @@ private struct ContainerDetailContent: View {
     let containerID: String
     @Environment(ContainerServiceBase.self) private var service
     @State private var tab: DetailTab = .overview
-    @State private var isStarred    = false
     @State private var isWorking    = false
     @State private var errorMessage: String?
     @State private var showStopConfirm   = false
@@ -125,11 +124,12 @@ private struct ContainerDetailContent: View {
             .layoutPriority(1)
             Spacer(minLength: 8)
 
-            Button { isStarred.toggle() } label: {
-                Image(systemName: isStarred ? "star.fill" : "star")
-                    .foregroundStyle(isStarred ? Color(hex: "F59E0B") : Color.secondary)
+            Button { service.togglePinContainer(container.id) } label: {
+                Image(systemName: service.isContainerPinned(container.id) ? "pin.fill" : "pin")
+                    .foregroundStyle(service.isContainerPinned(container.id) ? Color(hex: "F59E0B") : Color.secondary)
             }
             .buttonStyle(.bordered)
+            .help(service.isContainerPinned(container.id) ? "Unpin" : "Pin")
             .hoverScale()
 
             if container.status == .running {

@@ -42,11 +42,19 @@ final class LiveContainerService: ContainerServiceBase {
         return dir.appendingPathComponent("build-contexts.json")
     }()
 
+    private static let pinnedItemsURL: URL = {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        let dir = support.appendingPathComponent("Berthly")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("pinned-items.json")
+    }()
+
     // MARK: - Init
 
     override init() {
         super.init()
         loadBuildContexts()
+        loadPinnedItems()
         startPolling()
     }
 
@@ -60,6 +68,29 @@ final class LiveContainerService: ContainerServiceBase {
         super.saveBuildContext(ctx, for: reference)
         guard let data = try? JSONEncoder().encode(buildContexts) else { return }
         try? data.write(to: Self.contextsURL, options: .atomic)
+    }
+
+    private func loadPinnedItems() {
+        guard let data = try? Data(contentsOf: Self.pinnedItemsURL),
+              let items = try? JSONDecoder().decode(PinnedItems.self, from: data) else { return }
+        pinnedContainerIDs = items.containers
+        pinnedMachineIDs = items.machines
+    }
+
+    private func savePinnedItems() {
+        let items = PinnedItems(containers: pinnedContainerIDs, machines: pinnedMachineIDs)
+        guard let data = try? JSONEncoder().encode(items) else { return }
+        try? data.write(to: Self.pinnedItemsURL, options: .atomic)
+    }
+
+    override func togglePinContainer(_ id: String) {
+        super.togglePinContainer(id)
+        savePinnedItems()
+    }
+
+    override func togglePinMachine(_ id: String) {
+        super.togglePinMachine(id)
+        savePinnedItems()
     }
 
     // MARK: - Polling
@@ -722,6 +753,7 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func deleteContainer(_ id: String) async throws {
         try await ContainerClient().delete(id: id)
+        if pinnedContainerIDs.remove(id) != nil { savePinnedItems() }
         await refresh()
     }
 
@@ -748,6 +780,7 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func deleteMachine(_ id: String) async throws {
         try await MachineClient().delete(id: id)
+        if pinnedMachineIDs.remove(id) != nil { savePinnedItems() }
         await refresh()
     }
 

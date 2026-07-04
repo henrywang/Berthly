@@ -60,7 +60,18 @@ struct MenuBarView: View {
 
             if service.isConnected {
                 Divider()
-                if service.runningContainers.isEmpty && service.runningMachines.isEmpty {
+
+                // Pinned items show regardless of running/stopped state — the whole point of
+                // pinning is quick access that doesn't depend on the item currently being live.
+                let pinnedContainers = service.pinnedContainers
+                let pinnedMachines = service.pinnedMachines
+                // Excluded from the running sections below so a pinned-and-running item doesn't
+                // render twice — its one row already lives in the PINNED section.
+                let otherRunningContainers = service.runningContainers.filter { !service.pinnedContainerIDs.contains($0.id) }
+                let otherRunningMachines = service.runningMachines.filter { !service.pinnedMachineIDs.contains($0.id) }
+
+                if pinnedContainers.isEmpty && pinnedMachines.isEmpty
+                    && otherRunningContainers.isEmpty && otherRunningMachines.isEmpty {
                     Text("No running containers or machines.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
@@ -70,20 +81,33 @@ struct MenuBarView: View {
                     // ScrollView bounded only by .frame(maxHeight:) reports zero ideal height —
                     // the panel would collapse around it. Cap rows instead of scrolling, which is
                     // also how native menu-bar popovers (Wi-Fi, Bluetooth) handle long lists.
-                    let visibleContainers = service.runningContainers.prefix(5)
-                    let visibleMachines = service.runningMachines.prefix(3)
-                    let hiddenCount = (service.runningContainers.count - visibleContainers.count)
-                        + (service.runningMachines.count - visibleMachines.count)
+                    let visibleContainers = otherRunningContainers.prefix(5)
+                    let visibleMachines = otherRunningMachines.prefix(3)
+                    let hiddenCount = (otherRunningContainers.count - visibleContainers.count)
+                        + (otherRunningMachines.count - visibleMachines.count)
 
                     VStack(alignment: .leading, spacing: 10) {
-                        if !visibleContainers.isEmpty {
-                            MenuBarSectionHeader("CONTAINERS")
+                        // Each row now carries its own type glyph (MenuBarTypeTile, in the icon
+                        // tile itself) instead of relying on a section header to say "these are
+                        // containers" — so containers and machines can share one header per group
+                        // instead of needing a CONTAINERS/MACHINES split under each.
+                        //
+                        // Not capped like RUNNING below — pins are user-curated and expected to
+                        // stay small, so truncating them would defeat the point.
+                        if !pinnedContainers.isEmpty || !pinnedMachines.isEmpty {
+                            MenuBarSectionHeader("PINNED")
+                            ForEach(pinnedContainers) { container in
+                                MenuBarContainerRow(container: container)
+                            }
+                            ForEach(pinnedMachines) { machine in
+                                MenuBarMachineRow(machine: machine)
+                            }
+                        }
+                        if !visibleContainers.isEmpty || !visibleMachines.isEmpty {
+                            MenuBarSectionHeader("RUNNING")
                             ForEach(Array(visibleContainers)) { container in
                                 MenuBarContainerRow(container: container)
                             }
-                        }
-                        if !visibleMachines.isEmpty {
-                            MenuBarSectionHeader("MACHINES")
                             ForEach(Array(visibleMachines)) { machine in
                                 MenuBarMachineRow(machine: machine)
                             }
@@ -311,6 +335,40 @@ private struct MenuBarDaemonRow: View {
 
 // MARK: - Rows
 
+/// Type glyph (container/machine) tinted in a rounded tile, with the status shape (see
+/// `ContainerStatus.systemImage` — deliberately shape-, not just color-, coded so colorblind users
+/// can tell states apart) badged on its corner. Replaces a plain leading status icon so a row's
+/// kind is identifiable at a glance without needing a CONTAINERS/MACHINES header to say so —
+/// needed once PINNED mixes both kinds in one list.
+private struct MenuBarTypeTile: View {
+    let systemImage: String
+    let status: ContainerStatus
+
+    var body: some View {
+        // .overlay (not a shared ZStack alignment) so the type glyph defaults to centered and
+        // only the badge gets pulled to the corner — a single ZStack(alignment: .bottomTrailing)
+        // applies that alignment to every child, including the type icon, which had no frame of
+        // its own to center against and so drifted to the corner too.
+        RoundedRectangle(cornerRadius: 7)
+            .fill(Color.berthlyAccent.opacity(0.15))
+            .frame(width: 26, height: 26)
+            .overlay {
+                Image(systemName: systemImage)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.berthlyAccent)
+            }
+            .overlay(alignment: .bottomTrailing) {
+                Image(systemName: status.systemImage)
+                    .font(.system(size: 7, weight: .bold))
+                    .foregroundStyle(status.color)
+                    .padding(2.5)
+                    .background(Circle().fill(.background))
+                    .offset(x: 4, y: 4)
+            }
+            .frame(width: 30, height: 30)
+    }
+}
+
 private struct MenuBarContainerRow: View {
     let container: Container
     @Environment(ContainerServiceBase.self) private var service
@@ -320,9 +378,7 @@ private struct MenuBarContainerRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: container.status.systemImage)
-                .foregroundStyle(container.status.color)
-                .imageScale(.small)
+            MenuBarTypeTile(systemImage: "shippingbox", status: container.status)
             VStack(alignment: .leading, spacing: 1) {
                 Text(container.name)
                     .font(.system(.callout, design: .monospaced))
@@ -334,22 +390,33 @@ private struct MenuBarContainerRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button {
-                run { try await service.restartContainer(container.id) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
+            if container.status == .running {
+                Button {
+                    run { try await service.restartContainer(container.id) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.hoverIcon)
+                .disabled(isWorking)
+                .help("Restart")
+                Button {
+                    run { try await service.stopContainer(container.id) }
+                } label: {
+                    Image(systemName: "stop.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .disabled(isWorking)
+                .help("Stop")
+            } else {
+                Button {
+                    run { try await service.startContainer(container.id) }
+                } label: {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .disabled(isWorking)
+                .help("Start")
             }
-            .buttonStyle(.hoverIcon)
-            .disabled(isWorking)
-            .help("Restart")
-            Button {
-                run { try await service.stopContainer(container.id) }
-            } label: {
-                Image(systemName: "stop.fill")
-            }
-            .buttonStyle(.hoverIcon)
-            .disabled(isWorking)
-            .help("Stop")
         }
         .opacity(isWorking ? 0.5 : 1)
         .contentShape(Rectangle())
@@ -380,9 +447,7 @@ private struct MenuBarMachineRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: machine.status.systemImage)
-                .foregroundStyle(machine.status.color)
-                .imageScale(.small)
+            MenuBarTypeTile(systemImage: "desktopcomputer", status: machine.status)
             VStack(alignment: .leading, spacing: 1) {
                 Text(machine.name)
                     .font(.system(.callout, design: .monospaced))
@@ -394,14 +459,25 @@ private struct MenuBarMachineRow: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button {
-                run { try await service.stopMachine(machine.id) }
-            } label: {
-                Image(systemName: "stop.fill")
+            if machine.status == .running {
+                Button {
+                    run { try await service.stopMachine(machine.id) }
+                } label: {
+                    Image(systemName: "stop.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .disabled(isWorking)
+                .help("Stop")
+            } else {
+                Button {
+                    run { try await service.startMachine(machine.id) }
+                } label: {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .disabled(isWorking)
+                .help("Start")
             }
-            .buttonStyle(.hoverIcon)
-            .disabled(isWorking)
-            .help("Stop")
         }
         .opacity(isWorking ? 0.5 : 1)
         .contentShape(Rectangle())
@@ -566,7 +642,12 @@ private struct MenuBarFooterButton: View {
 // MARK: - Preview
 
 #Preview {
-    MenuBarView()
-        .environment(MockContainerService() as ContainerServiceBase)
+    let mock = MockContainerService()
+    // A running + a stopped item pinned for each kind — the mix that motivated splitting the
+    // PINNED section into per-type headers instead of one merged list.
+    mock.pinnedContainerIDs = ["3f9a2b7c1d", "d4e5f6a7b8"]
+    mock.pinnedMachineIDs = ["dev", "ci-runner"]
+    return MenuBarView()
+        .environment(mock as ContainerServiceBase)
         .environment(MenuBarBridge())
 }

@@ -104,6 +104,14 @@ private struct MachineDetailContent: View {
             .layoutPriority(1)
             Spacer(minLength: 8)
 
+            Button { service.togglePinMachine(machine.id) } label: {
+                Image(systemName: service.isMachinePinned(machine.id) ? "pin.fill" : "pin")
+                    .foregroundStyle(service.isMachinePinned(machine.id) ? Color(hex: "F59E0B") : Color.secondary)
+            }
+            .buttonStyle(.bordered)
+            .help(service.isMachinePinned(machine.id) ? "Unpin" : "Pin")
+            .hoverScale()
+
             if machine.status == .running {
                 Button(role: .destructive) { showStopConfirm = true } label: {
                     Label("Stop", systemImage: "stop.fill")

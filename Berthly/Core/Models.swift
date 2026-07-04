@@ -235,6 +235,16 @@ struct ImageInspectData {
     let history: [String]       // cleaned createdBy lines
 }
 
+// MARK: - Pinned items
+
+/// Persisted set of pinned container/machine ids, shown in the menu bar regardless of state.
+/// Top-level and `nonisolated` (rather than nested in `LiveContainerService`) so its Codable
+/// conformance isn't main-actor-isolated — same reasoning as `BuildContext` below.
+nonisolated struct PinnedItems: Codable {
+    var containers: Set<String>
+    var machines: Set<String>
+}
+
 // MARK: - Build
 
 /// Persisted per-image build settings, used to pre-fill the Rebuild sheet.

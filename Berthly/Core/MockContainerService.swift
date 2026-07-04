@@ -109,6 +109,7 @@ final class MockContainerService: ContainerServiceBase {
 
     override func deleteContainer(_ id: String) async throws {
         containers.removeAll { $0.id == id }
+        pinnedContainerIDs.remove(id)
     }
 
     override func startMachine(_ id: String) async throws {
@@ -133,6 +134,7 @@ final class MockContainerService: ContainerServiceBase {
 
     override func deleteMachine(_ id: String) async throws {
         machines.removeAll { $0.id == id }
+        pinnedMachineIDs.remove(id)
     }
 
     override func stopBuilder(_ id: String) async throws {
