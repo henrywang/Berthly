@@ -138,13 +138,17 @@ final class LiveContainerService: ContainerServiceBase {
         }
     }
 
-    private static let apiServerExecutablePath = "/usr/local/bin/container-apiserver"
+    // `nonisolated`: these are immutable compile-time constants read by the `nonisolated`
+    // daemon-launch helpers (`launchDaemonIfNeeded`, `pingDaemonWithRecovery`), which run off the
+    // main actor. Without `nonisolated` they'd be MainActor-isolated (this is a `@MainActor` class)
+    // and every off-actor read would warn under Swift 6 concurrency.
+    private nonisolated static let apiServerExecutablePath = "/usr/local/bin/container-apiserver"
     // `InstallRoot.defaultPath` derives this from `CommandLine.executablePath`, which for a GUI
     // .app resolves to Berthly's own bundle path, not the `container` CLI's install location —
     // hardcode the layout the CLI's own installer uses instead (`container-apiserver` lives next
     // to `container` under `/usr/local/bin`, confirmed on disk).
-    private static let installRootPath = "/usr/local"
-    private static let apiServerLabel = "com.apple.container.apiserver"
+    private nonisolated static let installRootPath = "/usr/local"
+    private nonisolated static let apiServerLabel = "com.apple.container.apiserver"
     private static let servicePrefix = "com.apple.container."
 
     /// Native (launchd, no CLI shelling) implementation of `container system start`: registers
@@ -811,6 +815,106 @@ final class LiveContainerService: ContainerServiceBase {
     override func deleteNetwork(_ id: String) async throws {
         try await NetworkClient().delete(id: id)
         await refresh()
+    }
+
+    // MARK: - System page
+
+    override func fetchDiskUsage() async throws {
+        let stats = try await ClientDiskUsage.get()
+        diskUsage = Self.mapDiskUsage(stats)
+    }
+
+    nonisolated static func mapDiskUsage(_ stats: DiskUsageStats) -> DiskUsageSummary {
+        func category(_ usage: ResourceUsage) -> DiskUsageSummary.Category {
+            DiskUsageSummary.Category(
+                total: usage.total,
+                active: usage.active,
+                sizeBytes: usage.sizeInBytes,
+                reclaimableBytes: usage.reclaimable
+            )
+        }
+        return DiskUsageSummary(
+            images: category(stats.images),
+            containers: category(stats.containers),
+            volumes: category(stats.volumes)
+        )
+    }
+
+    override func fetchKernelInfo() async throws {
+        let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+        kernelInfo = Self.mapKernelInfo(kernel)
+    }
+
+    nonisolated static func mapKernelInfo(_ kernel: Kernel) -> KernelInfo {
+        KernelInfo(path: kernel.path.path, platform: "\(kernel.platform.os.rawValue)/\(kernel.platform.architecture.rawValue)")
+    }
+
+    /// Native replication of `container system kernel set --binary`/`--tar`: installs a
+    /// user-chosen kernel binary (local file) or archive member (local tar or remote URL) as the
+    /// new default for the given architecture. There's no "list installed kernels" or update-check
+    /// API on this daemon — this is the full extent of what `ClientKernel` supports.
+    override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
+        let platform: SystemPlatform = options.architecture == "amd64" ? .linuxAmd : .linuxArm
+        if let tarSource = options.tarSource {
+            try await ClientKernel.installKernelFromTar(
+                tarFile: tarSource,
+                kernelFilePath: options.binaryPath,
+                platform: platform,
+                progressUpdate: progress,
+                force: options.force
+            )
+        } else {
+            try await ClientKernel.installKernel(kernelFilePath: options.binaryPath, platform: platform, force: options.force)
+        }
+        try await fetchKernelInfo()
+    }
+
+    override func fetchSystemConfig() async throws {
+        let config = await resolvedSystemConfig()
+        systemConfigInfo = try Self.mapSystemConfig(config)
+    }
+
+    nonisolated static func mapSystemConfig(_ config: ContainerSystemConfig) throws -> SystemConfigInfo {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(config)
+        return SystemConfigInfo(
+            vminitImage: config.vminit.image,
+            kernelBinaryPath: config.kernel.binaryPath,
+            kernelURL: config.kernel.url.absoluteString,
+            builderImage: config.build.image,
+            rawJSON: String(data: data, encoding: .utf8) ?? ""
+        )
+    }
+
+    /// Streams `container`'s own daemon logs via unified logging (`/usr/bin/log stream`) — there's
+    /// no XPC route for this (the CLI itself just shells out to `log`, see `SystemLogs.swift`), so
+    /// this is a narrow, deliberate exception to the "no `Process()` calls" migration: it targets a
+    /// stable Apple system binary, not the `container` CLI, so a container CLI bug still can't
+    /// affect it.
+    override func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = [
+            "log", "stream", "--info",
+            "--predicate", "subsystem = 'com.apple.container'",
+        ]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+
+        await withTaskCancellationHandler {
+            do {
+                for try await line in pipe.fileHandleForReading.bytes.lines {
+                    if Task.isCancelled { break }
+                    onLine(line)
+                }
+            } catch {
+                // Pipe closed because the process was terminated on cancel — expected.
+            }
+        } onCancel: {
+            process.terminate()
+        }
     }
 
     /// Resolves the Dockerfile to build from: an explicit path if given, else the CLI's own

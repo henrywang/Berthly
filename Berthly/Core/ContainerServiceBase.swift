@@ -36,6 +36,12 @@ class ContainerServiceBase {
     /// `.connected` vs `.versionMismatch`.
     var installedContainerVersion: String? = nil
 
+    /// System-page data, fetched on demand when that page appears rather than on every
+    /// `refresh()` poll — it's low-frequency, look-it-up-when-needed information.
+    var diskUsage: DiskUsageSummary? = nil
+    var kernelInfo: KernelInfo? = nil
+    var systemConfigInfo: SystemConfigInfo? = nil
+
     func buildContext(for reference: String) -> BuildContext? { buildContexts[reference] }
     func saveBuildContext(_ ctx: BuildContext, for reference: String) { buildContexts[reference] = ctx }
 
@@ -69,6 +75,12 @@ class ContainerServiceBase {
     func stopDaemon() async {}
     func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
     func refresh() async {}
+
+    func fetchDiskUsage() async throws {}
+    func fetchKernelInfo() async throws {}
+    func fetchSystemConfig() async throws {}
+    func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
+    func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
 
     var isConnected: Bool {
         if case .connected = daemonState { return true }

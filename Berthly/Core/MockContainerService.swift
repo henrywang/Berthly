@@ -156,6 +156,41 @@ final class MockContainerService: ContainerServiceBase {
         networks.removeAll { $0.id == id }
     }
 
+    override func fetchDiskUsage() async throws {
+        diskUsage = DiskUsageSummary(
+            images: .init(total: 12, active: 4, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
+            containers: .init(total: 6, active: 2, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
+            volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 0)
+        )
+    }
+
+    override func fetchKernelInfo() async throws {
+        kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
+    }
+
+    override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
+        kernelInfo = KernelInfo(path: options.binaryPath, platform: "linux/\(options.architecture)")
+    }
+
+    override func fetchSystemConfig() async throws {
+        systemConfigInfo = SystemConfigInfo(
+            vminitImage: "ghcr.io/apple/containerization/vminit:latest",
+            kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
+            kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
+            builderImage: "ghcr.io/apple/container-builder-shim/builder:latest",
+            rawJSON: "{\n  \"vminit\" : {\n    \"image\" : \"ghcr.io/apple/containerization/vminit:latest\"\n  }\n}"
+        )
+    }
+
+    override func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
+        for line in [
+            "2026-07-04 08:00:00.000 [info] apiserver started",
+            "2026-07-04 08:00:01.000 [info] listening on com.apple.container.apiserver",
+        ] {
+            onLine(line)
+        }
+    }
+
     override func buildImage(
         options: BuildOptions,
         onLog: @MainActor @escaping (String) -> Void

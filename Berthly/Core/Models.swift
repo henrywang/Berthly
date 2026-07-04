@@ -215,6 +215,45 @@ struct Builder: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
+// MARK: - System page
+
+struct DiskUsageSummary: Hashable {
+    struct Category: Hashable {
+        let total: Int
+        let active: Int
+        let sizeBytes: UInt64
+        let reclaimableBytes: UInt64
+    }
+    let images: Category
+    let containers: Category
+    let volumes: Category
+}
+
+struct KernelInfo: Hashable {
+    let path: String
+    let platform: String
+}
+
+/// Full set of arguments for installing/switching the default kernel — mirrors
+/// `container system kernel set`. `tarSource` may be a local file path or a
+/// remote URL; when set, `binaryPath` names the member to extract from the
+/// archive rather than a path on the local disk.
+nonisolated struct KernelSetOptions {
+    var binaryPath: String
+    var tarSource: String?
+    var architecture: String  // "arm64" or "amd64"
+    var force: Bool = false
+}
+
+struct SystemConfigInfo: Hashable {
+    let vminitImage: String
+    let kernelBinaryPath: String
+    let kernelURL: String
+    let builderImage: String
+    /// Pretty-printed JSON of the full decoded config.toml, for the raw property-list viewer.
+    let rawJSON: String
+}
+
 // MARK: - Image inspect (pre-extracted from OCI types, no framework imports in views)
 
 struct ImageVariantInfo: Hashable {

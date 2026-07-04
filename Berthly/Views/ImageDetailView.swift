@@ -364,20 +364,6 @@ private struct HistorySection: View {
     }
 }
 
-// MARK: - Section wrapper
-
-private struct DetailSection<Content: View>: View {
-    let title: String
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.caption2.weight(.semibold)).foregroundStyle(.tertiary)
-            content()
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {
