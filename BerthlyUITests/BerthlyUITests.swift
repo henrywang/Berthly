@@ -207,31 +207,20 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(mainWindows.count, 1, "Open Berthly should focus the existing window, not open a duplicate")
     }
 
-    /// The daemon stop button's confirmation is inline rather than a system `.alert` — alerts
-    /// presented from inside a `menuBarExtraStyle(.window)` panel were found to be unreliable in
-    /// practice (the confirmation could disappear without its action ever running).
+    /// The daemon stop button acts immediately, same as every container/machine row's own
+    /// stop button — no confirmation step, matching `MockContainerService.stopDaemon()`'s
+    /// connected → stopping → installedButStopped sequence.
     @MainActor
-    func testMenuBarExtraDaemonStopButtonShowsInlineStopConfirmation() throws {
+    func testMenuBarExtraDaemonStopButtonStopsImmediately() throws {
         let app = try launchAndOpenMenuBarExtra()
 
         let daemonStopButton = app.buttons["menuBarDaemonStopButton"]
         XCTAssertTrue(daemonStopButton.waitForExistence(timeout: 5))
         daemonStopButton.click()
 
-        // Plain "Stop"/"Cancel" would be ambiguous — every running row has its own "Stop" button
-        // (auto-labeled from the "stop.fill" SF Symbol), so the confirmation's buttons need their
-        // own identifiers to query unambiguously.
-        let stopButton = app.buttons["menuBarStopConfirmStop"]
-        XCTAssertTrue(stopButton.waitForExistence(timeout: 5), "Inline stop confirmation should appear")
-        XCTAssertTrue(app.staticTexts["Container daemon"].exists, "Popover should stay open for the confirmation")
-
-        app.buttons["menuBarStopConfirmCancel"].click()
-
-        // A plain `.exists` check here would race the app's own UI update after the click —
-        // wait for the condition instead of asserting on it immediately.
-        let disappeared = NSPredicate(format: "exists == false")
-        expectation(for: disappeared, evaluatedWith: stopButton)
-        waitForExpectations(timeout: 5)
+        let daemonStartButton = app.buttons["menuBarDaemonStartButton"]
+        XCTAssertTrue(daemonStartButton.waitForExistence(timeout: 5), "Daemon should stop without a confirmation step")
+        XCTAssertTrue(app.staticTexts["Container daemon"].exists, "Popover should stay open after stopping")
     }
 
     /// Repeated sheet open/close is a classic leak source (an `@Observable` view model or a

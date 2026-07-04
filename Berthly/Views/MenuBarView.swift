@@ -237,19 +237,17 @@ private struct MenuBarPill: View {
     }
 }
 
-/// Off → on (stopped → running) calls `startDaemon()` directly, no confirm. On → off shows a
-/// confirm alert first — a real container-system stop kills every running container on the
-/// machine, not just ones Berthly manages, so a stray click must not be able to do that silently.
-/// Rendered as separate play/stop buttons rather than a single `Toggle`, since a toggle bound to
-/// `isRunning` would visually flip on the stop click and then snap back once the confirm alert
-/// (not `isRunning`) is what actually changes.
+/// Both directions act immediately on click, same as every container/machine row's play/stop
+/// button below. The stop button is tinted red (unlike the rows' plain `.secondary` icons) since
+/// this one has a much bigger blast radius — it kills every running container on the machine, not
+/// just ones Berthly manages — and that difference needs to read at a glance even though the
+/// interaction itself is a single click either way.
 private struct MenuBarDaemonRow: View {
     let isRunning: Bool
     let isBusy: Bool
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
     @Environment(\.openWindow) private var openWindow
-    @State private var showStopConfirm = false
 
     private var isVersionMismatch: Bool {
         if case .versionMismatch = service.daemonState { return true }
@@ -257,100 +255,58 @@ private struct MenuBarDaemonRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 8) {
-                Text("Container daemon")
-                    .font(.callout)
-                if let version = service.installedContainerVersion {
-                    Text("v\(version)")
-                        .font(.system(.caption2, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.12), in: Capsule())
-                }
-                if isVersionMismatch {
-                    Button {
-                        openOrFocusMainWindow(bridge: bridge, openWindow: openWindow)
-                    } label: {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(Color.statusError)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Installed container doesn't match the version Berthly requires — open Berthly to update")
-                }
-                Spacer()
-                if isBusy {
-                    ProgressView().controlSize(.small)
-                } else if isRunning {
-                    // A `Toggle` here would visually animate to "off" on click, then snap back to
-                    // "on" once the confirm alert appears and the source-of-truth `isRunning`
-                    // hasn't actually changed — a flicker that misrepresents the toggle as having
-                    // taken effect. A disclosure chevron (same chevron.right/chevron.down swap as
-                    // `MenuBarRunSubmenu` below) has no state of its own to flicker, and its
-                    // expanded/collapsed direction stays in sync with `showStopConfirm` for free.
-                    Button {
-                        showStopConfirm.toggle()
-                    } label: {
-                        Image(systemName: showStopConfirm ? "chevron.down" : "chevron.right")
-                    }
-                    .buttonStyle(.hoverIcon)
-                    // Collides with every running row's own stop button if queried by
-                    // auto-generated label — an explicit identifier disambiguates it.
-                    .accessibilityIdentifier("menuBarDaemonStopButton")
-                } else {
-                    Button {
-                        Task { await service.startDaemon() }
-                    } label: {
-                        Image(systemName: "play.fill")
-                    }
-                    .buttonStyle(.hoverIcon)
-                    .accessibilityIdentifier("menuBarDaemonStartButton")
-                }
+        HStack(spacing: 8) {
+            // Shape-coded, not just color-coded (filled vs outline circle), matching
+            // `ContainerStatus.systemImage`'s convention — a colorblind user can still tell
+            // running from stopped. Needed because the summary pills above read "0 running" in
+            // both states once nothing's running, leaving this the only affirmative "it's up"
+            // signal in the row.
+            Image(systemName: isRunning ? "circle.fill" : "circle")
+                .font(.system(size: 8))
+                .foregroundStyle(isRunning ? Color.statusRunning : .secondary)
+            Text("Container daemon")
+                .font(.callout)
+            if let version = service.installedContainerVersion {
+                Text("v\(version)")
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.12), in: Capsule())
             }
-
-            // Inline rather than `.alert` — a system alert presented from inside a
-            // `menuBarExtraStyle(.window)` panel (a borderless auxiliary NSPanel, not a real
-            // window) has been unreliable in practice: the confirmation could disappear without
-            // ever running its action. An inline expand/collapse can't have that failure mode.
-            if showStopConfirm {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(Color.statusError)
-                        // `.fixedSize(vertical:)` forces this to wrap to the panel's actual width
-                        // instead of reporting its single-line ideal width and getting clipped with
-                        // an ellipsis — the default failure mode for Text sized this way inside a
-                        // `menuBarExtraStyle(.window)` popover.
-                        Text("This stops every running container on this Mac, not just ones Berthly manages — including containers started from the terminal.")
-                            .font(.caption)
-                            .foregroundStyle(.primary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    HStack(spacing: 8) {
-                        Button("Cancel") { showStopConfirm = false }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .accessibilityIdentifier("menuBarStopConfirmCancel")
-                        Button("Stop") {
-                            showStopConfirm = false
-                            Task { await service.stopDaemon() }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.statusError)
-                        .controlSize(.small)
-                        // "Stop" alone collides with every running row's own stop button (their
-                        // label is auto-generated from the "stop.fill" SF Symbol) — an explicit
-                        // identifier is the only way to query this one unambiguously.
-                        .accessibilityIdentifier("menuBarStopConfirmStop")
-                    }
+            if isVersionMismatch {
+                Button {
+                    openOrFocusMainWindow(bridge: bridge, openWindow: openWindow)
+                } label: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.statusError)
                 }
-                .padding(10)
-                .background(Color.statusError.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color.statusError.opacity(0.4), lineWidth: 1)
-                )
+                .buttonStyle(.plain)
+                .help("Installed container doesn't match the version Berthly requires — open Berthly to update")
+            }
+            Spacer()
+            if isBusy {
+                ProgressView().controlSize(.small)
+            } else if isRunning {
+                // Neutral, not red — the leading dot now owns the "is it running" status read,
+                // so the button is free to read as plain action, matching every other stop
+                // button in this panel. The blast-radius warning still lives in the tooltip.
+                Button {
+                    Task { await service.stopDaemon() }
+                } label: {
+                    Image(systemName: "stop.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .help("Stop container daemon — this stops every running container on this Mac, not just ones Berthly manages")
+                .accessibilityIdentifier("menuBarDaemonStopButton")
+            } else {
+                Button {
+                    Task { await service.startDaemon() }
+                } label: {
+                    Image(systemName: "play.fill")
+                }
+                .buttonStyle(.hoverIcon)
+                .accessibilityIdentifier("menuBarDaemonStartButton")
             }
         }
     }
@@ -663,6 +619,18 @@ private struct MenuBarFooterButton: View {
 }
 
 // MARK: - Preview
+
+/// The state that motivated the leading status dot on `MenuBarDaemonRow`: with nothing running,
+/// both summary pills read "0 running" — ambiguous between "daemon's down" and "daemon's up,
+/// idle" — so the dot is the only affirmative "it's up" signal left in the panel.
+#Preview("Connected, nothing running") {
+    let mock = MockContainerService()
+    mock.containers.removeAll()
+    mock.machines.removeAll()
+    return MenuBarView()
+        .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
+}
 
 #Preview {
     let mock = MockContainerService()
