@@ -240,6 +240,9 @@ private struct MenuBarPill: View {
 /// Off → on (stopped → running) calls `startDaemon()` directly, no confirm. On → off shows a
 /// confirm alert first — a real container-system stop kills every running container on the
 /// machine, not just ones Berthly manages, so a stray click must not be able to do that silently.
+/// Rendered as separate play/stop buttons rather than a single `Toggle`, since a toggle bound to
+/// `isRunning` would visually flip on the stop click and then snap back once the confirm alert
+/// (not `isRunning`) is what actually changes.
 private struct MenuBarDaemonRow: View {
     let isRunning: Bool
     let isBusy: Bool
@@ -279,23 +282,30 @@ private struct MenuBarDaemonRow: View {
                 Spacer()
                 if isBusy {
                     ProgressView().controlSize(.small)
+                } else if isRunning {
+                    // A `Toggle` here would visually animate to "off" on click, then snap back to
+                    // "on" once the confirm alert appears and the source-of-truth `isRunning`
+                    // hasn't actually changed — a flicker that misrepresents the toggle as having
+                    // taken effect. A disclosure chevron (same chevron.right/chevron.down swap as
+                    // `MenuBarRunSubmenu` below) has no state of its own to flicker, and its
+                    // expanded/collapsed direction stays in sync with `showStopConfirm` for free.
+                    Button {
+                        showStopConfirm.toggle()
+                    } label: {
+                        Image(systemName: showStopConfirm ? "chevron.down" : "chevron.right")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    // Collides with every running row's own stop button if queried by
+                    // auto-generated label — an explicit identifier disambiguates it.
+                    .accessibilityIdentifier("menuBarDaemonStopButton")
                 } else {
-                    Toggle("", isOn: Binding(
-                        get: { isRunning },
-                        set: { newValue in
-                            if newValue {
-                                Task { await service.startDaemon() }
-                            } else {
-                                showStopConfirm = true
-                            }
-                        }
-                    ))
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    // Empty label above (`.labelsHidden()`) leaves this with no accessible name to
-                    // query by — an explicit identifier is the only way UI tests can find it.
-                    .accessibilityIdentifier("menuBarDaemonToggle")
+                    Button {
+                        Task { await service.startDaemon() }
+                    } label: {
+                        Image(systemName: "play.fill")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .accessibilityIdentifier("menuBarDaemonStartButton")
                 }
             }
 
@@ -304,10 +314,19 @@ private struct MenuBarDaemonRow: View {
             // window) has been unreliable in practice: the confirmation could disappear without
             // ever running its action. An inline expand/collapse can't have that failure mode.
             if showStopConfirm {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("This stops every running container on this Mac, not just ones Berthly manages — including containers started from the terminal.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.statusError)
+                        // `.fixedSize(vertical:)` forces this to wrap to the panel's actual width
+                        // instead of reporting its single-line ideal width and getting clipped with
+                        // an ellipsis — the default failure mode for Text sized this way inside a
+                        // `menuBarExtraStyle(.window)` popover.
+                        Text("This stops every running container on this Mac, not just ones Berthly manages — including containers started from the terminal.")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     HStack(spacing: 8) {
                         Button("Cancel") { showStopConfirm = false }
                             .buttonStyle(.bordered)
@@ -326,8 +345,12 @@ private struct MenuBarDaemonRow: View {
                         .accessibilityIdentifier("menuBarStopConfirmStop")
                     }
                 }
-                .padding(8)
-                .background(Color.statusError.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                .padding(10)
+                .background(Color.statusError.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.statusError.opacity(0.4), lineWidth: 1)
+                )
             }
         }
     }

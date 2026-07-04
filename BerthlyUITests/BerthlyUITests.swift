@@ -207,16 +207,16 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(mainWindows.count, 1, "Open Berthly should focus the existing window, not open a duplicate")
     }
 
-    /// The daemon toggle's stop path shows an inline confirmation rather than a system `.alert` —
-    /// alerts presented from inside a `menuBarExtraStyle(.window)` panel were found to be
-    /// unreliable in practice (the confirmation could disappear without its action ever running).
+    /// The daemon stop button's confirmation is inline rather than a system `.alert` — alerts
+    /// presented from inside a `menuBarExtraStyle(.window)` panel were found to be unreliable in
+    /// practice (the confirmation could disappear without its action ever running).
     @MainActor
-    func testMenuBarExtraDaemonToggleShowsInlineStopConfirmation() throws {
+    func testMenuBarExtraDaemonStopButtonShowsInlineStopConfirmation() throws {
         let app = try launchAndOpenMenuBarExtra()
 
-        let toggle = app.checkBoxes["menuBarDaemonToggle"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
-        toggle.click()
+        let daemonStopButton = app.buttons["menuBarDaemonStopButton"]
+        XCTAssertTrue(daemonStopButton.waitForExistence(timeout: 5))
+        daemonStopButton.click()
 
         // Plain "Stop"/"Cancel" would be ambiguous — every running row has its own "Stop" button
         // (auto-labeled from the "stop.fill" SF Symbol), so the confirmation's buttons need their
