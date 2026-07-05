@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// Shared by any log viewer (container logs, daemon logs): a follow/filter/wrap/clear toolbar
-/// over a scrolling, colorized line list. Callers supply a `stream` closure that emits raw lines
-/// via `onLine` for as long as the surrounding `.task(id:)` stays alive; this view owns display
-/// state (following, filter, wrap) and re-parses each raw line into a `LogLine`.
+/// Container Logs' viewer: a follow/filter/wrap/clear toolbar over a scrolling, colorized line
+/// list. Callers supply a `stream` closure that emits raw lines via `onLine` for as long as the
+/// surrounding `.task(id:)` stays alive; this view owns display state (following, filter, wrap)
+/// and re-parses each raw line into a `LogLine`. Daemon Logs uses the simpler, read-only
+/// `DaemonLogView` instead — daemon events are occasional health/status info, not something
+/// actively searched like container stdout.
 struct LogStreamView: View {
     let id: AnyHashable
     let stream: (@escaping @MainActor (String) -> Void) async throws -> Void
@@ -97,6 +99,7 @@ struct LogStreamView: View {
                             }
                             Color.clear.frame(height: 1).id("log-bottom")
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 8)
                     }
                 }
@@ -171,6 +174,9 @@ private struct LogStreamLineRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
+            // Unconditional, fixed-width columns — even when this line has no detected
+            // timestamp/level — so message text still lines up across rows when container
+            // stdout mixes structured ("HH:MM:SS LEVEL msg") and plain unstructured lines.
             Text(line.timestamp)
                 .foregroundStyle(.tertiary)
                 .frame(width: 68, alignment: .leading)

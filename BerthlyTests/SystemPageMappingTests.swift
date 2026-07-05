@@ -70,14 +70,38 @@ struct KernelMappingTests {
 
 struct SystemConfigMappingTests {
 
-    @Test func extractsHighlightedFieldsAndEncodesRawJSON() throws {
+    @Test func extractsHighlightedFields() {
         let config = ContainerSystemConfig()
-        let info = try LiveContainerService.mapSystemConfig(config)
+        let info = LiveContainerService.mapSystemConfig(config)
 
         #expect(info.vminitImage == config.vminit.image)
         #expect(info.kernelBinaryPath == config.kernel.binaryPath)
         #expect(info.kernelURL == config.kernel.url.absoluteString)
         #expect(info.builderImage == config.build.image)
-        #expect(info.rawJSON.contains(config.vminit.image))
+    }
+}
+
+struct DaemonLogEventFormattingTests {
+
+    @Test func joinsTimeLevelAndMessageWithTabs() {
+        let ndjson = """
+            {"timestamp":"2026-07-05 03:36:02.423830-0400","messageType":"Error","eventMessage":"xpc client handler connection error [error=Connection invalid]"}
+            """
+        let formatted = LiveContainerService.formatDaemonLogEvent(ndjson)
+
+        #expect(formatted == "03:36:02.423\tError\txpc client handler connection error [error=Connection invalid]")
+    }
+
+    @Test func trimsDateMicrosecondsAndTimezoneFromTimestamp() {
+        let ndjson = """
+            {"timestamp":"2026-07-05 12:00:00.000001-0700","messageType":"Info","eventMessage":"listening"}
+            """
+        let formatted = LiveContainerService.formatDaemonLogEvent(ndjson)
+
+        #expect(formatted?.hasPrefix("12:00:00.000\t") == true)
+    }
+
+    @Test func returnsNilForNonJSONLines() {
+        #expect(LiveContainerService.formatDaemonLogEvent("Filtering the log data using \"subsystem == ...\"") == nil)
     }
 }

@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+internal import ContainerPersistence
 
 /// System page, styled as a macOS System Settings–style grouped form: each concern
 /// (daemon version, disk usage, kernel, config, builder, logs) is its own inset
@@ -334,7 +336,7 @@ private struct DiskUsageGridRow: View {
             // The destructive/non-destructive distinction lives in the confirmation step instead of
             // the row button's own styling.
             Group {
-                if let cleanup, category.reclaimableBytes > 0 {
+                if cleanup != nil, category.reclaimableBytes > 0 {
                     if isBusy {
                         ProgressView().controlSize(.small)
                     } else {
@@ -407,11 +409,10 @@ private struct KernelSection: View {
     }
 }
 
-// MARK: - System Configuration
+// MARK: - Infrastructure Images
 
 private struct SystemConfigSection: View {
     let config: SystemConfigInfo?
-    @State private var showRawJSON = false
 
     var body: some View {
         Section {
@@ -419,24 +420,35 @@ private struct SystemConfigSection: View {
                 LabeledContent("VM Init Image") { monoValue(config.vminitImage) }
                 LabeledContent("Builder Image") { monoValue(config.builderImage) }
 
-                DisclosureGroup("Raw configuration (JSON)", isExpanded: $showRawJSON) {
-                    ScrollView {
-                        Text(config.rawJSON)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .textSelection(.enabled)
-                    }
-                    .frame(maxHeight: 240)
-                    .padding(.top, 4)
+                Button("Reveal config.toml in Finder") {
+                    revealConfigFile()
                 }
             } else {
                 LabeledContent("Loading…") { EmptyView() }
                     .foregroundStyle(.secondary)
             }
         } header: {
-            sectionHeader("System Configuration", systemImage: "gearshape")
+            sectionHeader("Infrastructure Images", systemImage: "cube")
+        } footer: {
+            Text("The exact vminit and builder image versions this install of Berthly is built against — these must match what the installed container CLI expects.")
         }
+    }
+
+    /// Selects the user's editable `config.toml` (`~/.config/container/config.toml`, respecting
+    /// `XDG_CONFIG_HOME`) in Finder — not the read-only app-root copy `ConfigurationLoader`
+    /// actually loads from, which is regenerated from this file and would be pointless to edit.
+    /// Falls back to the nearest existing ancestor directory if the file (or even `~/.config/
+    /// container/` itself, never created until the user customizes something) doesn't exist yet
+    /// — `selectFile` silently no-ops if handed a root that doesn't exist, so walking up is what
+    /// actually guarantees *some* Finder window opens for the common "never customized" case.
+    private func revealConfigFile() {
+        let path = String(describing: ConfigurationLoader.configurationFile(.home))
+        let fm = FileManager.default
+        var directory = (path as NSString).deletingLastPathComponent
+        while directory != "/" && !fm.fileExists(atPath: directory) {
+            directory = (directory as NSString).deletingLastPathComponent
+        }
+        NSWorkspace.shared.selectFile(path, inFileViewerRootedAtPath: directory)
     }
 }
 
@@ -534,14 +546,81 @@ private struct DaemonLogsSection: View {
 
     var body: some View {
         Section {
-            LogStreamView(id: "daemon-logs", stream: service.streamDaemonLogs)
-                .frame(height: 300)
+            DaemonLogView(stream: service.streamDaemonLogs)
+                .frame(height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
                 .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4))
         } header: {
             sectionHeader("Daemon Logs", systemImage: "text.alignleft")
         }
+    }
+}
+
+/// Read-only, at-a-glance feed of the daemon's own diagnostic events: muted `HH:MM:SS` + message,
+/// no level badge, no filter/wrap/follow toolbar. Daemon events are occasional health/status
+/// info you check when something looks off, not a firehose you actively search through the way
+/// you would container stdout — that's what `LogStreamView` (Container Logs) is for. Always
+/// auto-scrolls to the newest line since there's no "Following" toggle to turn that off.
+private struct DaemonLogView: View {
+    let stream: (@escaping @MainActor (String) -> Void) async throws -> Void
+
+    private struct Line: Identifiable {
+        let id = UUID()
+        let time: String
+        let message: String
+    }
+
+    @State private var lines: [Line] = []
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                if lines.isEmpty {
+                    ContentUnavailableView("No logs", systemImage: "text.alignleft")
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 24)
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(lines) { line in
+                            HStack(alignment: .top, spacing: 12) {
+                                Text(line.time)
+                                    .foregroundStyle(.tertiary)
+                                Text(line.message)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                        }
+                        Color.clear.frame(height: 1).id("bottom")
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+                }
+            }
+            .font(.system(.caption, design: .monospaced))
+            .onChange(of: lines.count) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        }
+        .task {
+            lines = []
+            try? await stream { raw in
+                lines.append(Self.parseLine(raw))
+                if lines.count > 500 { lines.removeFirst(lines.count - 500) }
+            }
+        }
+    }
+
+    /// Daemon log lines arrive as `LiveContainerService.formatDaemonLogEvent`'s
+    /// `"time\tlevel\tmessage"` — level is dropped (this view shows no badge), and the
+    /// millisecond-precision time is trimmed to `HH:MM:SS` for the compact, at-a-glance style.
+    private static func parseLine(_ raw: String) -> Line {
+        let fields = raw.split(separator: "\t", omittingEmptySubsequences: false)
+        guard fields.count == 3 else {
+            return Line(time: "", message: raw.trimmingCharacters(in: .whitespaces))
+        }
+        return Line(time: String(fields[0].prefix(8)), message: String(fields[2]))
     }
 }
 
@@ -561,8 +640,7 @@ private struct DaemonLogsSection: View {
         vminitImage: "ghcr.io/apple/containerization/vminit:latest",
         kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
         kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
-        builderImage: "ghcr.io/apple/container-builder-shim/builder:latest",
-        rawJSON: "{\n  \"vminit\" : {\n    \"image\" : \"ghcr.io/apple/containerization/vminit:latest\"\n  }\n}"
+        builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
     )
     return SystemView()
         .environment(mock as ContainerServiceBase)

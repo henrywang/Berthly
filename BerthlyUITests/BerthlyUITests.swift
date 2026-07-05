@@ -39,6 +39,28 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Pull"].exists)
     }
 
+    /// Regression test for the simplified Daemon Logs box (`DaemonLogView`): confirms the mock
+    /// `streamDaemonLogs` events actually reach the page and render. Text surfaces via the
+    /// `value` attribute, not `label` (confirmed via `XCUIApplication.debugDescription` — a plain
+    /// SwiftUI `Text` inside an `HStack`, unlike a button's title, reports through AXValue on
+    /// macOS), and this page's Form isn't a lazy List, so rows exist in the accessibility tree
+    /// without needing to scroll them into view first.
+    @MainActor
+    func testSystemPageShowsDaemonLogEvents() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        app.staticTexts["System"].click()
+
+        func logRow(containing text: String) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text)).firstMatch
+        }
+
+        XCTAssertTrue(logRow(containing: "apiserver started").waitForExistence(timeout: 5))
+        XCTAssertTrue(logRow(containing: "xpc client handler connection error").exists)
+    }
+
     /// Exercises the Build sheet open/close path — this is the exact interaction that
     /// previously crashed (SwiftUI environment propagation into a sheet's NSWindow).
     /// Skips instead of failing when no daemon is connected, since the Build button is

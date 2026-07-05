@@ -204,15 +204,17 @@ final class MockContainerService: ContainerServiceBase {
             vminitImage: "ghcr.io/apple/containerization/vminit:latest",
             kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
             kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
-            builderImage: "ghcr.io/apple/container-builder-shim/builder:latest",
-            rawJSON: "{\n  \"vminit\" : {\n    \"image\" : \"ghcr.io/apple/containerization/vminit:latest\"\n  }\n}"
+            builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
         )
     }
 
     override func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
+        // Tab-joined "timestamp\tlevel\tmessage", matching what LiveContainerService.
+        // formatDaemonLogEvent produces from real `log stream --style ndjson` output.
         for line in [
-            "2026-07-04 08:00:00.000 [info] apiserver started",
-            "2026-07-04 08:00:01.000 [info] listening on com.apple.container.apiserver",
+            "08:00:00.000\tInfo\tapiserver started",
+            "08:00:01.000\tInfo\tlistening on com.apple.container.apiserver",
+            "08:00:02.481\tError\txpc client handler connection error [error=Connection invalid]",
         ] {
             onLine(line)
         }

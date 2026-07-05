@@ -375,8 +375,6 @@ struct SystemConfigInfo: Hashable {
     let kernelBinaryPath: String
     let kernelURL: String
     let builderImage: String
-    /// Pretty-printed JSON of the full decoded config.toml, for the raw property-list viewer.
-    let rawJSON: String
 }
 
 // MARK: - Image inspect (pre-extracted from OCI types, no framework imports in views)

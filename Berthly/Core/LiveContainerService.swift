@@ -1012,19 +1012,15 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func fetchSystemConfig() async throws {
         let config = await resolvedSystemConfig()
-        systemConfigInfo = try Self.mapSystemConfig(config)
+        systemConfigInfo = Self.mapSystemConfig(config)
     }
 
-    nonisolated static func mapSystemConfig(_ config: ContainerSystemConfig) throws -> SystemConfigInfo {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-        let data = try encoder.encode(config)
-        return SystemConfigInfo(
+    nonisolated static func mapSystemConfig(_ config: ContainerSystemConfig) -> SystemConfigInfo {
+        SystemConfigInfo(
             vminitImage: config.vminit.image,
             kernelBinaryPath: config.kernel.binaryPath,
             kernelURL: config.kernel.url.absoluteString,
-            builderImage: config.build.image,
-            rawJSON: String(data: data, encoding: .utf8) ?? ""
+            builderImage: config.build.image
         )
     }
 
@@ -1033,22 +1029,33 @@ final class LiveContainerService: ContainerServiceBase {
     /// this is a narrow, deliberate exception to the "no `Process()` calls" migration: it targets a
     /// stable Apple system binary, not the `container` CLI, so a container CLI bug still can't
     /// affect it.
+    private static let daemonLogPredicate = "subsystem = 'com.apple.container'"
+
     override func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = [
+        // `log stream` only reports events emitted *after* it starts — the daemon's own activity
+        // is sparse/bursty (long quiet stretches between background reconcile errors), so opening
+        // this page would otherwise often show nothing at all for minutes. Backfill recent
+        // history via `log show` first, then hand off to `log stream` for anything new.
+        for line in await Self.fetchDaemonLogBackfill() {
+            // The view may have already gone away while the backfill was running (it's a
+            // one-shot subprocess, not covered by the cancellation handler below).
+            if Task.isCancelled { return }
+            onLine(line)
+        }
+
+        let (process, pipe) = try Self.launchLogProcess(arguments: [
             "log", "stream", "--info",
-            "--predicate", "subsystem = 'com.apple.container'",
-        ]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        try process.run()
+            "--style", "ndjson",
+            "--predicate", Self.daemonLogPredicate,
+        ])
 
         await withTaskCancellationHandler {
             do {
                 for try await line in pipe.fileHandleForReading.bytes.lines {
                     if Task.isCancelled { break }
-                    onLine(line)
+                    if let formatted = Self.formatDaemonLogEvent(line) {
+                        onLine(formatted)
+                    }
                 }
             } catch {
                 // Pipe closed because the process was terminated on cancel — expected.
@@ -1056,6 +1063,64 @@ final class LiveContainerService: ContainerServiceBase {
         } onCancel: {
             process.terminate()
         }
+    }
+
+    /// One-shot `log show --last 1h` so the Daemon Logs box has something to display immediately,
+    /// rather than waiting on whatever `log stream` happens to report after the page opens.
+    /// Unlike `log stream`, `log show` exits on its own once it's printed everything in the
+    /// window, so this just drains its output instead of needing cancellation handling.
+    nonisolated static func fetchDaemonLogBackfill() async -> [String] {
+        guard let (_, pipe) = try? Self.launchLogProcess(arguments: [
+            "log", "show", "--last", "1h", "--info",
+            "--style", "ndjson",
+            "--predicate", daemonLogPredicate,
+        ]) else { return [] }
+
+        var formatted: [String] = []
+        do {
+            for try await line in pipe.fileHandleForReading.bytes.lines {
+                if let event = formatDaemonLogEvent(line) { formatted.append(event) }
+            }
+        } catch {
+            // Pipe closed when `log show` exits — expected, not an error worth surfacing.
+        }
+        return formatted
+    }
+
+    /// Launches `/usr/bin/env` with the given arguments (always `log show`/`log stream` here),
+    /// piping stdout back for line-by-line reading — the shared setup behind both the one-shot
+    /// backfill and the live tail.
+    nonisolated private static func launchLogProcess(arguments: [String]) throws -> (process: Foundation.Process, pipe: Pipe) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        return (process, pipe)
+    }
+
+    /// Decodes one `log stream --style ndjson` event and re-joins its timestamp/level/message as
+    /// `"timestamp\tlevel\tmessage"` — the format `DaemonLogView.parseLine` (SystemView.swift)
+    /// splits back apart — instead of leaving the daemon's own logging format to be guessed from
+    /// free text. Returns `nil` for non-JSON lines, e.g. the "Filtering the log data..." banner
+    /// `log stream` prints before the first event, so the log view never shows a stray unparsed
+    /// line for it.
+    nonisolated static func formatDaemonLogEvent(_ ndjsonLine: String) -> String? {
+        struct Event: Decodable {
+            let timestamp: String
+            let messageType: String
+            let eventMessage: String
+        }
+        guard let data = ndjsonLine.data(using: .utf8),
+              let event = try? JSONDecoder().decode(Event.self, from: data)
+        else { return nil }
+
+        // "YYYY-MM-DD HH:MM:SS.ffffff±HHMM" → "HH:MM:SS.fff": date is redundant for a live tail,
+        // and microsecond/timezone precision isn't worth the column width in a fixed-width row.
+        let time = event.timestamp.split(separator: " ", maxSplits: 1).last.map { String($0.prefix(12)) }
+            ?? event.timestamp
+        return "\(time)\t\(event.messageType)\t\(event.eventMessage)"
     }
 
     /// Resolves the Dockerfile to build from: an explicit path if given, else the CLI's own
