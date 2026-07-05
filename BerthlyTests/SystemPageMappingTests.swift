@@ -26,6 +26,35 @@ struct DiskUsageMappingTests {
         #expect(summary.containers.reclaimableBytes == 0)
         #expect(summary.volumes.sizeBytes == 512_000_000)
     }
+
+    @Test func totalSizeSumsAllThreeCategories() {
+        let summary = DiskUsageSummary(
+            images: .init(total: 1, active: 1, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
+            containers: .init(total: 1, active: 1, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
+            volumes: .init(total: 1, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 500_000_000)
+        )
+        #expect(summary.totalSizeBytes == 3_400_000_000 + 240_000_000 + 512_000_000)
+    }
+
+    @Test func cleanableReclaimableExcludesVolumes() {
+        let summary = DiskUsageSummary(
+            images: .init(total: 1, active: 1, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
+            containers: .init(total: 1, active: 1, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
+            volumes: .init(total: 1, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 500_000_000)
+        )
+        // Volumes' 500 MB reclaimable is deliberately excluded — "Clean Up All" never deletes volumes.
+        #expect(summary.cleanableReclaimableBytes == 1_100_000_000 + 90_000_000)
+    }
+
+    @Test func reclaimablePercentRoundsToNearestWhole() {
+        let category = DiskUsageSummary.Category(total: 1, active: 0, sizeBytes: 1_000_000, reclaimableBytes: 333_333)
+        #expect(category.reclaimablePercent == 33)
+    }
+
+    @Test func reclaimablePercentIsZeroForEmptyCategory() {
+        let category = DiskUsageSummary.Category(total: 0, active: 0, sizeBytes: 0, reclaimableBytes: 0)
+        #expect(category.reclaimablePercent == 0)
+    }
 }
 
 struct KernelMappingTests {

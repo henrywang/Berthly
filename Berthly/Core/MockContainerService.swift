@@ -164,6 +164,33 @@ final class MockContainerService: ContainerServiceBase {
         )
     }
 
+    override func pruneImages() async throws -> PruneResult {
+        // Reflect the cleanup: images drop to fully-active with no reclaimable left.
+        let freed = diskUsage?.images.reclaimableBytes ?? 0
+        if let usage = diskUsage {
+            diskUsage = DiskUsageSummary(
+                images: .init(total: usage.images.active, active: usage.images.active,
+                              sizeBytes: usage.images.sizeBytes - freed, reclaimableBytes: 0),
+                containers: usage.containers,
+                volumes: usage.volumes
+            )
+        }
+        return PruneResult(imagesFreedBytes: freed, deletedImageCount: 8)
+    }
+
+    override func pruneStoppedContainers() async throws -> PruneResult {
+        let freed = diskUsage?.containers.reclaimableBytes ?? 0
+        if let usage = diskUsage {
+            diskUsage = DiskUsageSummary(
+                images: usage.images,
+                containers: .init(total: usage.containers.active, active: usage.containers.active,
+                                  sizeBytes: usage.containers.sizeBytes - freed, reclaimableBytes: 0),
+                volumes: usage.volumes
+            )
+        }
+        return PruneResult(containersFreedBytes: freed, deletedContainerCount: 4)
+    }
+
     override func fetchKernelInfo() async throws {
         kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
     }

@@ -814,6 +814,75 @@ struct MockContainerServiceTests {
         #expect(mock.images.count == countBefore + 1)
         #expect(mock.images.last?.source == .pulled)
     }
+
+    private static func seedDiskUsage() -> DiskUsageSummary {
+        DiskUsageSummary(
+            images: .init(total: 12, active: 4, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
+            containers: .init(total: 6, active: 2, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
+            volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 0)
+        )
+    }
+
+    @Test func pruneImagesFreesReclaimableBytesAndLeavesOtherCategoriesUntouched() async throws {
+        let mock = MockContainerService()
+        mock.diskUsage = Self.seedDiskUsage()
+
+        let result = try await mock.pruneImages()
+        #expect(result.imagesFreedBytes == 1_100_000_000)
+        #expect(result.deletedImageCount == 8)
+        #expect(result.containersFreedBytes == 0)
+
+        let usage = try #require(mock.diskUsage)
+        #expect(usage.images.reclaimableBytes == 0)
+        #expect(usage.images.sizeBytes == 3_400_000_000 - 1_100_000_000)
+        #expect(usage.images.total == usage.images.active)
+        #expect(usage.containers.reclaimableBytes == 90_000_000)  // untouched
+        #expect(usage.volumes.reclaimableBytes == 0)              // untouched
+    }
+
+    @Test func pruneStoppedContainersFreesReclaimableBytesAndLeavesOtherCategoriesUntouched() async throws {
+        let mock = MockContainerService()
+        mock.diskUsage = Self.seedDiskUsage()
+
+        let result = try await mock.pruneStoppedContainers()
+        #expect(result.containersFreedBytes == 90_000_000)
+        #expect(result.deletedContainerCount == 4)
+        #expect(result.imagesFreedBytes == 0)
+
+        let usage = try #require(mock.diskUsage)
+        #expect(usage.containers.reclaimableBytes == 0)
+        #expect(usage.containers.sizeBytes == 240_000_000 - 90_000_000)
+        #expect(usage.containers.total == usage.containers.active)
+        #expect(usage.images.reclaimableBytes == 1_100_000_000)  // untouched
+        #expect(usage.volumes.reclaimableBytes == 0)             // untouched
+    }
+
+    @Test func pruneMethodsAreNoOpsWhenDiskUsageIsNil() async throws {
+        let mock = MockContainerService()
+        mock.diskUsage = nil
+
+        let imagesResult = try await mock.pruneImages()
+        let containersResult = try await mock.pruneStoppedContainers()
+
+        #expect(imagesResult.imagesFreedBytes == 0)
+        #expect(containersResult.containersFreedBytes == 0)
+        #expect(mock.diskUsage == nil)
+    }
+
+    // MARK: - pruneAll (ContainerServiceBase default)
+
+    @Test func pruneAllCombinesBothPhasesWhenBothSucceed() async throws {
+        let mock = MockContainerService()
+        mock.diskUsage = Self.seedDiskUsage()
+
+        let outcome = await mock.pruneAll()
+        #expect(outcome.failureMessages.isEmpty)
+        #expect(outcome.errorAlertMessage == nil)
+        #expect(outcome.result.imagesFreedBytes == 1_100_000_000)
+        #expect(outcome.result.containersFreedBytes == 90_000_000)
+        #expect(outcome.result.deletedImageCount == 8)
+        #expect(outcome.result.deletedContainerCount == 4)
+    }
 }
 
 @MainActor

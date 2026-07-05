@@ -77,6 +77,30 @@ class ContainerServiceBase {
     func refresh() async {}
 
     func fetchDiskUsage() async throws {}
+    /// Remove images not used by any container. Safe/re-pullable cache cleanup. Returns what was freed.
+    func pruneImages() async throws -> PruneResult { PruneResult() }
+    /// Delete stopped containers (never machines or builders). More consequential than image
+    /// cleanup — removes the container and its writable layer. Returns what was freed.
+    func pruneStoppedContainers() async throws -> PruneResult { PruneResult() }
+    /// "Clean Up All": runs image and stopped-container cleanup independently so a failure in one
+    /// doesn't skip or discard a successful result from the other. Subclasses with a live daemon
+    /// connection can override this to share a single container-list fetch between the two phases
+    /// instead of each fetching its own (see `LiveContainerService`).
+    func pruneAll() async -> CleanUpAllResult {
+        var combined = PruneResult()
+        var failures: [String] = []
+        do {
+            combined = combined + (try await pruneImages())
+        } catch {
+            failures.append("Removing unused images failed: \(error.localizedDescription)")
+        }
+        do {
+            combined = combined + (try await pruneStoppedContainers())
+        } catch {
+            failures.append("Removing stopped containers failed: \(error.localizedDescription)")
+        }
+        return CleanUpAllResult(result: combined, failureMessages: failures)
+    }
     func fetchKernelInfo() async throws {}
     func fetchSystemConfig() async throws {}
     func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}

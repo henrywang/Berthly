@@ -79,7 +79,7 @@ struct DaemonStatusBar: View {
 
     var body: some View {
         HStack {
-            Text("Container System")
+            Text("Container Daemon")
                 .font(.caption)
                 .foregroundStyle(.secondary)
             Spacer()

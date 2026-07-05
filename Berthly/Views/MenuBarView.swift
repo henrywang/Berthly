@@ -264,7 +264,7 @@ private struct MenuBarDaemonRow: View {
             Image(systemName: isRunning ? "circle.fill" : "circle")
                 .font(.system(size: 8))
                 .foregroundStyle(isRunning ? Color.statusRunning : .secondary)
-            Text("Container daemon")
+            Text("Container Daemon")
                 .font(.callout)
             if let version = service.installedContainerVersion {
                 Text("v\(version)")

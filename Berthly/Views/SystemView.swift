@@ -35,10 +35,15 @@ private func sectionHeader(_ title: String, systemImage: String) -> some View {
 }
 
 /// Right-aligned, selectable, middle-truncating monospaced value for a `LabeledContent`.
+///
+/// Primary (not secondary) foreground: these are the row's actual data — versions, paths,
+/// image refs — and native System Settings shows such values in the primary label color, letting
+/// right-alignment and the monospaced face carry the label/value distinction. Secondary gray is
+/// reserved on this page for genuine status/supplementary text (the "Up to date" state, disk
+/// "reclaimable" hints), not for data.
 private func monoValue(_ text: String) -> some View {
     Text(text)
         .fontDesign(.monospaced)
-        .foregroundStyle(.secondary)
         .textSelection(.enabled)
         .lineLimit(1)
         .truncationMode(.middle)
@@ -50,6 +55,8 @@ private struct DaemonVersionSection: View {
     @Environment(ContainerServiceBase.self) private var service
     @State private var showUpdateConfirm = false
     @State private var isUpdating = false
+    @State private var showStopConfirm = false
+    @State private var isStopping = false
     @State private var logLines: [String] = []
     @State private var errorMessage: String?
 
@@ -73,11 +80,18 @@ private struct DaemonVersionSection: View {
             LabeledContent("Installed") { monoValue(service.installedContainerVersion ?? "Unknown") }
             LabeledContent("Required") { monoValue(ContainerCompatibility.requiredVersion) }
 
+            // SystemView only renders behind DaemonGateView while the daemon is `.connected`, so
+            // the daemon is always running here — a Stop control is the only lifecycle action that
+            // makes sense (Start is unreachable from this page and already lives in the gate and
+            // the menu bar).
+            Button("Stop Container Daemon…", role: .destructive) {
+                showStopConfirm = true
+            }
+            .disabled(isStopping || isUpdating)
+
             if !isCompatible {
-                Button {
+                Button("Update Container to v\(ContainerCompatibility.requiredVersion)…") {
                     showUpdateConfirm = true
-                } label: {
-                    Label("Update Container to v\(ContainerCompatibility.requiredVersion)…", systemImage: "arrow.down.circle")
                 }
                 .disabled(isUpdating)
             }
@@ -117,6 +131,18 @@ private struct DaemonVersionSection: View {
         } message: {
             Text("This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password.")
         }
+        .alert("Stop the container daemon?", isPresented: $showStopConfirm) {
+            Button("Stop", role: .destructive) {
+                isStopping = true
+                Task {
+                    await service.stopDaemon()
+                    isStopping = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This stops every running container on this Mac, not just ones Berthly manages.")
+        }
         .alert("Error", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -130,24 +156,85 @@ private struct DaemonVersionSection: View {
 
 // MARK: - Disk Usage
 
-private func formatDiskBytes(_ bytes: UInt64) -> String {
-    let mb = Double(bytes) / 1_048_576
-    if mb >= 1_024 { return String(format: "%.1f GB", mb / 1_024) }
-    if mb >= 1 { return String(format: "%.1f MB", mb) }
-    let kb = Double(bytes) / 1024
-    if kb >= 1 { return String(format: "%.0f KB", kb) }
-    return "\(bytes) B"
+/// Small-caps gray column header, matching `MenuBarSectionHeader`'s caption2/semibold/secondary
+/// treatment elsewhere in the app.
+private func columnHeader(_ text: String) -> some View {
+    Text(text.uppercased())
+        .font(.caption2.weight(.semibold))
+        .foregroundStyle(.secondary)
 }
 
 private struct DiskUsageSection: View {
     let usage: DiskUsageSummary?
+    @Environment(ContainerServiceBase.self) private var service
+
+    @State private var showCleanUpAllConfirm = false
+    @State private var isCleaningAll = false
+    @State private var allResult: PruneResult?
+    @State private var allErrorMessage: String?
 
     var body: some View {
         Section {
             if let usage {
-                row("Images", usage.images)
-                row("Containers", usage.containers)
-                row("Volumes", usage.volumes)
+                // A Grid (not independent LabeledContent rows) so every column — Total, Active,
+                // Size, Reclaimable, Action — shares one width across all three category rows.
+                // Independent rows don't do this: a row with an action button sizes its trailing
+                // content differently than a row without one, so numbers land at different trailing
+                // edges per row. Grid sizes each column to its widest cell across every row.
+                Grid(alignment: .leading, horizontalSpacing: 14, verticalSpacing: 10) {
+                    GridRow {
+                        columnHeader("Type")
+                        columnHeader("Total").gridColumnAlignment(.trailing)
+                        columnHeader("Active").gridColumnAlignment(.trailing)
+                        columnHeader("Size").gridColumnAlignment(.trailing)
+                        columnHeader("Reclaimable").gridColumnAlignment(.trailing)
+                        Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                    }
+                    Divider()
+
+                    // Images: safe, re-pullable cache.
+                    DiskUsageGridRow(name: "Images", category: usage.images, cleanup: .init(
+                        confirmTitle: "Clean up unused images?",
+                        confirmButton: "Clean Up",
+                        confirmMessage: "Removes images not used by any container. They can be pulled again if you need them.",
+                        isDestructive: false,
+                        run: { try await service.pruneImages() }
+                    ))
+                    Divider()
+                    // Containers: deleting a stopped container is more consequential than clearing
+                    // image cache (it's gone, not re-pullable) — its confirmation says so and uses
+                    // a destructive role, even though the row's own button looks like Images' row.
+                    DiskUsageGridRow(name: "Containers", category: usage.containers, cleanup: .init(
+                        confirmTitle: "Remove stopped containers?",
+                        confirmButton: "Remove",
+                        confirmMessage: "Deletes every stopped container and its writable layer. Running containers, machines, and builders are left alone. This can't be undone.",
+                        isDestructive: true,
+                        run: { try await service.pruneStoppedContainers() }
+                    ))
+                    Divider()
+                    // Volumes: no cleanup action — an unattached volume can hold real data the user
+                    // means to reattach. Delete those individually if you're sure.
+                    DiskUsageGridRow(name: "Volumes", category: usage.volumes)
+                }
+                .padding(.vertical, 4)
+
+                if usage.cleanableReclaimableBytes > 0 {
+                    HStack {
+                        Text("Total \(formatDiskBytes(usage.totalSizeBytes)) · \(formatDiskBytes(usage.cleanableReclaimableBytes)) reclaimable")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        if isCleaningAll {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            // Additive, not a replacement for the per-row actions above — this is a
+                            // shortcut for "both at once", not the single combined button that was
+                            // rejected earlier for hiding the images/containers distinction.
+                            Button("Clean Up All") { showCleanUpAllConfirm = true }
+                                .controlSize(.small)
+                        }
+                    }
+                }
             } else {
                 LabeledContent("Loading…") { EmptyView() }
                     .foregroundStyle(.secondary)
@@ -155,26 +242,139 @@ private struct DiskUsageSection: View {
         } header: {
             sectionHeader("Disk Usage", systemImage: "internaldrive")
         }
-    }
-
-    private func row(_ name: String, _ c: DiskUsageSummary.Category) -> some View {
-        LabeledContent {
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(formatDiskBytes(c.sizeBytes))
-                    .font(.body.monospacedDigit())
-                if c.reclaimableBytes > 0 {
-                    Text("\(formatDiskBytes(c.reclaimableBytes)) reclaimable")
-                        .font(.caption)
-                        .foregroundStyle(Color.statusPaused)
+        .alert("Clean up all reclaimable space?", isPresented: $showCleanUpAllConfirm) {
+            Button("Clean Up All", role: .destructive) {
+                isCleaningAll = true
+                Task {
+                    // Image and container cleanup run independently inside pruneAll() — a failure in
+                    // one doesn't skip or discard a successful result from the other (see
+                    // ContainerServiceBase.pruneAll()).
+                    let outcome = await service.pruneAll()
+                    if let message = outcome.errorAlertMessage {
+                        allErrorMessage = message
+                    } else {
+                        allResult = outcome.result
+                    }
+                    isCleaningAll = false
                 }
             }
-        } label: {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(name)
-                Text("\(c.active) of \(c.total) active")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes unused images and stopped containers in one step. Volumes are never touched — delete those individually if you're sure you don't need their data.")
+        }
+        .alert("Done", isPresented: Binding(
+            get: { allResult != nil },
+            set: { if !$0 { allResult = nil } }
+        )) {
+            Button("OK") { allResult = nil }
+        } message: {
+            Text(allResult?.summaryText ?? "")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { allErrorMessage != nil },
+            set: { if !$0 { allErrorMessage = nil } }
+        )) {
+            Button("OK") { allErrorMessage = nil }
+        } message: {
+            Text(allErrorMessage ?? "")
+        }
+    }
+}
+
+/// One disk-usage category row: name, total/active counts, size, reclaimable (with percent), plus
+/// an optional per-category cleanup action. A `GridRow` (not `LabeledContent`) so its cells join the
+/// same columns as every other row in the enclosing `Grid`, keeping numbers and actions aligned
+/// whether or not a given row has an action at all (Volumes has none).
+///
+/// Each row owns its own confirm/progress/result state so the two actions stay fully independent —
+/// reclaiming image cache never forces the more consequential removal of stopped containers.
+private struct DiskUsageGridRow: View {
+    let name: String
+    let category: DiskUsageSummary.Category
+    var cleanup: Cleanup?
+
+    struct Cleanup {
+        let confirmTitle: String
+        let confirmButton: String
+        let confirmMessage: String
+        let isDestructive: Bool
+        let run: () async throws -> PruneResult
+    }
+
+    @State private var showConfirm = false
+    @State private var isBusy = false
+    @State private var result: PruneResult?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        GridRow(alignment: .center) {
+            Text(name)
+
+            Text("\(category.total)")
+                .monospacedDigit()
+                .gridColumnAlignment(.trailing)
+
+            Text("\(category.active)")
+                .monospacedDigit()
+                .gridColumnAlignment(.trailing)
+
+            Text(formatDiskBytes(category.sizeBytes))
+                .font(.body.weight(.semibold))
+                .monospacedDigit()
+                .gridColumnAlignment(.trailing)
+
+            Text("\(formatDiskBytes(category.reclaimableBytes)) · \(category.reclaimablePercent)%")
+                .monospacedDigit()
+                .foregroundStyle(category.reclaimableBytes > 0 ? Color.statusPaused : .secondary)
+                .gridColumnAlignment(.trailing)
+
+            // Same label ("Prune") on every row that has one, so the action column is a fixed
+            // width regardless of which row it's in — the earlier version used different labels
+            // ("Clean Up" vs "Remove Stopped") whose differing widths made the column look uneven.
+            // The destructive/non-destructive distinction lives in the confirmation step instead of
+            // the row button's own styling.
+            Group {
+                if let cleanup, category.reclaimableBytes > 0 {
+                    if isBusy {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button("Prune") { showConfirm = true }
+                            .controlSize(.small)
+                    }
+                }
             }
+            .gridColumnAlignment(.trailing)
+        }
+        .alert(cleanup?.confirmTitle ?? "", isPresented: $showConfirm) {
+            if let cleanup {
+                Button(cleanup.confirmButton, role: cleanup.isDestructive ? .destructive : nil) {
+                    isBusy = true
+                    Task {
+                        do { result = try await cleanup.run() }
+                        catch { errorMessage = error.localizedDescription }
+                        isBusy = false
+                    }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
+        } message: {
+            Text(cleanup?.confirmMessage ?? "")
+        }
+        .alert("Done", isPresented: Binding(
+            get: { result != nil },
+            set: { if !$0 { result = nil } }
+        )) {
+            Button("OK") { result = nil }
+        } message: {
+            Text(result?.summaryText ?? "")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
         }
     }
 }

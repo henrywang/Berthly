@@ -229,6 +229,131 @@ struct DiskUsageSummary: Hashable {
     let volumes: Category
 }
 
+extension DiskUsageSummary {
+    var totalSizeBytes: UInt64 { images.sizeBytes + containers.sizeBytes + volumes.sizeBytes }
+
+    /// Images + containers only — what a combined "Clean Up All" would free. Excludes volumes:
+    /// an unattached volume can hold real data the user means to reattach, so Clean Up never
+    /// deletes one automatically (see `PruneContainerInfo`'s doc and `LiveContainerService`).
+    var cleanableReclaimableBytes: UInt64 { images.reclaimableBytes + containers.reclaimableBytes }
+}
+
+extension DiskUsageSummary.Category {
+    /// Reclaimable as a percentage of this category's total size, rounded to the nearest whole
+    /// percent. `0` (not NaN/crash) when size is zero, so an empty category renders "0%" cleanly.
+    var reclaimablePercent: Int {
+        guard sizeBytes > 0 else { return 0 }
+        return Int((Double(reclaimableBytes) / Double(sizeBytes) * 100).rounded())
+    }
+}
+
+/// Human-readable byte size (KB/MB/GB), used throughout the System page's disk-usage displays and
+/// by `PruneResult.summaryText` below.
+func formatDiskBytes(_ bytes: UInt64) -> String {
+    let mb = Double(bytes) / 1_048_576
+    if mb >= 1_024 { return String(format: "%.1f GB", mb / 1_024) }
+    if mb >= 1 { return String(format: "%.1f MB", mb) }
+    let kb = Double(bytes) / 1024
+    if kb >= 1 { return String(format: "%.0f KB", kb) }
+    return "\(bytes) B"
+}
+
+/// A container reduced to just the fields the stopped-container cleanup needs, extracted from the
+/// SDK's snapshot type at the service boundary so the selection stays a pure, testable function.
+///
+/// `isInfrastructure` marks machine-backed and builder containers. In apple/container a machine is
+/// a container under the hood (which is why every mutating CLI command filters `.withoutMachines()`),
+/// so a *stopped VM* would otherwise look like a prunable stopped container — deleting it is
+/// irreversible data loss. Such containers are excluded from deletion; their images are separately
+/// protected by the image cleanup, which treats every container's image as in-use.
+struct PruneContainerInfo: Sendable, Equatable {
+    let id: String
+    let imageReference: String
+    let isStopped: Bool
+    let isInfrastructure: Bool
+}
+
+/// Outcome of a cleanup action — what it actually freed. Each disk category has its own action, so
+/// a given result populates only its own fields (image cleanup fills the image fields, etc.).
+/// Volumes have no cleanup action at all, by design.
+struct PruneResult: Sendable, Equatable {
+    var imagesFreedBytes: UInt64 = 0
+    var containersFreedBytes: UInt64 = 0
+    var deletedImageCount: Int = 0
+    var deletedContainerCount: Int = 0
+    /// Per-item delete failures (logged and skipped, not fatal). Lets the UI distinguish
+    /// "nothing to remove" from "everything failed" when `deletedCount` is 0.
+    var failedCount: Int = 0
+
+    var totalFreedBytes: UInt64 { imagesFreedBytes + containersFreedBytes }
+    var deletedCount: Int { deletedImageCount + deletedContainerCount }
+
+    /// Combines two independent cleanup outcomes into one — used by "Clean Up All", which runs
+    /// image and container cleanup as two separate calls (each keeping its own safety logic) but
+    /// reports one aggregated result.
+    static func + (lhs: PruneResult, rhs: PruneResult) -> PruneResult {
+        PruneResult(
+            imagesFreedBytes: lhs.imagesFreedBytes + rhs.imagesFreedBytes,
+            containersFreedBytes: lhs.containersFreedBytes + rhs.containersFreedBytes,
+            deletedImageCount: lhs.deletedImageCount + rhs.deletedImageCount,
+            deletedContainerCount: lhs.deletedContainerCount + rhs.deletedContainerCount,
+            failedCount: lhs.failedCount + rhs.failedCount
+        )
+    }
+
+    /// Formats this result for display, whether it came from a single-category cleanup or the
+    /// combined "Clean Up All" (a `+` of two independent results). Reads directly off
+    /// `deletedImageCount`/`deletedContainerCount` rather than taking a caller-supplied noun, so the
+    /// same formatting works for "8 images", "4 stopped containers", or both joined together without
+    /// the caller needing to know which case it is.
+    ///
+    /// Guards on `totalFreedBytes > 0` in addition to `deletedCount > 0`: orphaned-blob GC
+    /// (`cleanUpOrphanedBlobs()`) can free real bytes on a run where zero images were freshly
+    /// untagged (e.g. blobs left over from an earlier partial failure) — without this, that case
+    /// would misreport "Nothing to remove" despite disk space actually having been reclaimed.
+    var summaryText: String {
+        guard deletedCount > 0 || totalFreedBytes > 0 else {
+            if failedCount > 0 {
+                return "Couldn't remove anything — \(failedCount) operation\(failedCount == 1 ? "" : "s") failed. See the daemon logs for details."
+            }
+            return "Nothing to remove."
+        }
+        var parts: [String] = []
+        if deletedImageCount > 0 {
+            parts.append("\(deletedImageCount) image\(deletedImageCount == 1 ? "" : "s")")
+        }
+        if deletedContainerCount > 0 {
+            parts.append("\(deletedContainerCount) stopped container\(deletedContainerCount == 1 ? "" : "s")")
+        }
+        var text = "Reclaimed \(formatDiskBytes(totalFreedBytes))"
+        text += parts.isEmpty ? " of unused disk space." : " — removed \(parts.joined(separator: " and "))."
+        if failedCount > 0 {
+            text += " \(failedCount) couldn't be removed."
+        }
+        return text
+    }
+}
+
+/// Outcome of "Clean Up All" — image cleanup and stopped-container cleanup run as two independent
+/// calls (see `ContainerServiceBase.pruneAll()`), so either can fail without the other being skipped
+/// or its success discarded. `result` is always the sum of whatever succeeded; `failureMessages`
+/// holds one human-readable line per failed phase, empty when both succeeded.
+struct CleanUpAllResult: Sendable, Equatable {
+    var result: PruneResult = PruneResult()
+    var failureMessages: [String] = []
+
+    /// `nil` when both phases succeeded (caller should treat `result` as a plain success). Otherwise
+    /// the message to show in an error alert — folding in `result.summaryText` first when something
+    /// was still freed, so a real partial success is never hidden behind a bare failure message.
+    var errorAlertMessage: String? {
+        guard !failureMessages.isEmpty else { return nil }
+        if result.deletedCount > 0 || result.totalFreedBytes > 0 {
+            return "\(result.summaryText)\n\n\(failureMessages.joined(separator: "\n"))"
+        }
+        return failureMessages.joined(separator: "\n")
+    }
+}
+
 struct KernelInfo: Hashable {
     let path: String
     let platform: String

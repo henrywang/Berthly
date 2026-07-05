@@ -477,13 +477,20 @@ final class LiveContainerService: ContainerServiceBase {
         return desc.contains("XPC connection error") || desc.contains("Connection invalid")
     }
 
+    /// Server-side filter for `role == builder` — the same query that populates the `builders` list
+    /// — so builder detection can't drift between what's shown as a builder in the UI and what
+    /// `pruneStoppedContainers()` protects from deletion.
+    private static func fetchBuilderSnaps() async throws -> [ContainerSnapshot] {
+        try await ContainerClient().list(
+            filters: ContainerListFilters(labels: [ResourceLabelKeys.role: ResourceRoleValues.builder])
+        )
+    }
+
     private func refreshAll() async {
         let machineSnaps = (try? await MachineClient().list()) ?? []
         let machineContainerIds = Set(machineSnaps.compactMap { $0.containerId })
 
-        let builderSnaps = (try? await ContainerClient().list(
-            filters: ContainerListFilters(labels: [ResourceLabelKeys.role: ResourceRoleValues.builder])
-        )) ?? []
+        let builderSnaps = (try? await Self.fetchBuilderSnaps()) ?? []
         let builderIds = Set(builderSnaps.map { $0.id })
 
         do {
@@ -822,6 +829,140 @@ final class LiveContainerService: ContainerServiceBase {
     override func fetchDiskUsage() async throws {
         let stats = try await ClientDiskUsage.get()
         diskUsage = Self.mapDiskUsage(stats)
+    }
+
+    /// Pure image selection, extracted from the live client calls so the decision is unit-testable
+    /// (see `PruneSelectionTests`). Mirrors the daemon's own `reclaimable` definition so freed space
+    /// matches the number shown next to the button rather than exceeding it: the daemon counts an
+    /// image as unused only when **no** container references it — running *or* stopped, machine or
+    /// builder (`getActiveImageReferences` iterates every container). So the caller passes image
+    /// references from the *current full* container list; an image referenced only by a stopped
+    /// container is protected here even though that container may be removed separately — it's left
+    /// for the next cleanup. Honest beats maximal.
+    nonisolated static func unusedImageReferences(allImageReferences: [String], containerImageReferences: [String]) -> [String] {
+        let inUse = Set(containerImageReferences)
+        return allImageReferences.filter { !inUse.contains($0) }
+    }
+
+    /// Pure stopped-container selection. Only ordinary stopped containers are eligible; machine and
+    /// builder containers are excluded even when stopped — deleting a stopped VM is irreversible
+    /// data loss (see `PruneContainerInfo.isInfrastructure`).
+    nonisolated static func deletableStoppedContainerIDs(_ containers: [PruneContainerInfo]) -> [String] {
+        containers.filter { $0.isStopped && !$0.isInfrastructure }.map(\.id)
+    }
+
+    override func pruneImages() async throws -> PruneResult {
+        try await pruneImages(allContainers: try await ContainerClient().list())
+    }
+
+    /// Takes the container list as a parameter (rather than fetching it here) so `pruneAll()` can
+    /// share one fetch with `pruneStoppedContainers()` instead of each phase fetching its own.
+    private func pruneImages(allContainers: [ContainerSnapshot]) async throws -> PruneResult {
+        let allImages = try await ClientImage.list()
+        // Full container list (running + stopped, incl. machines/builders) so every in-use image —
+        // and every machine/builder image — is protected, matching the daemon's reclaimable calc.
+        let unused = Self.unusedImageReferences(
+            allImageReferences: allImages.map(\.reference),
+            containerImageReferences: allContainers.map { $0.configuration.image.reference }
+        )
+
+        var result = PruneResult()
+        // Untag each unused image, then GC orphaned blobs — the blob GC is what actually frees the
+        // bytes (deleting a reference alone only untags), so its reported size is authoritative.
+        for reference in unused {
+            do {
+                try await ClientImage.delete(reference: reference, garbageCollect: false)
+                result.deletedImageCount += 1
+            } catch {
+                result.failedCount += 1
+                Self.log.warning("pruneImages: failed to delete image", metadata: ["ref": "\(reference)", "error": "\(error)"])
+            }
+        }
+        let (_, blobBytes) = try await ClientImage.cleanUpOrphanedBlobs()
+        result.imagesFreedBytes = blobBytes
+
+        await refresh()
+        try? await fetchDiskUsage()
+        return result
+    }
+
+    override func pruneStoppedContainers() async throws -> PruneResult {
+        try await pruneStoppedContainers(allContainers: try await ContainerClient().list())
+    }
+
+    /// Takes the container list as a parameter (rather than fetching it here) so `pruneAll()` can
+    /// share one fetch with `pruneImages()` instead of each phase fetching its own.
+    private func pruneStoppedContainers(allContainers: [ContainerSnapshot]) async throws -> PruneResult {
+        let client = ContainerClient()
+        // Machine-backed containers, identified the same way `refreshAll()` separates them: a
+        // container whose id is a machine's `containerId`. Builders are identified by the same
+        // `role`-label server-side filter that populates the `builders` list (`fetchBuilderSnaps()`),
+        // so this can never disagree with what the Builders section itself shows. Both are
+        // infrastructure and must never be deleted, even when stopped.
+        //
+        // Unlike `refreshAll()`'s best-effort `try?` (a display refresh can tolerate showing stale
+        // data), a failure here must abort the whole prune rather than silently treating every
+        // machine/builder as an ordinary container — proceeding with an empty infrastructure set on
+        // a transient XPC error would risk deleting a stopped VM or builder.
+        let machineSnaps = try await MachineClient().list()
+        let machineContainerIds = Set(machineSnaps.compactMap { $0.containerId })
+        let builderIds = Set(try await Self.fetchBuilderSnaps().map { $0.id })
+
+        let ids = Self.deletableStoppedContainerIDs(
+            allContainers.map {
+                PruneContainerInfo(
+                    id: $0.id,
+                    imageReference: $0.configuration.image.reference,
+                    isStopped: $0.status == .stopped,
+                    isInfrastructure: machineContainerIds.contains($0.id) || builderIds.contains($0.id)
+                )
+            }
+        )
+
+        var result = PruneResult()
+        for id in ids {
+            do {
+                let size = try await client.diskUsage(id: id)  // tally before deleting
+                try await client.delete(id: id)
+                result.containersFreedBytes += size
+                result.deletedContainerCount += 1
+            } catch {
+                result.failedCount += 1
+                Self.log.warning("pruneStoppedContainers: failed to delete container", metadata: ["id": "\(id)", "error": "\(error)"])
+            }
+        }
+
+        await refresh()
+        try? await fetchDiskUsage()
+        return result
+    }
+
+    override func pruneAll() async -> CleanUpAllResult {
+        let allContainers: [ContainerSnapshot]
+        do {
+            allContainers = try await ContainerClient().list()
+        } catch {
+            // The one fetch both phases would share failed outright — neither can proceed.
+            let message = error.localizedDescription
+            return CleanUpAllResult(failureMessages: [
+                "Removing unused images failed: \(message)",
+                "Removing stopped containers failed: \(message)",
+            ])
+        }
+
+        var combined = PruneResult()
+        var failures: [String] = []
+        do {
+            combined = combined + (try await pruneImages(allContainers: allContainers))
+        } catch {
+            failures.append("Removing unused images failed: \(error.localizedDescription)")
+        }
+        do {
+            combined = combined + (try await pruneStoppedContainers(allContainers: allContainers))
+        } catch {
+            failures.append("Removing stopped containers failed: \(error.localizedDescription)")
+        }
+        return CleanUpAllResult(result: combined, failureMessages: failures)
     }
 
     nonisolated static func mapDiskUsage(_ stats: DiskUsageStats) -> DiskUsageSummary {
