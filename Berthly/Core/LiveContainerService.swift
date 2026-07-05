@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import AsyncHTTPClient
 import ContainerAPIClient
 import ContainerBuild
 import ContainerImagesServiceClient
@@ -9,10 +10,12 @@ import Containerization
 import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
+import ContainerizationOS
 import Foundation
 import Logging
 import MachineAPIClient
 import NIOCore
+import NIOHTTP1
 import NIOPosix
 import TerminalProgress
 internal import ContainerPersistence
@@ -824,6 +827,49 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    override func createVolume(options: VolumeCreateOptions) async throws {
+        let name = options.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Volume name is required.")
+        }
+        _ = try await ClientVolume.create(
+            name: name,
+            driver: "local",
+            driverOpts: Self.volumeDriverOpts(for: options),
+            labels: [:]
+        )
+        await refresh()
+    }
+
+    /// Pure/testable: the local driver takes `size` (bytes, optional K/M/G/T/P suffix) as a driver
+    /// option — everything else is left to the daemon's defaults. Mirrors `VolumeCreate`'s CLI mapping.
+    nonisolated static func volumeDriverOpts(for options: VolumeCreateOptions) -> [String: String] {
+        let size = options.size?.trimmingCharacters(in: .whitespaces) ?? ""
+        return size.isEmpty ? [:] : ["size": size]
+    }
+
+    override func createNetwork(options: NetworkCreateOptions) async throws {
+        let name = options.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Network name is required.")
+        }
+        let subnetText = options.subnet?.trimmingCharacters(in: .whitespaces) ?? ""
+        let subnet = try subnetText.isEmpty ? nil : CIDRv4(subnetText)
+        let config = try NetworkConfiguration(
+            name: name,
+            mode: Self.networkMode(hostOnly: options.hostOnly),
+            ipv4Subnet: subnet,
+            plugin: "container-network-vmnet"
+        )
+        _ = try await NetworkClient().create(configuration: config)
+        await refresh()
+    }
+
+    /// Pure/testable: the CLI's `--internal` flag selects a host-only network; otherwise NAT.
+    nonisolated static func networkMode(hostOnly: Bool) -> NetworkMode {
+        hostOnly ? .hostOnly : .nat
+    }
+
     // MARK: - System page
 
     override func fetchDiskUsage() async throws {
@@ -1024,12 +1070,111 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
+    // MARK: - Registries
+
+    /// Same Keychain security domain `container registry login/logout/list` use
+    /// (`ContainerAPIClient.Constants.keychainID`) — Berthly reads/writes the identical items the
+    /// CLI and daemon do, in-process, no shelling out.
+    private nonisolated static let registryKeychain = KeychainHelper(securityDomain: Constants.keychainID)
+
+    /// Maps the Keychain's registry logins straight to `[Registry]`, sorted by host for a stable
+    /// display order — a faithful mirror of `container registry list`, which is likewise just
+    /// `keychain.list()`. No curated defaults, no persisted "signed-out" rows: the Keychain is
+    /// the whole source of truth. Shown verbatim (e.g. `registry-1.docker.io`), same as the CLI.
+    ///
+    /// Takes plain `(hostname, username)` pairs rather than `RegistryInfo` directly: that type's
+    /// memberwise init is internal to `ContainerizationOS` (only `KeychainQuery` itself
+    /// constructs it), so it can't be fabricated from `BerthlyTests` — and we only need these two.
+    nonisolated static func mapRegistries(keychainEntries: [(hostname: String, username: String)]) -> [Registry] {
+        keychainEntries
+            .map { Registry(host: $0.hostname, username: $0.username) }
+            .sorted { $0.host < $1.host }
+    }
+
+    override func loadRegistries() async {
+        let entries = (try? await Self.keychainList()) ?? []
+        registries = Self.mapRegistries(keychainEntries: entries.map { (hostname: $0.hostname, username: $0.username) })
+    }
+
+    override func signInRegistry(host: String, username: String, password: String) async throws {
+        let host = Reference.resolveDomain(domain: host.trimmingCharacters(in: .whitespaces))
+        let username = username.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, !username.isEmpty, !password.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Host, username, and token are required.")
+        }
+
+        let containerSystemConfig = await resolvedSystemConfig()
+        let scheme = try RequestScheme("auto").schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain)
+        let client = RegistryClient(
+            host: host,
+            scheme: scheme.rawValue,
+            authentication: BasicAuthentication(username: username, password: password),
+            retryOptions: RetryOptions(maxRetries: 3, retryInterval: 300_000_000, shouldRetry: { $0.status.code >= 500 })
+        )
+        try await client.ping()
+
+        do {
+            try await Self.keychainSave(hostname: host, username: username, password: password)
+        } catch let error as KeychainQuery.Error {
+            throw Self.friendlyError(for: error, host: host) ?? error
+        }
+        await loadRegistries()
+    }
+
+    override func signOutRegistry(host: String) async throws {
+        let host = Reference.resolveDomain(domain: host.trimmingCharacters(in: .whitespaces))
+        do {
+            try await Self.keychainDelete(hostname: host)
+        } catch let error as KeychainQuery.Error {
+            throw Self.friendlyError(for: error, host: host) ?? error
+        }
+        await loadRegistries()
+    }
+
+    /// macOS Keychain refuses to let a different process identity delete/overwrite an item —
+    /// `container login` from the CLI creates entries Berthly can see (`list()`) but can't take
+    /// ownership of. `errSecInvalidOwnerEdit` is macOS's exact signal for that case.
+    private nonisolated static let errSecInvalidOwnerEdit: Int32 = -25244
+
+    private nonisolated static func friendlyError(for error: KeychainQuery.Error, host: String) -> RegistryOperationError? {
+        if case .unhandledError(let status) = error, status == errSecInvalidOwnerEdit {
+            return RegistryOperationError(host: host)
+        }
+        return nil
+    }
+
+    /// `KeychainHelper`'s Security-framework calls are synchronous and can block on IPC to
+    /// securityd — offload to a background queue rather than stalling the main actor.
+    private nonisolated static func keychainList() async throws -> [RegistryInfo] {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result { try registryKeychain.list() })
+            }
+        }
+    }
+
+    private nonisolated static func keychainSave(hostname: String, username: String, password: String) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result { try registryKeychain.save(hostname: hostname, username: username, password: password) })
+            }
+        }
+    }
+
+    private nonisolated static func keychainDelete(hostname: String) async throws {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result { try registryKeychain.delete(hostname: hostname) })
+            }
+        }
+    }
+
     /// Streams `container`'s own daemon logs via unified logging (`/usr/bin/log stream`) — there's
     /// no XPC route for this (the CLI itself just shells out to `log`, see `SystemLogs.swift`), so
     /// this is a narrow, deliberate exception to the "no `Process()` calls" migration: it targets a
     /// stable Apple system binary, not the `container` CLI, so a container CLI bug still can't
     /// affect it.
-    private static let daemonLogPredicate = "subsystem = 'com.apple.container'"
+    private nonisolated static let daemonLogPredicate = "subsystem = 'com.apple.container'"
 
     override func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
         // `log stream` only reports events emitted *after* it starts — the daemon's own activity

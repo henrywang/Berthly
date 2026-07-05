@@ -49,10 +49,8 @@ final class MockContainerService: ContainerServiceBase {
             Builder(id: "default", name: "default", image: "buildkit:0.13", status: .running, autoStarted: true, cpus: 2, memoryGB: 2),
         ]
         registries = [
-            Registry(id: "ghcr.io",    name: "GitHub Container Registry",        host: "ghcr.io",             scope: .pushAndPull, status: .signedIn(username: "apple-bot")),
-            Registry(id: "docker.io",  name: "Docker Hub",                        host: "docker.io",           scope: .pullOnly,    status: .signedIn(username: "berthly")),
-            Registry(id: "ecr",        name: "Amazon Elastic Container Registry", host: "ECR · us-east-1",   scope: .unknown,     status: .notSignedIn),
-            Registry(id: "gar",        name: "Google Artifact Registry",           host: "us-docker.pkg.dev", scope: .unknown,     status: .notSignedIn),
+            Registry(host: "ghcr.io", username: "apple-bot"),
+            Registry(host: "registry-1.docker.io", username: "berthly"),
         ]
         imageInspectData = Self.mockInspectData()
         buildContexts = [
@@ -154,6 +152,53 @@ final class MockContainerService: ContainerServiceBase {
 
     override func deleteNetwork(_ id: String) async throws {
         networks.removeAll { $0.id == id }
+    }
+
+    override func createVolume(options: VolumeCreateOptions) async throws {
+        let name = options.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Volume name is required.")
+        }
+        volumes.append(Volume(
+            id: name, name: name, type: .named, usedMB: 0, allocatedMB: 0,
+            driver: "local", source: "", created: "now", labels: [], mounts: [],
+            fs: "ext4", reclaimable: false
+        ))
+    }
+
+    override func createNetwork(options: NetworkCreateOptions) async throws {
+        let name = options.name.trimmingCharacters(in: .whitespaces)
+        guard !name.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Network name is required.")
+        }
+        let subnet = options.subnet?.trimmingCharacters(in: .whitespaces)
+        networks.append(Network(
+            id: name, name: name, driver: options.hostOnly ? .hostOnly : .nat,
+            subnet: subnet?.isEmpty == false ? subnet! : "192.168.70.0/24",
+            gateway: "", isDefault: false, scope: "local", ipv6Enabled: false,
+            egress: options.hostOnly ? "" : "NAT → en0", attachable: true, backend: "vmnet", endpoints: []
+        ))
+    }
+
+    // Already seeded in init — nothing to reload.
+    override func loadRegistries() async {}
+
+    override func signInRegistry(host: String, username: String, password: String) async throws {
+        let host = host.trimmingCharacters(in: .whitespaces)
+        let username = username.trimmingCharacters(in: .whitespaces)
+        guard !host.isEmpty, !username.isEmpty, !password.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Host, username, and token are required.")
+        }
+        if let index = registries.firstIndex(where: { $0.host == host }) {
+            registries[index] = Registry(host: host, username: username)
+        } else {
+            registries.append(Registry(host: host, username: username))
+        }
+    }
+
+    // Sign out deletes the credential, so the row disappears — matching `container registry logout`.
+    override func signOutRegistry(host: String) async throws {
+        registries.removeAll { $0.host == host }
     }
 
     override func fetchDiskUsage() async throws {

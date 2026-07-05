@@ -2,22 +2,39 @@ import SwiftUI
 
 struct NetworksListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @State private var showCreateSheet = false
 
     var body: some View {
-        if service.networks.isEmpty {
-            ContentUnavailableView {
-                Label("No Networks", systemImage: "arrow.triangle.branch")
-            } description: {
-                Text("Networks created for containers will appear here.")
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button { showCreateSheet = true } label: {
+                    Label("Add Network", systemImage: "plus")
+                }
+                .disabled(!service.isConnected)
+                .help("Create a new network")
             }
-            .navigationTitle("Networks")
-        } else {
-            List {
-                ForEach(service.networks) { net in
-                    NetworkRow(networkID: net.id).listRowSeparator(.hidden)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            if service.networks.isEmpty {
+                ContentUnavailableView {
+                    Label("No Networks", systemImage: "arrow.triangle.branch")
+                } description: {
+                    Text("Add a network, or one created for a container will appear here.")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(service.networks) { net in
+                        NetworkRow(networkID: net.id).listRowSeparator(.hidden)
+                    }
                 }
             }
-            .navigationTitle("Networks")
+        }
+        .navigationTitle("Networks")
+        .sheet(isPresented: $showCreateSheet) {
+            NetworkCreateSheet()
         }
     }
 }

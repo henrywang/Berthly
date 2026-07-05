@@ -2,32 +2,49 @@ import SwiftUI
 
 struct VolumesListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @State private var showCreateSheet = false
 
     private var named:     [Volume] { service.volumes.filter { $0.type == .named     } }
     private var anonymous: [Volume] { service.volumes.filter { $0.type == .anonymous } }
 
     var body: some View {
-        if service.volumes.isEmpty {
-            ContentUnavailableView {
-                Label("No Volumes", systemImage: "cylinder")
-            } description: {
-                Text("Volumes created by containers will appear here.")
-            }
-            .navigationTitle("Volumes")
-        } else {
-            List {
-                if !named.isEmpty {
-                    Section {
-                        ForEach(named)     { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
-                    } header: { LibrarySectionHeader("NAMED \(named.count)") }
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button { showCreateSheet = true } label: {
+                    Label("Add Volume", systemImage: "plus")
                 }
-                if !anonymous.isEmpty {
-                    Section {
-                        ForEach(anonymous) { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
-                    } header: { LibrarySectionHeader("ANONYMOUS \(anonymous.count)") }
+                .disabled(!service.isConnected)
+                .help("Create a new volume")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            if service.volumes.isEmpty {
+                ContentUnavailableView {
+                    Label("No Volumes", systemImage: "cylinder")
+                } description: {
+                    Text("Add a volume, or one created by a container will appear here.")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    if !named.isEmpty {
+                        Section {
+                            ForEach(named)     { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
+                        } header: { LibrarySectionHeader("NAMED \(named.count)") }
+                    }
+                    if !anonymous.isEmpty {
+                        Section {
+                            ForEach(anonymous) { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
+                        } header: { LibrarySectionHeader("ANONYMOUS \(anonymous.count)") }
+                    }
                 }
             }
-            .navigationTitle("Volumes")
+        }
+        .navigationTitle("Volumes")
+        .sheet(isPresented: $showCreateSheet) {
+            VolumeCreateSheet()
         }
     }
 }

@@ -58,6 +58,8 @@ class ContainerServiceBase {
     @discardableResult
     func runContainer(options: RunOptions) async throws -> String { "" }
     func createMachine(options: MachineCreateOptions) async throws {}
+    func createVolume(options: VolumeCreateOptions) async throws {}
+    func createNetwork(options: NetworkCreateOptions) async throws {}
 
     func startContainer(_ id: String) async throws {}
     func stopContainer(_ id: String) async throws {}
@@ -105,6 +107,12 @@ class ContainerServiceBase {
     func fetchSystemConfig() async throws {}
     func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
     func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
+
+    /// Refreshes `registries` from the Keychain. Page-specific, fetched on demand (like
+    /// `fetchDiskUsage`/`fetchKernelInfo`) rather than on every poll tick.
+    func loadRegistries() async {}
+    func signInRegistry(host: String, username: String, password: String) async throws {}
+    func signOutRegistry(host: String) async throws {}
 
     var isConnected: Bool {
         if case .connected = daemonState { return true }

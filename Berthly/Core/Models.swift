@@ -549,27 +549,41 @@ nonisolated struct MachineCreateOptions {
     var insecureRegistry: Bool = false
 }
 
-// MARK: - Registry
+// MARK: - Create volume / network
 
-enum RegistryStatus: Equatable, Hashable {
-    case signedIn(username: String)
-    case notSignedIn
+/// Arguments for `container volume create`. The local driver is the only one, so it's implicit;
+/// `size` (bytes, with an optional K/M/G/T/P suffix) is passed through as a driver option.
+nonisolated struct VolumeCreateOptions {
+    var name: String
+    var size: String?
 }
 
-enum RegistryScope { case pushAndPull, pullOnly, unknown }
+/// Arguments for `container network create`. `hostOnly` maps to the CLI's `--internal` flag
+/// (`.hostOnly` vs `.nat`); `subnet` is an optional IPv4 CIDR, auto-assigned by the daemon if blank.
+nonisolated struct NetworkCreateOptions {
+    var name: String
+    var hostOnly: Bool = false
+    var subnet: String?
+}
 
+// MARK: - Registry
+
+/// A registry the user is signed in to — one row of `container registry list`: a Keychain login
+/// for `host`, authenticating as `username`. The list only ever contains signed-in registries,
+/// exactly like the CLI (`login` adds an entry, `logout` deletes it), so there's no
+/// "not signed in" state to represent.
 struct Registry: Identifiable, Hashable {
-    let id: String
-    let name: String
+    var id: String { host }
     let host: String
-    let scope: RegistryScope
-    let status: RegistryStatus
+    let username: String
+}
 
-    var isSignedIn: Bool {
-        if case .signedIn = status { return true }
-        return false
+/// Surfaced when a Keychain write/delete fails because the entry was created by a
+/// different process identity (e.g. `container login` from the CLI) — macOS Keychain
+/// refuses to let Berthly change ownership of that item.
+struct RegistryOperationError: LocalizedError {
+    let host: String
+    var errorDescription: String? {
+        "Berthly can't manage this credential — \(host) was signed in via the container CLI. Run `container registry logout \(host)` in Terminal to sign out."
     }
-
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
-    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }

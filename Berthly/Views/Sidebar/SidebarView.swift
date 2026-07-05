@@ -27,7 +27,7 @@ struct SidebarView: View {
                     .tag(SidebarSelection.networks)
                 SidebarRow(icon: "square.stack.3d.up",   label: "Images",     badge: service.images.count)
                     .tag(SidebarSelection.images)
-                SidebarRow(icon: "building.columns",      label: "Registries", badgeText: registryBadge)
+                SidebarRow(icon: "building.columns",      label: "Registries", badge: service.registries.count)
                     .tag(SidebarSelection.registries)
             }
 
@@ -47,10 +47,6 @@ struct SidebarView: View {
         service.machines.filter { $0.status == .running && !$0.isUtility }.count
     }
 
-    private var registryBadge: String {
-        let signedIn = service.registries.filter(\.isSignedIn).count
-        return "\(signedIn)/\(service.registries.count)"
-    }
 }
 
 // MARK: - Sidebar Row
