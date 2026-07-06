@@ -2,9 +2,20 @@ import SwiftUI
 
 struct RegistriesListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
 
     @State private var showAddRegistry = false
     @State private var errorMessage: String?
+    @State private var filterText = ""
+    @State private var isSearchPresented = false
+
+    private var filtered: [Registry] {
+        let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return service.registries }
+        return service.registries.filter {
+            $0.host.lowercased().contains(query) || $0.username.lowercased().contains(query)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -20,18 +31,23 @@ struct RegistriesListView: View {
                     Text("Add a registry to sign in — or run `container registry login`.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filtered.isEmpty {
+                ContentUnavailableView.search(text: filterText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 columnHeader
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
                 List {
-                    ForEach(service.registries) { registry in
+                    ForEach(filtered) { registry in
                         RegistryRow(registryID: registry.id, errorMessage: $errorMessage)
                     }
                 }
                 .listStyle(.plain)
             }
         }
+        .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by host or user")
+        .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Registries")
         .task { await service.loadRegistries() }
         .sheet(isPresented: $showAddRegistry) {
@@ -140,6 +156,12 @@ private struct RegistryRow: View {
                 .frame(width: 90, alignment: .trailing)
             }
             .padding(.vertical, 4)
+            .contextMenu {
+                Button("Copy Host") { copyToPasteboard(registry.host) }
+                Button("Copy Username") { copyToPasteboard(registry.username) }
+                Divider()
+                Button("Sign Out") { signOut(host: registry.host) }
+            }
         }
     }
 
@@ -159,5 +181,6 @@ private struct RegistryRow: View {
 #Preview {
     RegistriesListView()
         .environment(MockContainerService() as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 720, height: 500)
 }

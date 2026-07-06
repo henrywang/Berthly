@@ -18,11 +18,17 @@ private struct MachineEntry: Identifiable {
 
 struct ComputeListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @Binding var selection: ComputeItem?
+    @State private var filterText = ""
+    @State private var isSearchPresented = false
+    @State private var deleteTarget: ComputeItem?
+    @State private var deleteErrorMessage: String?
 
     var body: some View {
-        let containers = service.containers
-        let machines   = service.machines.filter { !$0.isUtility }
+        let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
+        let containers = service.containers.filter { matches($0.name, $0.image, query: query) }
+        let machines   = service.machines.filter { !$0.isUtility && matches($0.name, $0.image, query: query) }
 
         let runningContainerEntries = containers.filter { $0.status == .running }
                                                 .map { ContainerEntry(id: "rc-\($0.id)", container: $0) }
@@ -35,58 +41,137 @@ struct ComputeListView: View {
 
         let runningCount = runningContainerEntries.count + runningMachineEntries.count
         let stoppedCount = stoppedContainerEntries.count + stoppedMachineEntries.count
+        let hasAnyResources = !service.containers.isEmpty || service.machines.contains { !$0.isUtility }
 
-        if runningCount == 0 && stoppedCount == 0 {
-            ContentUnavailableView {
-                Label("No Compute Resources", systemImage: "shippingbox")
-            } description: {
-                Text("Run a container or create a machine to get started.")
-            }
-            .navigationTitle("Compute")
-        } else {
-            List(selection: $selection) {
-                if runningCount > 0 {
-                    Section {
-                        if !runningContainerEntries.isEmpty {
-                            ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
-                            ForEach(runningContainerEntries) { entry in
-                                ContainerComputeRow(container: entry.container)
-                                    .tag(entry.tag)
-                                    .listRowSeparator(.hidden)
-                            }
-                        }
-                        if !runningMachineEntries.isEmpty {
-                            ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
-                            ForEach(runningMachineEntries) { entry in
-                                MachineComputeRow(machine: entry.machine)
-                                    .tag(entry.tag)
-                                    .listRowSeparator(.hidden)
-                            }
-                        }
-                    } header: { ComputeSectionHeader("RUNNING \(runningCount)") }
+        Group {
+            if !hasAnyResources {
+                ContentUnavailableView {
+                    Label("No Compute Resources", systemImage: "shippingbox")
+                } description: {
+                    Text("Run a container or create a machine to get started.")
+                } actions: {
+                    // Same intents the menu bar and Container menu use — MainWindowView owns the
+                    // sheets, so the empty state can't present them directly.
+                    Button("Run Container…") { bridge.pendingIntent = .openRunContainerSheet }
+                        .buttonStyle(.borderedProminent)
+                    Button("Create Machine…") { bridge.pendingIntent = .openCreateMachineSheet }
                 }
-                if stoppedCount > 0 {
-                    Section {
-                        if !stoppedContainerEntries.isEmpty {
-                            ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
-                            ForEach(stoppedContainerEntries) { entry in
-                                ContainerComputeRow(container: entry.container)
-                                    .tag(entry.tag)
-                                    .listRowSeparator(.hidden)
+            } else if runningCount == 0 && stoppedCount == 0 {
+                ContentUnavailableView.search(text: filterText)
+            } else {
+                List(selection: $selection) {
+                    if runningCount > 0 {
+                        Section {
+                            if !runningContainerEntries.isEmpty {
+                                ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
+                                ForEach(runningContainerEntries) { entry in
+                                    ContainerComputeRow(container: entry.container)
+                                        .tag(entry.tag)
+                                        .listRowSeparator(.hidden)
+                                }
                             }
-                        }
-                        if !stoppedMachineEntries.isEmpty {
-                            ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
-                            ForEach(stoppedMachineEntries) { entry in
-                                MachineComputeRow(machine: entry.machine)
-                                    .tag(entry.tag)
-                                    .listRowSeparator(.hidden)
+                            if !runningMachineEntries.isEmpty {
+                                ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
+                                ForEach(runningMachineEntries) { entry in
+                                    MachineComputeRow(machine: entry.machine)
+                                        .tag(entry.tag)
+                                        .listRowSeparator(.hidden)
+                                }
                             }
-                        }
-                    } header: { ComputeSectionHeader("STOPPED \(stoppedCount)") }
+                        } header: { ComputeSectionHeader("RUNNING \(runningCount)") }
+                    }
+                    if stoppedCount > 0 {
+                        Section {
+                            if !stoppedContainerEntries.isEmpty {
+                                ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
+                                ForEach(stoppedContainerEntries) { entry in
+                                    ContainerComputeRow(container: entry.container)
+                                        .tag(entry.tag)
+                                        .listRowSeparator(.hidden)
+                                }
+                            }
+                            if !stoppedMachineEntries.isEmpty {
+                                ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
+                                ForEach(stoppedMachineEntries) { entry in
+                                    MachineComputeRow(machine: entry.machine)
+                                        .tag(entry.tag)
+                                        .listRowSeparator(.hidden)
+                                }
+                            }
+                        } header: { ComputeSectionHeader("STOPPED \(stoppedCount)") }
+                    }
                 }
+                // ⌫ on a selected, stopped row — same confirm-then-delete flow as the row's
+                // hover trash button and context menu, just reached by keyboard.
+                .onDeleteCommand { deleteTarget = deletableSelection }
             }
-            .navigationTitle("Compute")
+        }
+        .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or image")
+        .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
+        .navigationTitle("Compute")
+        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
+            get: { deleteTarget != nil },
+            set: { if !$0 { deleteTarget = nil } }
+        )) {
+            Button("Delete", role: .destructive) { performDelete() }
+            Button("Cancel", role: .cancel) { deleteTarget = nil }
+        } message: {
+            Text("This action cannot be undone.")
+        }
+        .alert("Error", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK") { deleteErrorMessage = nil }
+        } message: {
+            Text(deleteErrorMessage ?? "")
+        }
+    }
+
+    private func matches(_ name: String, _ detail: String, query: String) -> Bool {
+        query.isEmpty || name.lowercased().contains(query) || detail.lowercased().contains(query)
+    }
+
+    /// The current selection, if it's something ⌫ may delete: running items are protected here
+    /// exactly like their hover trash buttons are disabled.
+    private var deletableSelection: ComputeItem? {
+        switch selection {
+        case .container(let id):
+            guard let c = service.containers.first(where: { $0.id == id }), c.status != .running else { return nil }
+            return selection
+        case .machine(let id):
+            guard let m = service.machines.first(where: { $0.id == id }), m.status != .running else { return nil }
+            return selection
+        case nil:
+            return nil
+        }
+    }
+
+    private var deleteConfirmTitle: String {
+        switch deleteTarget {
+        case .container(let id):
+            let name = service.containers.first(where: { $0.id == id })?.name ?? id
+            return "Delete \(name)?"
+        case .machine(let id):
+            let name = service.machines.first(where: { $0.id == id })?.name ?? id
+            return "Delete \(name)?"
+        case nil:
+            return ""
+        }
+    }
+
+    private func performDelete() {
+        guard let target = deleteTarget else { return }
+        deleteTarget = nil
+        Task {
+            do {
+                switch target {
+                case .container(let id): try await service.deleteContainer(id)
+                case .machine(let id):   try await service.deleteMachine(id)
+                }
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
         }
     }
 }
@@ -132,6 +217,24 @@ private struct ContainerComputeRow: View {
         .padding(.vertical, 2)
         .opacity(isDeleting ? 0.4 : 1)
         .onHover { isHovered = $0 }
+        // The full action set, reachable by right-click — the hover trash icon alone isn't
+        // discoverable and doesn't exist in the accessibility tree until hover, so this is also
+        // the VoiceOver path to row actions.
+        .contextMenu {
+            if container.status == .running {
+                Button("Stop") { perform { try await service.stopContainer(container.id) } }
+                Button("Restart") { perform { try await service.restartContainer(container.id) } }
+            } else {
+                Button("Start") { perform { try await service.startContainer(container.id) } }
+            }
+            Divider()
+            Button("Copy Name") { copyToPasteboard(container.name) }
+            Button("Copy Container ID") { copyToPasteboard(container.id) }
+            Button("Copy Image Reference") { copyToPasteboard(container.image) }
+            Divider()
+            Button("Delete…", role: .destructive) { showDeleteConfirm = true }
+                .disabled(container.status == .running)
+        }
         .alert("Delete \(container.name)?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
                 isDeleting = true
@@ -152,6 +255,13 @@ private struct ContainerComputeRow: View {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    private func perform(_ action: @escaping () async throws -> Void) {
+        Task {
+            do { try await action() }
+            catch { errorMessage = error.localizedDescription }
         }
     }
 }
@@ -197,6 +307,19 @@ private struct MachineComputeRow: View {
         .padding(.vertical, 2)
         .opacity(isDeleting ? 0.4 : 1)
         .onHover { isHovered = $0 }
+        .contextMenu {
+            if machine.status == .running {
+                Button("Stop") { perform { try await service.stopMachine(machine.id) } }
+            } else {
+                Button("Start") { perform { try await service.startMachine(machine.id) } }
+            }
+            Divider()
+            Button("Copy Name") { copyToPasteboard(machine.name) }
+            Button("Copy Machine ID") { copyToPasteboard(machine.id) }
+            Divider()
+            Button("Delete…", role: .destructive) { showDeleteConfirm = true }
+                .disabled(machine.status == .running)
+        }
         .alert("Delete \(machine.name)?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
                 isDeleting = true
@@ -217,6 +340,13 @@ private struct MachineComputeRow: View {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+    }
+
+    private func perform(_ action: @escaping () async throws -> Void) {
+        Task {
+            do { try await action() }
+            catch { errorMessage = error.localizedDescription }
         }
     }
 }
@@ -256,9 +386,25 @@ private struct ComputeTypeHeader: View {
 
 // MARK: - Preview
 
+// Wrapped in NavigationStack so `.searchable` has a navigation container to place its field in,
+// matching the NavigationSplitView the real app provides.
 #Preview {
     @Previewable @State var selection: ComputeItem? = nil
-    ComputeListView(selection: $selection)
-        .environment(MockContainerService() as ContainerServiceBase)
-        .frame(width: 320, height: 500)
+    NavigationStack {
+        ComputeListView(selection: $selection)
+    }
+    .environment(MockContainerService() as ContainerServiceBase)
+    .environment(MenuBarBridge())
+    .frame(width: 320, height: 500)
+}
+
+#Preview("Empty") {
+    @Previewable @State var selection: ComputeItem? = nil
+    let mock = MockContainerService()
+    mock.containers.removeAll()
+    mock.machines.removeAll()
+    return ComputeListView(selection: $selection)
+        .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
+        .frame(width: 400, height: 500)
 }

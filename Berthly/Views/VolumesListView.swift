@@ -2,15 +2,34 @@ import SwiftUI
 
 struct VolumesListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @State private var showCreateSheet = false
+    @State private var filterText = ""
+    @State private var isSearchPresented = false
+    @AppStorage("volumesSortOrder") private var sortOrderRaw = LibrarySortOrder.default.rawValue
 
-    private var named:     [Volume] { service.volumes.filter { $0.type == .named     } }
-    private var anonymous: [Volume] { service.volumes.filter { $0.type == .anonymous } }
+    private var sortOrder: LibrarySortOrder { LibrarySortOrder(rawValue: sortOrderRaw) ?? .default }
+
+    private var filtered: [Volume] {
+        let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
+        let matching = query.isEmpty
+            ? service.volumes
+            : service.volumes.filter { $0.name.lowercased().contains(query) }
+        switch sortOrder {
+        case .default: return matching
+        case .name:    return matching.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .size:    return matching.sorted { $0.usedMB > $1.usedMB }
+        }
+    }
+
+    private var named:     [Volume] { filtered.filter { $0.type == .named     } }
+    private var anonymous: [Volume] { filtered.filter { $0.type == .anonymous } }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
+                LibrarySortMenu(selectionRaw: $sortOrderRaw)
                 Button { showCreateSheet = true } label: {
                     Label("Add Volume", systemImage: "plus")
                 }
@@ -27,6 +46,9 @@ struct VolumesListView: View {
                     Text("Add a volume, or one created by a container will appear here.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filtered.isEmpty {
+                ContentUnavailableView.search(text: filterText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
                     if !named.isEmpty {
@@ -42,6 +64,8 @@ struct VolumesListView: View {
                 }
             }
         }
+        .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name")
+        .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Volumes")
         .sheet(isPresented: $showCreateSheet) {
             VolumeCreateSheet()
@@ -109,6 +133,14 @@ private struct VolumeRow: View {
             .padding(.vertical, 2)
             .opacity(isDeleting ? 0.4 : 1)
             .onHover { isHovered = $0 }
+            .contextMenu {
+                Button("Copy Name") { copyToPasteboard(volume.name) }
+                if !volume.source.isEmpty {
+                    Button("Copy Source Path") { copyToPasteboard(volume.source) }
+                }
+                Divider()
+                Button("Delete…", role: .destructive) { showDeleteConfirm = true }
+            }
             .alert("Delete \(volume.name)?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     isDeleting = true
@@ -171,5 +203,6 @@ private struct LibrarySectionHeader: View {
 #Preview {
     VolumesListView()
         .environment(MockContainerService() as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 360, height: 500)
 }

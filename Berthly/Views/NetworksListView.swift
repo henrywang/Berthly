@@ -2,7 +2,18 @@ import SwiftUI
 
 struct NetworksListView: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @State private var showCreateSheet = false
+    @State private var filterText = ""
+    @State private var isSearchPresented = false
+
+    private var filtered: [Network] {
+        let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return service.networks }
+        return service.networks.filter {
+            $0.name.lowercased().contains(query) || $0.subnet.lowercased().contains(query)
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -24,14 +35,19 @@ struct NetworksListView: View {
                     Text("Add a network, or one created for a container will appear here.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if filtered.isEmpty {
+                ContentUnavailableView.search(text: filterText)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List {
-                    ForEach(service.networks) { net in
+                    ForEach(filtered) { net in
                         NetworkRow(networkID: net.id).listRowSeparator(.hidden)
                     }
                 }
             }
         }
+        .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or subnet")
+        .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Networks")
         .sheet(isPresented: $showCreateSheet) {
             NetworkCreateSheet()
@@ -103,6 +119,13 @@ private struct NetworkRow: View {
             .padding(.vertical, 2)
             .opacity(isDeleting ? 0.4 : 1)
             .onHover { isHovered = $0 }
+            .contextMenu {
+                Button("Copy Name") { copyToPasteboard(network.name) }
+                Button("Copy Subnet") { copyToPasteboard(network.subnet) }
+                Divider()
+                Button("Delete…", role: .destructive) { showDeleteConfirm = true }
+                    .disabled(network.isDefault)
+            }
             .alert("Delete \(network.name)?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     isDeleting = true
@@ -149,5 +172,6 @@ private struct NetworkRow: View {
 #Preview {
     NetworksListView()
         .environment(MockContainerService() as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 360, height: 300)
 }

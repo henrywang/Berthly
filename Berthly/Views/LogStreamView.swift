@@ -138,8 +138,7 @@ struct LogStreamView: View {
     private func copyAll() {
         let text = Self.clipboardText(for: filteredLines)
         guard !text.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        copyToPasteboard(text)
     }
 
     /// Flattens lines to one plain-text row each, joining the non-empty timestamp/level/message
