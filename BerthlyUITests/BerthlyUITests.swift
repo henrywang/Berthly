@@ -189,7 +189,7 @@ final class BerthlyUITests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["Containers"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Machines"].exists)
-        XCTAssertTrue(app.staticTexts["Container daemon"].exists)
+        XCTAssertTrue(app.staticTexts["Container Daemon"].exists)
     }
 
     /// Regression test: a `menuBarExtraStyle(.window)` popover has no built-in dismissal like a
@@ -209,7 +209,10 @@ final class BerthlyUITests: XCTestCase {
         runContainer.click()
 
         XCTAssertTrue(app.staticTexts["Run Container"].waitForExistence(timeout: 5), "Sheet should open in the main window")
-        XCTAssertFalse(app.staticTexts["Container daemon"].exists, "Menu bar popover should close after selecting an action")
+        // Probe with the popover-only daemon stop button, not the "Container Daemon" text —
+        // the main window's sidebar status bar shows the same label, so the text would match
+        // even with the popover correctly closed.
+        XCTAssertFalse(app.buttons["menuBarDaemonStopButton"].exists, "Menu bar popover should close after selecting an action")
 
         app.buttons["Cancel"].click()
     }
@@ -242,7 +245,7 @@ final class BerthlyUITests: XCTestCase {
 
         let daemonStartButton = app.buttons["menuBarDaemonStartButton"]
         XCTAssertTrue(daemonStartButton.waitForExistence(timeout: 5), "Daemon should stop without a confirmation step")
-        XCTAssertTrue(app.staticTexts["Container daemon"].exists, "Popover should stay open after stopping")
+        XCTAssertTrue(app.staticTexts["Container Daemon"].exists, "Popover should stay open after stopping")
     }
 
     /// Repeated sheet open/close is a classic leak source (an `@Observable` view model or a
