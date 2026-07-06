@@ -9,7 +9,7 @@ enum ComputeItem: Hashable {
 
 // MARK: - Daemon
 
-enum DaemonState {
+enum DaemonState: Equatable {
     case checking
     case notInstalled
     case installedButStopped
@@ -18,6 +18,15 @@ enum DaemonState {
     case stopping
     case connected
     case error(String)
+
+    /// Classifies a failed health-check ping. A connection-refused/XPC failure means the daemon
+    /// isn't running — whether that's "not installed" or merely "stopped" depends on the CLI
+    /// binary existing on disk, checked on every poll tick so installing (or removing) the CLI
+    /// is picked up automatically without relaunching Berthly. Any other failure is a real error.
+    static func afterFailedPing(isConnectionFailure: Bool, cliInstalled: Bool, errorMessage: String) -> DaemonState {
+        guard isConnectionFailure else { return .error(errorMessage) }
+        return cliInstalled ? .installedButStopped : .notInstalled
+    }
 }
 
 // MARK: - Container

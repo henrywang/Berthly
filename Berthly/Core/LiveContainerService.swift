@@ -133,11 +133,11 @@ final class LiveContainerService: ContainerServiceBase {
                 ? .connected
                 : .versionMismatch(installed: installedVersion, required: ContainerCompatibility.requiredVersion)
         } catch {
-            if isXPCConnectionError(error) {
-                daemonState = .installedButStopped
-            } else {
-                daemonState = .error(error.localizedDescription)
-            }
+            daemonState = .afterFailedPing(
+                isConnectionFailure: isXPCConnectionError(error),
+                cliInstalled: FileManager.default.fileExists(atPath: Self.apiServerExecutablePath),
+                errorMessage: error.localizedDescription
+            )
         }
     }
 
