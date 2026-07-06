@@ -15,10 +15,11 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            Section("COMPUTE") {
-                SidebarRow(icon: "shippingbox", label: "Compute", badge: runningComputeCount)
-                    .tag(SidebarSelection.compute)
-            }
+            // Compute and System are lone top-level items, so they sit ungrouped rather than
+            // under a one-row section that would just repeat their own name (Finder/Mail do the
+            // same). Only the multi-item LIBRARY group keeps a header.
+            SidebarRow(icon: "shippingbox", label: "Compute", badge: runningComputeCount)
+                .tag(SidebarSelection.compute)
 
             Section("LIBRARY") {
                 SidebarRow(icon: "cylinder",              label: "Volumes",    badge: service.volumes.count)
@@ -31,7 +32,10 @@ struct SidebarView: View {
                     .tag(SidebarSelection.registries)
             }
 
-            Section("SYSTEM") {
+            // Headerless section: System is app/daemon settings, not a library resource, so it
+            // keeps a grouping gap from LIBRARY above — but needs no header text, since a lone
+            // "System" row under a "SYSTEM" title just repeats itself.
+            Section {
                 SidebarRow(icon: "gearshape", label: "System")
                     .tag(SidebarSelection.system)
             }

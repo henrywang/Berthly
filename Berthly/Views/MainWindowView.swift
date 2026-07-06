@@ -201,15 +201,6 @@ struct MainWindowView: View {
             .help("Refresh")
             .keyboardShortcut("r", modifiers: .command)
         }
-
-        ToolbarItem(placement: .automatic) {
-            Button {
-                // TODO: M7 — command palette
-            } label: {
-                Label("Search or run a command", systemImage: "magnifyingglass")
-            }
-            .keyboardShortcut("k", modifiers: .command)
-        }
     }
 
 }
