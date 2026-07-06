@@ -67,7 +67,7 @@ struct VolumeCreateSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 if isSubmitting {
                     Button {} label: {
                         HStack(spacing: 6) {

@@ -105,11 +105,11 @@ struct BuildImageSheet: View {
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return)
                 case .failure:
-                    Button("Close") { dismiss() }
+                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                         .buttonStyle(.bordered)
                 case nil:
                     if state.isBuilding {
-                        Button("Cancel") { cancelBuild() }
+                        Button("Cancel") { cancelBuild() }.keyboardShortcut(.cancelAction)
                         Button {} label: {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.small)
@@ -119,7 +119,7 @@ struct BuildImageSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(true)
                     } else {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                         Button("Build") { startBuild() }
                             .buttonStyle(.borderedProminent)
                             .disabled(!canBuild)

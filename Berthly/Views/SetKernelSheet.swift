@@ -244,7 +244,7 @@ struct SetKernelSheet: View {
                 .buttonStyle(.borderedProminent)
                 .disabled(true)
             } else {
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Set Kernel") { install() }
                     .buttonStyle(.borderedProminent)
                     .tint(.berthlyAccent)

@@ -97,11 +97,11 @@ struct MachineCreateSheet: View {
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return)
                 case .failure:
-                    Button("Close") { dismiss() }
+                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                         .buttonStyle(.bordered)
                 case nil:
                     if state.isRunning {
-                        Button("Cancel") { cancelRun() }
+                        Button("Cancel") { cancelRun() }.keyboardShortcut(.cancelAction)
                         Button {} label: {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.small)
@@ -111,7 +111,7 @@ struct MachineCreateSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(true)
                     } else {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                         Button("Create") { startSubmit() }
                             .buttonStyle(.borderedProminent)
                             .disabled(!canCreate)

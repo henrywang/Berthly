@@ -157,7 +157,7 @@ struct PullImageSheet: View {
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return)
                 } else if isPulling {
-                    Button("Cancel") { cancelPull() }
+                    Button("Cancel") { cancelPull() }.keyboardShortcut(.cancelAction)
                     Button {} label: {
                         HStack(spacing: 6) {
                             ProgressView().controlSize(.small)
@@ -167,7 +167,7 @@ struct PullImageSheet: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(true)
                 } else {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Button("Pull") { startPull() }
                         .buttonStyle(.borderedProminent)
                         .disabled(reference.trimmingCharacters(in: .whitespaces).isEmpty)

@@ -174,7 +174,7 @@ struct CopyFilesSheet: View {
         HStack {
             Spacer()
             if isCopying {
-                Button("Cancel") { cancelCopy() }
+                Button("Cancel") { cancelCopy() }.keyboardShortcut(.cancelAction)
                 Button {} label: {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
@@ -188,7 +188,7 @@ struct CopyFilesSheet: View {
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.return)
             } else {
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Copy") { startCopy() }
                     .buttonStyle(.borderedProminent)
                     .disabled(!canCopy)

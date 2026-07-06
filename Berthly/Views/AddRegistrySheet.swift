@@ -129,7 +129,7 @@ struct AddRegistrySheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel") { dismiss() }
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 if isSubmitting {
                     Button {} label: {
                         HStack(spacing: 6) {
