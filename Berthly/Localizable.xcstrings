@@ -1,0 +1,1002 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "" : {
+
+    },
+    "–" : {
+
+    },
+    ":" : {
+
+    },
+    "·" : {
+
+    },
+    "@%@" : {
+
+    },
+    "/app" : {
+
+    },
+    "%@ · %lld%%" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld%%"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "+%lld more — open Berthly to see all" : {
+
+    },
+    "=" : {
+
+    },
+    "A named volume on the local driver" : {
+
+    },
+    "A NAT or host-only network for containers" : {
+
+    },
+    "A vmlinux binary already on disk." : {
+
+    },
+    "Add" : {
+
+    },
+    "Add & sign in" : {
+
+    },
+    "Add a host, then sign in — stored in the Keychain" : {
+
+    },
+    "Add a network, or one created for a container will appear here." : {
+
+    },
+    "Add a Registry" : {
+
+    },
+    "Add a registry to sign in — or run `container registry login`." : {
+
+    },
+    "Add a volume, or one created by a container will appear here." : {
+
+    },
+    "Add Network" : {
+
+    },
+    "Add registry" : {
+
+    },
+    "Add Volume" : {
+
+    },
+    "Advanced" : {
+
+    },
+    "Allocate a TTY (-t)" : {
+
+    },
+    "Allow insecure registry" : {
+
+    },
+    "amd64" : {
+
+    },
+    "Anonymous pull — no sign-in needed. Short names resolve against %@." : {
+
+    },
+    "Architecture" : {
+
+    },
+    "arm64" : {
+
+    },
+    "Attach and show output" : {
+
+    },
+    "Berthly" : {
+
+    },
+    "Berthly manages containers through Apple's container CLI, which isn't installed on this Mac.\nOnce installed, Berthly detects it automatically." : {
+
+    },
+    "Boot immediately" : {
+
+    },
+    "BOOT PIPELINE" : {
+
+    },
+    "Browse…" : {
+
+    },
+    "Build" : {
+
+    },
+    "Build context" : {
+
+    },
+    "Build from a Dockerfile or Containerfile" : {
+
+    },
+    "Build Image" : {
+
+    },
+    "Build Image…" : {
+
+    },
+    "Builder Image" : {
+
+    },
+    "Building…" : {
+
+    },
+    "Cancel" : {
+
+    },
+    "Choose a local image" : {
+
+    },
+    "Choose…" : {
+
+    },
+    "Clean Up All" : {
+
+    },
+    "Clean up all reclaimable space?" : {
+
+    },
+    "Clear" : {
+
+    },
+    "Click to copy · %@" : {
+
+    },
+    "Close" : {
+
+    },
+    "Command" : {
+
+    },
+    "Compute" : {
+
+    },
+    "Connection Error" : {
+
+    },
+    "container" : {
+
+    },
+    "Container" : {
+
+    },
+    "Container Daemon" : {
+
+    },
+    "Container ID file" : {
+
+    },
+    "Container is not installed" : {
+
+    },
+    "Container not found" : {
+
+    },
+    "Container Not Installed" : {
+
+    },
+    "Container System Stopped" : {
+
+    },
+    "Containers reach the internet through the host (NAT)." : {
+
+    },
+    "Copy" : {
+
+    },
+    "Copy all logs to the clipboard" : {
+
+    },
+    "Copy all shown logs to the clipboard" : {
+
+    },
+    "Copy Container ID" : {
+
+    },
+    "Copy Digest" : {
+
+    },
+    "Copy Files" : {
+
+    },
+    "Copy Files…" : {
+
+    },
+    "Copy Host" : {
+
+    },
+    "Copy Image Reference" : {
+
+    },
+    "Copy Machine ID" : {
+
+    },
+    "Copy Name" : {
+
+    },
+    "Copy Reference" : {
+
+    },
+    "Copy Source Path" : {
+
+    },
+    "Copy Subnet" : {
+
+    },
+    "Copy Username" : {
+
+    },
+    "Copying…" : {
+
+    },
+    "Couldn't Change Login Item" : {
+
+    },
+    "CPUs" : {
+
+    },
+    "Create" : {
+
+    },
+    "Create a new network" : {
+
+    },
+    "Create a new volume" : {
+
+    },
+    "Create Machine" : {
+
+    },
+    "Create Machine…" : {
+
+    },
+    "Create Network" : {
+
+    },
+    "Create Volume" : {
+
+    },
+    "Creating…" : {
+
+    },
+    "Credentials for pushing & pulling images · shared by the daemon and every machine" : {
+
+    },
+    "default" : {
+
+    },
+    "Defaults to Dockerfile or Containerfile in the build context." : {
+
+    },
+    "Delete" : {
+
+    },
+    "Delete %@?" : {
+
+    },
+    "Delete Container" : {
+
+    },
+    "Delete Image" : {
+
+    },
+    "Delete Machine" : {
+
+    },
+    "Delete Network" : {
+
+    },
+    "Delete Volume" : {
+
+    },
+    "Delete…" : {
+
+    },
+    "Details unavailable" : {
+
+    },
+    "Direction" : {
+
+    },
+    "Disable build cache" : {
+
+    },
+    "Disable DNS configuration" : {
+
+    },
+    "DISK" : {
+
+    },
+    "DNS domain" : {
+
+    },
+    "docker.io" : {
+
+    },
+    "docker.io/library" : {
+
+    },
+    "Dockerfile" : {
+
+    },
+    "Dockerfile (auto-detected)" : {
+
+    },
+    "Done" : {
+
+    },
+    "e.g. 1g" : {
+
+    },
+    "e.g. 2" : {
+
+    },
+    "e.g. 2g" : {
+
+    },
+    "e.g. 4" : {
+
+    },
+    "e.g. 8G" : {
+
+    },
+    "e.g. 10G" : {
+
+    },
+    "e.g. 64m" : {
+
+    },
+    "e.g. 192.168.70.0/24" : {
+
+    },
+    "Enable Rosetta" : {
+
+    },
+    "Entrypoint override" : {
+
+    },
+    "Error" : {
+
+    },
+    "Expose virtualization capabilities" : {
+
+    },
+    "Filter by host or user" : {
+
+    },
+    "Filter by name" : {
+
+    },
+    "Filter by name or image" : {
+
+    },
+    "Filter by name or subnet" : {
+
+    },
+    "Filter by reference" : {
+
+    },
+    "Filter logs" : {
+
+    },
+    "Find" : {
+
+    },
+    "Following" : {
+
+    },
+    "For a private image," : {
+
+    },
+    "For one-shot commands that exit, e.g. pwd — waits for the command to finish and shows what it printed. Don't use with a long-running service." : {
+
+    },
+    "Force re-install" : {
+
+    },
+    "Forces HTTP instead of HTTPS. Only use for private registries without TLS." : {
+
+    },
+    "Forward SSH agent" : {
+
+    },
+    "General" : {
+
+    },
+    "Get container…" : {
+
+    },
+    "Hide token" : {
+
+    },
+    "Home directory mount" : {
+
+    },
+    "host" : {
+
+    },
+    "Host-only" : {
+
+    },
+    "Image" : {
+
+    },
+    "Image built successfully" : {
+
+    },
+    "Image not found" : {
+
+    },
+    "Image pulled" : {
+
+    },
+    "Image reference" : {
+
+    },
+    "Images" : {
+
+    },
+    "Index" : {
+
+    },
+    "INSPECT" : {
+
+    },
+    "Installed" : {
+
+    },
+    "Installed container doesn't match the version Berthly requires — open Berthly to update" : {
+
+    },
+    "Installed: v%@ · Required: v%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Installed: v%1$@ · Required: v%2$@"
+          }
+        }
+      }
+    },
+    "Installing…" : {
+
+    },
+    "Into Container" : {
+
+    },
+    "Isolated to the host — no outbound internet access." : {
+
+    },
+    "Keep stdin open (-i)" : {
+
+    },
+    "Kernel" : {
+
+    },
+    "Kernel Binary" : {
+
+    },
+    "Launch at login" : {
+
+    },
+    "LIBRARY" : {
+
+    },
+    "Loading…" : {
+
+    },
+    "local/myapp:1.0" : {
+
+    },
+    "Machine created" : {
+
+    },
+    "Machine not found" : {
+
+    },
+    "Memory" : {
+
+    },
+    "Mode" : {
+
+    },
+    "MOUNTS · VIRTIOFS" : {
+
+    },
+    "Move a file or folder between your Mac and %@" : {
+
+    },
+    "my-network" : {
+
+    },
+    "my-volume" : {
+
+    },
+    "Name" : {
+
+    },
+    "name|uid[:gid]" : {
+
+    },
+    "NAT" : {
+
+    },
+    "Networks" : {
+
+    },
+    "New VMs pick up the kernel · running containers are unaffected." : {
+
+    },
+    "No builder found. Create one with `container builder create`." : {
+
+    },
+    "No Compute Resources" : {
+
+    },
+    "No Images" : {
+
+    },
+    "No logs" : {
+
+    },
+    "No Networks" : {
+
+    },
+    "No Registries" : {
+
+    },
+    "No running containers or machines." : {
+
+    },
+    "No Volumes" : {
+
+    },
+    "Not configured" : {
+
+    },
+    "OK" : {
+
+    },
+    "Optional" : {
+
+    },
+    "Optional — auto-generated if left blank" : {
+
+    },
+    "Optional — leave blank for no size limit. Accepts K, M, G, T, P suffixes." : {
+
+    },
+    "Optional — path to write the container ID to" : {
+
+    },
+    "Optional — the daemon auto-assigns one if left blank." : {
+
+    },
+    "Optional override, e.g. npm start" : {
+
+    },
+    "Out of Container" : {
+
+    },
+    "Password" : {
+
+    },
+    "Path" : {
+
+    },
+    "Pin" : {
+
+    },
+    "Platform" : {
+
+    },
+    "Pre-filled from config.toml's recommended kernel — edit to install a different one." : {
+
+    },
+    "Provision a new container machine from an image" : {
+
+    },
+    "Prune" : {
+
+    },
+    "Pull" : {
+
+    },
+    "Pull Image" : {
+
+    },
+    "Pull Image…" : {
+
+    },
+    "Pull latest base images" : {
+
+    },
+    "Pull or build an image to get started." : {
+
+    },
+    "Pulling image" : {
+
+    },
+    "Pulls from Docker Hub or any public registry — no sign-in" : {
+
+    },
+    "Re-applies even if the selected kernel already matches the active one." : {
+
+    },
+    "Read-only root filesystem" : {
+
+    },
+    "Rebuild" : {
+
+    },
+    "Rebuild Image" : {
+
+    },
+    "reclaimable" : {
+
+    },
+    "Refresh" : {
+
+    },
+    "Registries" : {
+
+    },
+    "REGISTRY" : {
+
+    },
+    "Registry host" : {
+
+    },
+    "Remove when stopped" : {
+
+    },
+    "Removes unused images and stopped containers in one step. Volumes are never touched — delete those individually if you're sure you don't need their data." : {
+
+    },
+    "Required" : {
+
+    },
+    "Restart" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Reused on next push & pull · never written to config.toml" : {
+
+    },
+    "Reveal config.toml in Finder" : {
+
+    },
+    "RO" : {
+
+    },
+    "Run" : {
+
+    },
+    "Run a container or create a machine to get started." : {
+
+    },
+    "Run an init process" : {
+
+    },
+    "Run Container" : {
+
+    },
+    "Run Container…" : {
+
+    },
+    "Run from this image" : {
+
+    },
+    "Run from This Image…" : {
+
+    },
+    "Run…" : {
+
+    },
+    "RW" : {
+
+    },
+    "Saves as  %@" : {
+
+    },
+    "Select a section" : {
+
+    },
+    "Set as default machine" : {
+
+    },
+    "Set Kernel" : {
+
+    },
+    "Set Kernel…" : {
+
+    },
+    "Shared memory size" : {
+
+    },
+    "Show Container" : {
+
+    },
+    "Show menu bar icon" : {
+
+    },
+    "Show token" : {
+
+    },
+    "sign in via Registries." : {
+
+    },
+    "Sign out" : {
+
+    },
+    "Sign Out" : {
+
+    },
+    "Signing in…" : {
+
+    },
+    "Size" : {
+
+    },
+    "Sort" : {
+
+    },
+    "Sort By" : {
+
+    },
+    "Sort the list" : {
+
+    },
+    "source" : {
+
+    },
+    "Source" : {
+
+    },
+    "Stage name in a multi-stage build" : {
+
+    },
+    "Start" : {
+
+    },
+    "Start a new container from an image" : {
+
+    },
+    "Start Container System" : {
+
+    },
+    "Start immediately" : {
+
+    },
+    "Start the container to copy files" : {
+
+    },
+    "Start the container to open a shell." : {
+
+    },
+    "Start the machine to open a shell." : {
+
+    },
+    "Status" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Stop %@?" : {
+
+    },
+    "Stop Builder" : {
+
+    },
+    "Stop container daemon — this stops every running container on this Mac, not just ones Berthly manages" : {
+
+    },
+    "Stop Container Daemon…" : {
+
+    },
+    "Stop the container daemon?" : {
+
+    },
+    "Stop the container first" : {
+
+    },
+    "Stop the machine first" : {
+
+    },
+    "Stored in the Keychain · the daemon keeps running." : {
+
+    },
+    "Stored in the macOS Keychain" : {
+
+    },
+    "Subnet" : {
+
+    },
+    "System" : {
+
+    },
+    "t" : {
+
+    },
+    "Tag" : {
+
+    },
+    "Tar Archive" : {
+
+    },
+    "target path" : {
+
+    },
+    "Target stage" : {
+
+    },
+    "Terminal" : {
+
+    },
+    "Terminal Theme" : {
+
+    },
+    "The builder container will be shut down." : {
+
+    },
+    "The container daemon is installed but not running." : {
+
+    },
+    "The default network can't be deleted" : {
+
+    },
+    "The exact vminit and builder image versions this install of Berthly is built against — these must match what the installed container CLI expects." : {
+
+    },
+    "This action cannot be undone." : {
+
+    },
+    "This image is used by %lld container%@. Deleting it may affect those containers." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This image is used by %1$lld container%2$@. Deleting it may affect those containers."
+          }
+        }
+      }
+    },
+    "This network has %lld endpoint%@. Deleting it may disrupt connectivity." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This network has %1$lld endpoint%2$@. Deleting it may disrupt connectivity."
+          }
+        }
+      }
+    },
+    "This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password." : {
+
+    },
+    "This stops every running container on this Mac, not just ones Berthly manages." : {
+
+    },
+    "This volume is mounted by %lld container%@. Deleting it may cause data loss." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "This volume is mounted by %1$lld container%2$@. Deleting it may cause data loss."
+          }
+        }
+      }
+    },
+    "This will permanently delete the volume and all its data." : {
+
+    },
+    "This will remove the image from local storage." : {
+
+    },
+    "Token or password for this host" : {
+
+    },
+    "Tokens are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart." : {
+
+    },
+    "Total %@ · %@ reclaimable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Total %1$@ · %2$@ reclaimable"
+          }
+        }
+      }
+    },
+    "ubuntu:24.04" : {
+
+    },
+    "Unpin" : {
+
+    },
+    "Up to date" : {
+
+    },
+    "Update" : {
+
+    },
+    "Update available" : {
+
+    },
+    "Update container to v%@?" : {
+
+    },
+    "Update Container to v%@…" : {
+
+    },
+    "Update Failed" : {
+
+    },
+    "Update Required" : {
+
+    },
+    "Updating container to v%@…" : {
+
+    },
+    "Use Recommended" : {
+
+    },
+    "User" : {
+
+    },
+    "USER" : {
+
+    },
+    "Username" : {
+
+    },
+    "v" : {
+
+    },
+    "v%@" : {
+
+    },
+    "VM Init Image" : {
+
+    },
+    "Volumes" : {
+
+    },
+    "What do you want to run?" : {
+
+    },
+    "With the menu bar icon shown, Berthly keeps monitoring containers while the main window is closed." : {
+
+    },
+    "Working directory" : {
+
+    },
+    "Working…" : {
+
+    },
+    "Wrap" : {
+
+    }
+  },
+  "version" : "1.0"
+}
