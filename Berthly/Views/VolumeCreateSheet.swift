@@ -22,7 +22,7 @@ struct VolumeCreateSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Create volume")
+                    Text("Create Volume")
                         .font(.headline)
                     Text("A named volume on the local driver")
                         .font(.caption)

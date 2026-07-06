@@ -122,7 +122,7 @@ struct PullImageSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Pull image")
+                    Text("Pull Image")
                         .font(.headline)
                     Text("Pulls from Docker Hub or any public registry — no sign-in")
                         .font(.caption)

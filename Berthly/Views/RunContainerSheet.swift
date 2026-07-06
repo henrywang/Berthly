@@ -106,7 +106,7 @@ struct RunContainerSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Run container")
+                    Text("Run Container")
                         .font(.headline)
                     Text("Start a new container from an image")
                         .font(.caption)
@@ -226,10 +226,10 @@ struct RunContainerSheet: View {
                             .padding(.vertical, 6)
                             .padding(.horizontal, 10)
                             .background(
-                                selectedCategory == category ? Color.accentColor.opacity(0.15) : Color.clear,
+                                selectedCategory == category ? Color.berthlyAccent.opacity(0.15) : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 6)
                             )
-                            .foregroundStyle(selectedCategory == category ? Color.accentColor : .primary)
+                            .foregroundStyle(selectedCategory == category ? Color.berthlyAccent : .primary)
                     }
                     .buttonStyle(.plain)
                 }

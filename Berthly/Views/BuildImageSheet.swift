@@ -70,7 +70,7 @@ struct BuildImageSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(prefillTag != nil ? "Rebuild image" : "Build image")
+                    Text(prefillTag != nil ? "Rebuild Image" : "Build Image")
                         .font(.headline)
                     Text("Build from a Dockerfile or Containerfile")
                         .font(.caption)

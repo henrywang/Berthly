@@ -25,7 +25,7 @@ struct NetworkCreateSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Create network")
+                    Text("Create Network")
                         .font(.headline)
                     Text("A NAT or host-only network for containers")
                         .font(.caption)

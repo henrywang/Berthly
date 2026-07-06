@@ -155,13 +155,13 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Create Machine"].exists)
 
         app.buttons["Create Machine"].click()
-        XCTAssertTrue(app.staticTexts["Create machine"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Create Machine"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].click()
 
         runButton.click()
         XCTAssertTrue(app.buttons["Run Container"].waitForExistence(timeout: 5))
         app.buttons["Run Container"].click()
-        XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Run Container"].waitForExistence(timeout: 5))
         app.buttons["Cancel"].click()
     }
 
@@ -208,7 +208,7 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(runContainer.waitForExistence(timeout: 5))
         runContainer.click()
 
-        XCTAssertTrue(app.staticTexts["Run container"].waitForExistence(timeout: 5), "Sheet should open in the main window")
+        XCTAssertTrue(app.staticTexts["Run Container"].waitForExistence(timeout: 5), "Sheet should open in the main window")
         XCTAssertFalse(app.staticTexts["Container daemon"].exists, "Menu bar popover should close after selecting an action")
 
         app.buttons["Cancel"].click()

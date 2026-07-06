@@ -63,7 +63,7 @@ struct MachineCreateSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Create machine")
+                    Text("Create Machine")
                         .font(.headline)
                     Text("Provision a new container machine from an image")
                         .font(.caption)

@@ -134,11 +134,10 @@ struct SetKernelSheet: View {
     // MARK: - Sections
 
     private var header: some View {
-        HStack(alignment: .center, spacing: 14) {
+        HStack(alignment: .top, spacing: 12) {
             Image(systemName: "cpu")
-                .font(.title)
-                .foregroundStyle(.tint)
-                .frame(width: 36)
+                .font(.title2)
+                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Set Kernel")
                     .font(.headline)
@@ -148,8 +147,7 @@ struct SetKernelSheet: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .padding(20)
     }
 
     private var subtitle: String {

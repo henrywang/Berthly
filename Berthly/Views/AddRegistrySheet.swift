@@ -27,7 +27,7 @@ struct AddRegistrySheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Add a registry")
+                    Text("Add a Registry")
                         .font(.headline)
                     Text("Add a host, then sign in — stored in the Keychain")
                         .font(.caption)
