@@ -496,9 +496,9 @@ private struct BuilderRow: View {
                     Button(role: .destructive) { showStopConfirm = true } label: {
                         Label("Stop", systemImage: "stop.fill")
                     }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.borderless)
+                    .buttonStyle(.bordered)
                     .tint(.statusError)
+                    .controlSize(.small)
                     .disabled(isStopping)
                     .help("Stop Builder")
                 }
