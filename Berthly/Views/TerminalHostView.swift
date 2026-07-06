@@ -31,11 +31,26 @@ struct TerminalHostView: NSViewRepresentable {
         // This is the terminal's only signpost to the theme picker (also in Settings, ⌘,).
         view.menu = context.coordinator.makeContextMenu()
         context.coordinator.connect(target: target)
+        // By the next runloop tick the representable's view is in the window; grab focus so the
+        // Terminal tab is typable on entry. `updateNSView` handles the same latch for the case
+        // where it lands first — whichever runs earlier wins, the other is a no-op.
+        DispatchQueue.main.async { [weak view, coordinator = context.coordinator] in
+            guard let view, !coordinator.hasFocused, let window = view.window else { return }
+            coordinator.hasFocused = true
+            window.makeFirstResponder(view)
+        }
         return view
     }
 
     func updateNSView(_ nsView: TerminalView, context: Context) {
         applyTheme(theme, to: nsView)
+        // Focus the terminal on first appearance so switching to the Terminal tab lets the user
+        // type immediately, without an extra click to make it first responder. Guarded so a live
+        // theme repaint (another `updateNSView` pass) doesn't yank focus back mid-interaction.
+        if !context.coordinator.hasFocused, let window = nsView.window {
+            context.coordinator.hasFocused = true
+            window.makeFirstResponder(nsView)
+        }
     }
 
     // `installColors` (not the lower-level `terminal.installPalette`) both installs the
@@ -63,6 +78,9 @@ struct TerminalHostView: NSViewRepresentable {
         weak var terminalView: TerminalView?
         let session = TerminalSession()
         private var started = false
+        /// One-shot latch so we make the terminal first responder only on its first appearance,
+        /// not on every `updateNSView` (which also fires for live theme changes).
+        var hasFocused = false
 
         // MARK: Context menu
 
