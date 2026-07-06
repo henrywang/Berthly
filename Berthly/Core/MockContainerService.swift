@@ -110,6 +110,14 @@ final class MockContainerService: ContainerServiceBase {
         pinnedContainerIDs.remove(id)
     }
 
+    /// Records the arguments of the last copy so tests and previews can assert what the UI asked
+    /// for without a daemon. There's no host/guest filesystem to actually move bytes between here.
+    private(set) var lastCopy: (direction: CopyDirection, containerID: String, hostPath: String, containerPath: String)?
+
+    override func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {
+        lastCopy = (direction, containerID, hostPath, containerPath)
+    }
+
     override func startMachine(_ id: String) async throws {
         guard let i = machines.firstIndex(where: { $0.id == id }) else { return }
         let m = machines[i]

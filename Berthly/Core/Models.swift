@@ -566,6 +566,18 @@ nonisolated struct NetworkCreateOptions {
     var subnet: String?
 }
 
+// MARK: - File copy
+
+/// Which way a file/folder copy moves between the host and a container's filesystem. `copyIn`
+/// (`.intoContainer`) sends a host path to a container path; `copyOut` (`.outOfContainer`) pulls a
+/// container path down to the host. There is no container-side file browser (the API exposes copy
+/// by path but no directory listing), so in both directions the container side is a typed path and
+/// only the host side gets a native file panel.
+nonisolated enum CopyDirection: Hashable {
+    case intoContainer
+    case outOfContainer
+}
+
 // MARK: - Registry
 
 /// A registry the user is signed in to — one row of `container registry list`: a Keychain login

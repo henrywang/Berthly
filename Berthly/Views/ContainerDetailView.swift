@@ -28,6 +28,7 @@ private struct ContainerDetailContent: View {
     @State private var isWorking    = false
     @State private var errorMessage: String?
     @State private var showStopConfirm   = false
+    @State private var showCopySheet     = false
 
     // Reads directly from service so every `container.xxx` access in body/computed-props
     // is tracked by @Observable — re-renders immediately when status/stats change.
@@ -41,7 +42,6 @@ private struct ContainerDetailContent: View {
         case overview = "Overview"
         case logs     = "Logs"
         case terminal = "Terminal"
-        case files    = "Files"
     }
 
     var body: some View {
@@ -83,8 +83,6 @@ private struct ContainerDetailContent: View {
                     } else {
                         TerminalNotRunningTab()
                     }
-                case .files:
-                    FilesPlaceholderTab()
                 }
             }
             .frame(maxHeight: .infinity)
@@ -100,6 +98,9 @@ private struct ContainerDetailContent: View {
             Button("OK") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
+        }
+        .sheet(isPresented: $showCopySheet) {
+            CopyFilesSheet(service: service, containerID: container.id, targetName: container.name)
         }
         } // end if let container
     }
@@ -132,11 +133,20 @@ private struct ContainerDetailContent: View {
             .help(service.isContainerPinned(container.id) ? "Unpin" : "Pin")
             .hoverScale()
 
+            Button { showCopySheet = true } label: {
+                Image(systemName: "folder")
+            }
+            .buttonStyle(.bordered)
+            // The copy API rejects a non-running container ("container is not running"), so the
+            // action is only offered while running — same gate the Terminal tab uses.
+            .disabled(container.status != .running)
+            .help(container.status == .running ? "Copy Files…" : "Start the container to copy files")
+            .hoverScale()
+
             if container.status == .running {
                 Button(role: .destructive) { showStopConfirm = true } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
-                .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
                 .tint(.statusError)
                 .disabled(isWorking)
@@ -151,7 +161,6 @@ private struct ContainerDetailContent: View {
                 } label: {
                     Label("Start", systemImage: "play.fill")
                 }
-                .labelStyle(.iconOnly)
                 .buttonStyle(.borderedProminent)
                 .tint(.berthlyAccent)
                 .disabled(isWorking)
@@ -432,33 +441,6 @@ private struct TerminalNotRunningTab: View {
                     .multilineTextAlignment(.center)
             }
             .padding(40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
-// MARK: - Files Placeholder
-
-private struct FilesPlaceholderTab: View {
-    var body: some View {
-        VStack(spacing: 12) {
-            Spacer()
-            Image(systemName: "folder")
-                .font(.system(size: 48, weight: .thin))
-                .foregroundStyle(.tertiary)
-            Text("File browser")
-                .font(.title3.weight(.semibold))
-            Text("Browse and pull files from the container's\nfilesystem. Coming in a later release.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-            Text("Planned")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(.quaternary, in: Capsule())
-            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

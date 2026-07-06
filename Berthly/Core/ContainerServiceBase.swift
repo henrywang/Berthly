@@ -65,6 +65,13 @@ class ContainerServiceBase {
     func stopContainer(_ id: String) async throws {}
     func restartContainer(_ id: String) async throws {}
     func deleteContainer(_ id: String) async throws {}
+
+    /// Copy a file or directory between the host and container `containerID`'s filesystem.
+    /// `hostPath` is a path on the Mac, `containerPath` a path inside the container; `direction`
+    /// decides which is the source. Missing parent directories on the destination are created
+    /// automatically. See `LiveContainerService.copyArguments(...)` for the source/destination
+    /// mapping and `resolvedHostDestination(...)` for how a chosen host *folder* becomes a target.
+    func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {}
     func startMachine(_ id: String) async throws {}
     func stopMachine(_ id: String) async throws {}
     func deleteMachine(_ id: String) async throws {}

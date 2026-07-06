@@ -780,6 +780,41 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    override func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {
+        let (source, destination) = Self.copyArguments(direction: direction, hostPath: hostPath, containerPath: containerPath)
+        let client = ContainerClient()
+        // `createParents: true` so a copy into `/tmp/new/dir/` whose parent doesn't exist yet
+        // succeeds instead of failing with "destination directory does not exist" (the framework's
+        // default without this flag — see containerization's testCopyInFileToMissingDirectoryFails).
+        switch direction {
+        case .intoContainer:
+            try await client.copyIn(id: containerID, source: source, destination: destination, createParents: true)
+        case .outOfContainer:
+            try await client.copyOut(id: containerID, source: source, destination: destination, createParents: true)
+        }
+    }
+
+    /// Maps a copy `direction` plus the two user-entered paths to the `(source, destination)` pair
+    /// the client expects. Pure and `nonisolated` so it's unit-testable without a daemon: the whole
+    /// point is that `.outOfContainer` swaps which side is the source, and getting that backwards is
+    /// the obvious bug. `hostPath` for `.outOfContainer` should already be a full target path (see
+    /// `resolvedHostDestination`), since `copyOut` writes to the exact path given, not into a folder.
+    nonisolated static func copyArguments(direction: CopyDirection, hostPath: String, containerPath: String) -> (source: String, destination: String) {
+        switch direction {
+        case .intoContainer:  return (source: hostPath, destination: containerPath)
+        case .outOfContainer: return (source: containerPath, destination: hostPath)
+        }
+    }
+
+    /// Turns a host *folder* the user picked into a concrete copy-out target by appending the
+    /// container source's last path component — `copyOut` writes to the exact destination path, so
+    /// handing it a bare directory would try to overwrite the directory itself. E.g. folder
+    /// `/Users/me/Downloads` + source `/var/log/app.log` → `/Users/me/Downloads/app.log`.
+    nonisolated static func resolvedHostDestination(folder: String, containerSource: String) -> String {
+        let name = (containerSource as NSString).lastPathComponent
+        return (folder as NSString).appendingPathComponent(name)
+    }
+
     override func startMachine(_ id: String) async throws {
         // Routes through the same first-boot-aware helper `createMachine` uses: a no-op extra
         // check for the common case (an already-initialized machine), but correct if this is

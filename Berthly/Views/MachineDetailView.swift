@@ -123,12 +123,15 @@ private struct MachineDetailContent: View {
             .buttonStyle(.bordered)
             .help(service.isMachinePinned(machine.id) ? "Unpin" : "Pin")
             .hoverScale()
+            // No Copy Files button here (unlike ContainerDetailView): `copyIn`/`copyOut` write to the
+            // container-agent rootfs staging path (`/run/container/<id>/rootfs`), but a machine boots
+            // a full OS that pivots into its own root — so the copy "succeeds" yet the file never
+            // appears in the running machine. Use the machine's shared home mount to move files.
 
             if machine.status == .running {
                 Button(role: .destructive) { showStopConfirm = true } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
-                .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
                 .tint(.statusError)
                 .disabled(isWorking)
@@ -140,7 +143,6 @@ private struct MachineDetailContent: View {
                 } label: {
                     Label("Start", systemImage: "play.fill")
                 }
-                .labelStyle(.iconOnly)
                 .buttonStyle(.borderedProminent)
                 .tint(.berthlyAccent)
                 .disabled(isWorking)
