@@ -7,6 +7,9 @@ import SwiftUI
 struct BerthlyApp: App {
     @State private var service: ContainerServiceBase = Self.makeService()
     @State private var menuBarBridge = MenuBarBridge()
+    /// Mirrors the General settings toggle — `MenuBarExtra(isInserted:)` inserts/removes the
+    /// status item live as it changes.
+    @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
 
     /// UI tests set `UITEST_USE_MOCK_SERVICE` to get deterministic state instead of a real
     /// daemon connection, optionally seeded via `UITEST_INITIAL_DAEMON_STATE`.
@@ -36,9 +39,10 @@ struct BerthlyApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
+            ContainerCommands(service: service, bridge: menuBarBridge)
         }
 
-        MenuBarExtra {
+        MenuBarExtra(isInserted: $showMenuBarIcon) {
             MenuBarView()
                 .environment(service)
                 .environment(menuBarBridge)

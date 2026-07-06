@@ -102,6 +102,10 @@ struct MainWindowView: View {
             showRunSheet = true
         case .openCreateMachineSheet:
             showMachineCreateSheet = true
+        case .openBuildSheet:
+            showBuildSheet = true
+        case .openPullSheet:
+            showPullSheet = true
         case nil:
             return
         }
@@ -145,7 +149,8 @@ struct MainWindowView: View {
             .buttonStyle(.borderedProminent)
             .tint(.berthlyAccent)
             .disabled(!service.isConnected)
-            .keyboardShortcut("r", modifiers: [.command, .shift])
+            // Shortcuts live on the Container menu items (ContainerCommands), not here — the
+            // menu is the canonical owner, and registering the same key twice is ambiguous.
             .background(
                 PopoverAnchor(isPresented: $showRunMenu) {
                     RunTypeMenuContent(
@@ -167,7 +172,6 @@ struct MainWindowView: View {
                 Label("Build", systemImage: "hammer")
             }
             .disabled(!service.isConnected)
-            .keyboardShortcut("b", modifiers: [.command, .shift])
 
             Button {
                 showPullSheet = true
@@ -199,7 +203,6 @@ struct MainWindowView: View {
             }
             .disabled(!service.isConnected)
             .help("Refresh")
-            .keyboardShortcut("r", modifiers: .command)
         }
     }
 
@@ -208,5 +211,6 @@ struct MainWindowView: View {
 #Preview {
     MainWindowView()
         .environment(MockContainerService() as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 1200, height: 780)
 }

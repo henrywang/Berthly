@@ -52,6 +52,7 @@ struct MenuBarView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
     @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -133,10 +134,20 @@ struct MenuBarView: View {
                     bridge.pendingIntent = .openCreateMachineSheet
                     openOrFocusMainWindow(bridge: bridge, openWindow: openWindow)
                 }
-                MenuBarFooterButton("Open Berthly", systemImage: "macwindow", shortcut: "⌘O") {
+                MenuBarFooterButton("Open Berthly", systemImage: "macwindow", shortcut: "⌘O",
+                                    key: KeyboardShortcut("o", modifiers: .command)) {
                     openOrFocusMainWindow(bridge: bridge, openWindow: openWindow)
                 }
-                MenuBarFooterButton("Quit Berthly", systemImage: "power", shortcut: "⌘Q") {
+                // Settings in the popover footer, per menu-bar-app convention — users may live in
+                // this panel for days without ever opening the main window.
+                MenuBarFooterButton("Settings…", systemImage: "gearshape", shortcut: "⌘,",
+                                    key: KeyboardShortcut(",", modifiers: .command)) {
+                    openSettings()
+                    NSApp.activate(ignoringOtherApps: true)
+                    bridge.menuBarPopoverWindow?.close()
+                }
+                MenuBarFooterButton("Quit Berthly", systemImage: "power", shortcut: "⌘Q",
+                                    key: KeyboardShortcut("q", modifiers: .command)) {
                     NSApplication.shared.terminate(nil)
                 }
             }
@@ -579,14 +590,18 @@ private struct MenuBarFooterButton: View {
     let title: String
     let systemImage: String
     var shortcut: String?
+    /// The real key binding matching the displayed `shortcut` hint — active while the popover is
+    /// the key window. Without it the hint would be decorative, which reads as broken.
+    var key: KeyboardShortcut?
     var disabled: Bool = false
     let action: () -> Void
     @State private var isHovered = false
 
-    init(_ title: String, systemImage: String, shortcut: String? = nil, disabled: Bool = false, action: @escaping () -> Void) {
+    init(_ title: String, systemImage: String, shortcut: String? = nil, key: KeyboardShortcut? = nil, disabled: Bool = false, action: @escaping () -> Void) {
         self.title = title
         self.systemImage = systemImage
         self.shortcut = shortcut
+        self.key = key
         self.disabled = disabled
         self.action = action
     }
@@ -608,6 +623,7 @@ private struct MenuBarFooterButton: View {
             .background(isHovered && !disabled ? Color.berthlyAccent.opacity(0.15) : .clear, in: RoundedRectangle(cornerRadius: 5))
         }
         .buttonStyle(.plain)
+        .keyboardShortcut(key)
         .disabled(disabled)
         .opacity(disabled ? 0.4 : 1)
         .onHover { isHovered = $0 }

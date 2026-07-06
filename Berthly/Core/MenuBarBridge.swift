@@ -15,9 +15,16 @@ final class MenuBarBridge {
         case selectCompute(ComputeItem)
         case openRunContainerSheet
         case openCreateMachineSheet
+        case openBuildSheet
+        case openPullSheet
     }
 
     var pendingIntent: Intent?
+
+    /// Bumped by Edit > Find (⌘F). Whichever list view is currently showing observes it and
+    /// presents/focuses its own search field — a token (not a Bool) so repeated ⌘F presses
+    /// always re-fire even if the field is already visible.
+    var searchFocusToken = 0
 
     /// Set by `MainWindowView`'s `.onAppear`/`.onDisappear`. `openWindow(id:)` has no built-in
     /// single-instance behavior for a plain `WindowGroup` — without checking this first, the menu
