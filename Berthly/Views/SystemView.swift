@@ -596,11 +596,26 @@ private struct DaemonLogView: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(12)
+                    // Native select + ⌘C / right-click Copy, same as Container Logs — daemon
+                    // lines are read-only diagnostics a user often pastes elsewhere.
+                    .textSelection(.enabled)
                 }
             }
             .font(.system(.caption, design: .monospaced))
             .onChange(of: lines.count) {
                 proxy.scrollTo("bottom", anchor: .bottom)
+            }
+            // No toolbar here by design, so a floating icon is the one-click "copy everything"
+            // (drag-select + ⌘C still works for a partial copy via `.textSelection`).
+            .overlay(alignment: .topTrailing) {
+                if !lines.isEmpty {
+                    Button { copyAll() } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Copy all logs to the clipboard")
+                    .padding(8)
+                }
             }
         }
         .task {
@@ -610,6 +625,15 @@ private struct DaemonLogView: View {
                 if lines.count > 500 { lines.removeFirst(lines.count - 500) }
             }
         }
+    }
+
+    private func copyAll() {
+        let text = lines
+            .map { [$0.time, $0.message].filter { !$0.isEmpty }.joined(separator: " ") }
+            .joined(separator: "\n")
+        guard !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     /// Daemon log lines arrive as `LiveContainerService.formatDaemonLogEvent`'s
@@ -622,6 +646,20 @@ private struct DaemonLogView: View {
         }
         return Line(time: String(fields[0].prefix(8)), message: String(fields[2]))
     }
+}
+
+#Preview("Daemon log — copy overlay") {
+    DaemonLogView { onLine in
+        for raw in [
+            "09:01:12.031\tinfo\tdaemon started",
+            "09:01:13.114\tinfo\tapiserver ready",
+            "09:01:14.980\twarn\tbuilder image missing, pulling",
+        ] {
+            await MainActor.run { onLine(raw) }
+        }
+    }
+    .frame(width: 460, height: 180)
+    .padding()
 }
 
 // MARK: - Preview

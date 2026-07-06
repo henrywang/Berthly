@@ -1,3 +1,4 @@
+import AppKit
 import SwiftTerm
 import SwiftUI
 
@@ -23,6 +24,12 @@ struct TerminalHostView: NSViewRepresentable {
         view.terminalDelegate = context.coordinator
         context.coordinator.terminalView = view
         applyTheme(theme, to: view)
+        // SwiftTerm's `TerminalView` doesn't override `rightMouseDown`/`menu(for:)`, so a
+        // right-click falls through to default `NSView` behavior and shows `view.menu`.
+        // We set it directly here rather than via a SwiftUI `.contextMenu`, which is
+        // unreliable on an `NSViewRepresentable` whose backing view consumes the click.
+        // This is the terminal's only signpost to the theme picker (also in Settings, ⌘,).
+        view.menu = context.coordinator.makeContextMenu()
         context.coordinator.connect(target: target)
         return view
     }
@@ -52,10 +59,97 @@ struct TerminalHostView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, TerminalViewDelegate {
+    final class Coordinator: NSObject, TerminalViewDelegate, NSMenuDelegate {
         weak var terminalView: TerminalView?
         let session = TerminalSession()
         private var started = false
+
+        // MARK: Context menu
+
+        /// The `@AppStorage` key `TerminalHostView`/`SettingsView` bind the selected theme to.
+        /// Writing it via `UserDefaults` from a menu action drives `@AppStorage`, which repaints
+        /// the live terminal through `updateNSView` and reflects in Settings if it's open.
+        private static let themeKey = "terminalTheme"
+
+        private var currentTheme: TerminalTheme {
+            TerminalTheme(rawValue: UserDefaults.standard.string(forKey: Self.themeKey) ?? "") ?? .dracula
+        }
+
+        /// Right-click menu: standard Copy/Paste (routed to SwiftTerm via the responder chain),
+        /// a Theme submenu with the same live ANSI swatches the Settings picker shows, and a
+        /// jump to the full Settings pane. The Theme submenu is the discoverability hook — a user
+        /// working in the terminal finds it without knowing to open ⌘, first.
+        func makeContextMenu() -> NSMenu {
+            let menu = NSMenu()
+            menu.delegate = self
+
+            let copyItem = NSMenuItem(title: "Copy", action: #selector(TerminalView.copy(_:)), keyEquivalent: "")
+            let pasteItem = NSMenuItem(title: "Paste", action: #selector(TerminalView.paste(_:)), keyEquivalent: "")
+            menu.addItem(copyItem)
+            menu.addItem(pasteItem)
+            menu.addItem(.separator())
+
+            let themeItem = NSMenuItem(title: "Terminal Theme", action: nil, keyEquivalent: "")
+            let themeSubmenu = NSMenu()
+            for theme in TerminalTheme.allCases {
+                let item = NSMenuItem(title: theme.displayName, action: #selector(selectTheme(_:)), keyEquivalent: "")
+                item.target = self
+                item.representedObject = theme.rawValue
+                item.image = Self.swatchImage(for: theme)
+                themeSubmenu.addItem(item)
+            }
+            themeItem.submenu = themeSubmenu
+            menu.addItem(themeItem)
+            menu.addItem(.separator())
+
+            let settings = NSMenuItem(title: "Terminal Settings…", action: #selector(openSettings(_:)), keyEquivalent: ",")
+            settings.target = self
+            menu.addItem(settings)
+            return menu
+        }
+
+        /// Refresh the checkmark on the active theme each time the menu opens — the selection can
+        /// change from the Settings pane while a terminal stays open.
+        func menuNeedsUpdate(_ menu: NSMenu) {
+            let selected = currentTheme.rawValue
+            for item in menu.items {
+                guard let submenu = item.submenu else { continue }
+                for themeItem in submenu.items {
+                    themeItem.state = (themeItem.representedObject as? String) == selected ? .on : .off
+                }
+            }
+        }
+
+        @objc private func selectTheme(_ sender: NSMenuItem) {
+            guard let raw = sender.representedObject as? String else { return }
+            UserDefaults.standard.set(raw, forKey: Self.themeKey)
+        }
+
+        @objc private func openSettings(_ sender: NSMenuItem) {
+            if #available(macOS 14, *) {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } else {
+                NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
+            }
+        }
+
+        /// A compact strip of the theme's first 8 ANSI colors, so each menu entry previews the
+        /// scheme — the same rationale as `SettingsView.ThemeRow`. Reuses the `Color(hex:)`
+        /// extension already used by `applyTheme`.
+        private static func swatchImage(for theme: TerminalTheme) -> NSImage {
+            let count = 8
+            let w: CGFloat = 8, h: CGFloat = 12, gap: CGFloat = 1
+            let size = NSSize(width: CGFloat(count) * w + CGFloat(count - 1) * gap, height: h)
+            let image = NSImage(size: size)
+            image.lockFocus()
+            for (i, hex) in theme.colors.ansi.prefix(count).enumerated() {
+                let rect = NSRect(x: CGFloat(i) * (w + gap), y: 0, width: w, height: h)
+                NSColor(Color(hex: hex)).setFill()
+                NSBezierPath(roundedRect: rect, xRadius: 1.5, yRadius: 1.5).fill()
+            }
+            image.unlockFocus()
+            return image
+        }
 
         func connect(target: TerminalTarget) {
             guard !started else { return }
