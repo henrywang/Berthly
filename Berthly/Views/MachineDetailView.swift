@@ -23,7 +23,6 @@ private struct MachineDetailContent: View {
     @State private var tab: DetailTab    = .overview
     @State private var isWorking         = false
     @State private var errorMessage: String?
-    @State private var showStopConfirm   = false
 
     private var machine: Machine? {
         service.machines.first(where: { $0.id == machineID })
@@ -79,12 +78,6 @@ private struct MachineDetailContent: View {
                 .frame(maxHeight: .infinity)
             }
             .navigationTitle(machine.name)
-            .alert("Stop \(machine.name)?", isPresented: $showStopConfirm) {
-                Button("Stop", role: .destructive) { run { try await service.stopMachine(machine.id) } }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text("The virtual machine will be shut down.")
-            }
             .alert("Error", isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -129,7 +122,12 @@ private struct MachineDetailContent: View {
             // appears in the running machine. Use the machine's shared home mount to move files.
 
             if machine.status == .running {
-                Button(role: .destructive) { showStopConfirm = true } label: {
+                // No confirmation, matching the container detail header and the menu bar rows —
+                // stopping is reversible (Start replaces this button in place). Confirmations are
+                // reserved for Delete and the daemon-wide stop.
+                Button(role: .destructive) {
+                    run { try await service.stopMachine(machine.id) }
+                } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
                 .buttonStyle(.bordered)

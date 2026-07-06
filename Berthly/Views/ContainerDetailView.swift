@@ -27,7 +27,6 @@ private struct ContainerDetailContent: View {
     @State private var tab: DetailTab = .overview
     @State private var isWorking    = false
     @State private var errorMessage: String?
-    @State private var showStopConfirm   = false
     @State private var showCopySheet     = false
 
     // Reads directly from service so every `container.xxx` access in body/computed-props
@@ -88,12 +87,6 @@ private struct ContainerDetailContent: View {
             .frame(maxHeight: .infinity)
         }
         .navigationTitle(container.name)
-        .alert("Stop \(container.name)?", isPresented: $showStopConfirm) {
-            Button("Stop", role: .destructive) { run { try await service.stopContainer(container.id) } }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("The container process will be terminated.")
-        }
         .alert("Error", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
             Button("OK") { errorMessage = nil }
         } message: {
@@ -144,7 +137,12 @@ private struct ContainerDetailContent: View {
             .hoverScale()
 
             if container.status == .running {
-                Button(role: .destructive) { showStopConfirm = true } label: {
+                // No confirmation: stopping is cheap and reversible (Start replaces this button in
+                // place), and the menu bar row already stops with a single click — one policy for
+                // both. Confirmations are reserved for Delete and the daemon-wide stop.
+                Button(role: .destructive) {
+                    run { try await service.stopContainer(container.id) }
+                } label: {
                     Label("Stop", systemImage: "stop.fill")
                 }
                 .buttonStyle(.bordered)
