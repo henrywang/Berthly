@@ -1,3 +1,4 @@
+import MachineAPIClient
 import SwiftUI
 
 // MARK: - Machine Detail View
@@ -30,6 +31,7 @@ private struct MachineDetailContent: View {
 
     enum DetailTab: String, CaseIterable {
         case overview = "Overview"
+        case logs     = "Logs"
         case terminal = "Terminal"
     }
 
@@ -60,6 +62,11 @@ private struct MachineDetailContent: View {
                         ScrollView {
                             OverviewTab(machine: machine).padding(24)
                         }
+                    case .logs:
+                        // Available whether the machine is running or stopped — the boot/console
+                        // log is most useful precisely when a machine failed to start and the
+                        // Terminal tab can't help.
+                        MachineLogsTab(machineID: machine.id)
                     case .terminal:
                         if machine.status == .running {
                             TerminalHostView(target: .machine(id: machine.id))
@@ -421,6 +428,21 @@ private struct InspectSection: View {
             .background(.background)
             .clipShape(RoundedRectangle(cornerRadius: 10))
             .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+// MARK: - Logs Tab
+
+private struct MachineLogsTab: View {
+    let machineID: String
+
+    var body: some View {
+        LogStreamView(id: machineID) { onLine in
+            try await LogStreamer.stream(
+                fetch: { try await MachineClient().logs(id: machineID) },
+                onLine: onLine
+            )
         }
     }
 }

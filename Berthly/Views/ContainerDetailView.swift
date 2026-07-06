@@ -40,7 +40,6 @@ private struct ContainerDetailContent: View {
     enum DetailTab: String, CaseIterable {
         case overview = "Overview"
         case logs     = "Logs"
-        case stats    = "Stats"
         case terminal = "Terminal"
         case files    = "Files"
     }
@@ -77,10 +76,6 @@ private struct ContainerDetailContent: View {
                     }
                 case .logs:
                     LogsTab(container: container)
-                case .stats:
-                    ScrollView {
-                        StatsTab(container: container).padding(24)
-                    }
                 case .terminal:
                     if container.status == .running {
                         TerminalHostView(target: .container(id: container.id))
@@ -184,69 +179,121 @@ private struct ContainerDetailContent: View {
 
 // MARK: - Overview Tab
 
+// Overview folds in the live performance metrics that used to be a separate "Stats" tab: the
+// old Overview showed static CPU/Memory cards fed by `container.cpuPercent`/`memoryMB`, which the
+// live service never populates (always 0). Now the CPU/Memory/Network cards and their sparklines
+// come from the same `ContainerClient().stats(id:)` poll loop, over the identity/config Inspect
+// table. Metrics only appear while running; stopped containers show Inspect alone.
 private struct OverviewTab: View {
     let container: Container
 
+    struct StatsPoint: Identifiable {
+        let id    = UUID()
+        let cpu:   Double
+        let memMB: Double
+        let netMBs: Double
+    }
+
+    @State private var history: [StatsPoint] = []
+
+    private var latestCPU: Double { history.last?.cpu    ?? 0 }
+    private var latestMem: Double { history.last?.memMB  ?? 0 }
+    private var latestNet: Double { history.last?.netMBs ?? 0 }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 12) {
-                StatCard(
-                    label: "CPU",
-                    value: container.cpuPercent > 0 ? "\(Int(container.cpuPercent))%" : "–",
-                    detail: "of \(ProcessInfo.processInfo.processorCount) cores"
-                )
-                StatCard(
-                    label: "Memory",
-                    value: container.memoryMB > 0 ? "\(container.memoryMB) MB" : "–",
-                    detail: "limit \(container.memoryLimitMB) MB"
-                )
-                StatCard(
-                    label: "Ports",
-                    value: container.ports.isEmpty ? "–"
-                         : container.ports.count == 1 ? container.ports[0].displayString
-                         : "\(container.ports.count) ports",
-                    detail: container.ports.isEmpty ? "none exposed"
-                          : container.ports.count == 1 ? "1 published"
-                          : container.ports.map(\.displayString).joined(separator: ", ")
-                )
-                StatCard(
-                    label: "Uptime",
-                    value: container.uptime,
-                    detail: container.startedDate.map { "since \(timeLabel($0))" } ?? "–"
-                )
+            if container.status == .running {
+                metricCards
             }
             InspectSection(container: container)
         }
+        .task(id: container.id) { await pollStats() }
     }
 
-    private func timeLabel(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
-    }
-}
+    // MARK: Live metrics
 
-private struct StatCard: View {
-    let label: String
-    let value: String
-    let detail: String
+    private var metricCards: some View {
+        let cpuVals = history.map(\.cpu)
+        let memVals = history.map(\.memMB)
+        let netVals = history.map(\.netMBs)
+        let cpuTrend = trendDisplay(ContainerStatsMath.trend(for: cpuVals))
+        let memTrend = trendDisplay(ContainerStatsMath.trend(for: memVals))
+        let netTrend = trendDisplay(ContainerStatsMath.trend(for: netVals))
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-            Text(value)
-                .font(.title2.weight(.bold))
-                .fontDesign(.rounded)
-            Text(detail)
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+        return HStack(spacing: 12) {
+            MetricCard(
+                label: "CPU",
+                value: "\(Int(latestCPU))%",
+                trend: cpuTrend.0, trendColor: cpuTrend.1,
+                data: cpuVals, lineColor: .berthlyAccent
+            )
+            MetricCard(
+                label: "Memory",
+                value: "\(Int(latestMem)) MB",
+                trend: memTrend.0, trendColor: memTrend.1,
+                data: memVals, lineColor: .purple
+            )
+            MetricCard(
+                label: "Network",
+                value: String(format: "%.1f MB/s", latestNet),
+                trend: netTrend.0, trendColor: netTrend.1,
+                data: netVals, lineColor: .statusRunning
+            )
         }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func trendDisplay(_ trend: ContainerStatsMath.Trend) -> (String, Color) {
+        switch trend {
+        case .stable:        return ("stable", .secondary)
+        case .up(let delta): return ("▲ \(String(format: "%.0f", delta))", .statusRunning)
+        case .down(let delta): return ("▼ \(String(format: "%.0f", delta))", .secondary)
+        }
+    }
+
+    private func pollStats() async {
+        guard container.status == .running else { return }
+
+        var prevCpuUsec: UInt64?
+        var prevTime:    Date?
+        var prevNetRx:   UInt64?
+        var prevNetTx:   UInt64?
+
+        while !Task.isCancelled {
+            do {
+                let s   = try await ContainerClient().stats(id: container.id)
+                let now = Date()
+                let elapsed = prevTime.map { now.timeIntervalSince($0) } ?? 0
+
+                let cpuPct = ContainerStatsMath.cpuPercent(
+                    previousUsec: prevCpuUsec,
+                    currentUsec: s.cpuUsageUsec,
+                    elapsed: elapsed,
+                    cores: ProcessInfo.processInfo.processorCount
+                )
+                prevCpuUsec = s.cpuUsageUsec
+                prevTime    = now
+
+                let memMB = Double(s.memoryUsageBytes ?? 0) / 1_048_576
+
+                let curRx = s.networkRxBytes ?? 0
+                let curTx = s.networkTxBytes ?? 0
+                let netMBs = ContainerStatsMath.networkRateMBPerSecond(
+                    previousRx: prevNetRx, currentRx: curRx,
+                    previousTx: prevNetTx, currentTx: curTx,
+                    elapsed: elapsed
+                )
+                prevNetRx = curRx
+                prevNetTx = curTx
+
+                history.append(StatsPoint(cpu: cpuPct, memMB: memMB, netMBs: netMBs))
+                if history.count > 150 { history.removeFirst() }
+
+            } catch {
+                // stats temporarily unavailable — keep polling
+            }
+
+            try? await Task.sleep(for: .seconds(2))
+        }
     }
 }
 
@@ -308,202 +355,11 @@ private struct LogsTab: View {
     let container: Container
 
     var body: some View {
-        LogStreamView(id: container.id, stream: Self.streamContainerLogs(id: container.id))
-    }
-
-    /// Adapts `ContainerClient().logs(id:)`'s FileHandle-based read/follow loop to
-    /// `LogStreamView`'s per-line callback signature.
-    private static func streamContainerLogs(id: String) -> (@escaping @MainActor (String) -> Void) async throws -> Void {
-        { onLine in
-            let fhs = try await ContainerClient().logs(id: id)
-            guard let fh = fhs.first else { return }
-
-            // Read existing content off the main actor so we don't block the UI
-            let existing = await Task.detached(priority: .utility) {
-                fh.readDataToEndOfFile()
-            }.value
-            if let text = String(data: existing, encoding: .utf8), !text.isEmpty {
-                for line in text.components(separatedBy: "\n") where !line.isEmpty {
-                    onLine(line)
-                }
-            }
-
-            // Follow new data
-            while !Task.isCancelled {
-                try await Task.sleep(for: .milliseconds(500))
-                guard !Task.isCancelled else { break }
-                let data = await Task.detached(priority: .utility) { fh.availableData }.value
-                guard !data.isEmpty, let text = String(data: data, encoding: .utf8) else { continue }
-                for line in text.components(separatedBy: "\n") where !line.isEmpty {
-                    onLine(line)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Stats Tab
-
-private struct StatsTab: View {
-    let container: Container
-
-    struct StatsPoint: Identifiable {
-        let id   = UUID()
-        let index: Int
-        let cpu:   Double
-        let memMB: Double
-        let netMBs: Double
-    }
-
-    @State private var history: [StatsPoint] = []
-
-    private var latestCPU:  Double { history.last?.cpu    ?? 0 }
-    private var latestMem:  Double { history.last?.memMB  ?? 0 }
-    private var latestNet:  Double { history.last?.netMBs ?? 0 }
-
-    private var avgCPU:  Double { history.isEmpty ? 0 : history.map(\.cpu).reduce(0, +) / Double(history.count) }
-    private var peakCPU: Double { history.map(\.cpu).max() ?? 0 }
-
-    private func trend(for values: [Double]) -> (String, Color) {
-        guard values.count >= 6 else { return ("stable", .secondary) }
-        let delta = values.last! - values[values.count - 6]
-        if delta >  2 { return ("▲ \(String(format: "%.0f", delta))",  Color.statusRunning) }
-        if delta < -2 { return ("▼ \(String(format: "%.0f", -delta))", Color.secondary) }
-        return ("stable", .secondary)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            if container.status != .running {
-                Spacer()
-                ContentUnavailableView("Stats unavailable", systemImage: "chart.xyaxis.line")
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                let cpuVals = history.map(\.cpu)
-                let memVals = history.map(\.memMB)
-                let netVals = history.map(\.netMBs)
-                let cpuTrend = trend(for: cpuVals)
-                let memTrend = trend(for: memVals)
-                let netTrend = trend(for: netVals)
-
-                HStack(spacing: 12) {
-                    MetricCard(
-                        label: "CPU",
-                        value: "\(Int(latestCPU))%",
-                        trend: cpuTrend.0, trendColor: cpuTrend.1,
-                        data: cpuVals, lineColor: .berthlyAccent
-                    )
-                    MetricCard(
-                        label: "Memory",
-                        value: "\(Int(latestMem)) MB",
-                        trend: memTrend.0, trendColor: memTrend.1,
-                        data: memVals, lineColor: .purple
-                    )
-                    MetricCard(
-                        label: "Network",
-                        value: String(format: "%.1f MB/s", latestNet),
-                        trend: netTrend.0, trendColor: netTrend.1,
-                        data: netVals, lineColor: .statusRunning
-                    )
-                }
-
-                // Full CPU chart
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        Text("CPU — last 5 min")
-                            .font(.callout.weight(.semibold))
-                        Spacer()
-                        Text("avg \(Int(avgCPU))%  ·  peak \(Int(peakCPU))%")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 10)
-
-                    if history.count >= 2 {
-                        Chart(history) { pt in
-                            AreaMark(
-                                x: .value("t", pt.index),
-                                y: .value("CPU%", pt.cpu)
-                            )
-                            .foregroundStyle(Color.berthlyAccent.opacity(0.15))
-                            LineMark(
-                                x: .value("t", pt.index),
-                                y: .value("CPU%", pt.cpu)
-                            )
-                            .foregroundStyle(Color.berthlyAccent)
-                        }
-                        .chartXAxis(.hidden)
-                        .chartYScale(domain: 0...max(10, peakCPU * 1.2))
-                        .frame(height: 180)
-                        .padding(.horizontal, 16)
-                    } else {
-                        Color.clear.frame(height: 180)
-                    }
-
-                    Spacer().frame(height: 14)
-                }
-                .background(.background)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
-            }
-        }
-        .task(id: container.id) {
-            await pollStats()
-        }
-    }
-
-    private func pollStats() async {
-        guard container.status == .running else { return }
-
-        var index        = 0
-        var prevCpuUsec: UInt64?
-        var prevTime:    Date?
-        var prevNetRx:   UInt64?
-        var prevNetTx:   UInt64?
-
-        while !Task.isCancelled {
-            do {
-                let s   = try await ContainerClient().stats(id: container.id)
-                let now = Date()
-
-                // CPU%: delta microseconds / elapsed microseconds / core count
-                var cpuPct = 0.0
-                if let cur = s.cpuUsageUsec, let prev = prevCpuUsec, let prevT = prevTime {
-                    let dt = now.timeIntervalSince(prevT)
-                    if dt > 0, cur >= prev {
-                        cpuPct = Double(cur - prev)
-                            / (dt * 1_000_000)
-                            / Double(max(1, ProcessInfo.processInfo.processorCount))
-                            * 100
-                    }
-                }
-                prevCpuUsec = s.cpuUsageUsec
-                prevTime    = now
-
-                let memMB = Double(s.memoryUsageBytes ?? 0) / 1_048_576
-
-                let curRx = s.networkRxBytes ?? 0
-                let curTx = s.networkTxBytes ?? 0
-                var netMBs = 0.0
-                if let pRx = prevNetRx, let pTx = prevNetTx,
-                   curRx >= pRx, curTx >= pTx {
-                    netMBs = Double((curRx - pRx) + (curTx - pTx)) / 1_048_576
-                }
-                prevNetRx = curRx
-                prevNetTx = curTx
-
-                history.append(StatsPoint(index: index, cpu: cpuPct, memMB: memMB, netMBs: netMBs))
-                if history.count > 150 { history.removeFirst() }
-                index += 1
-
-            } catch {
-                // stats temporarily unavailable — keep polling
-            }
-
-            try? await Task.sleep(for: .seconds(2))
+        LogStreamView(id: container.id) { onLine in
+            try await LogStreamer.stream(
+                fetch: { try await ContainerClient().logs(id: container.id) },
+                onLine: onLine
+            )
         }
     }
 }
