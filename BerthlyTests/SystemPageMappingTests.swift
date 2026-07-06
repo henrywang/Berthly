@@ -66,6 +66,15 @@ struct KernelMappingTests {
         #expect(info.path == "/opt/kata/vmlinux")
         #expect(info.platform == "linux/arm64")
     }
+
+    @Test func kernelNameIsBinaryFilename() {
+        let kernel = Kernel(path: URL(fileURLWithPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186"), platform: .linuxArm)
+        #expect(LiveContainerService.kernelName(kernel) == "vmlinux-6.18.15-186")
+    }
+
+    @Test func kernelNameIsDashWhenNoKernel() {
+        #expect(LiveContainerService.kernelName(nil) == "–")
+    }
 }
 
 struct SystemConfigMappingTests {

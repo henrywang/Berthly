@@ -507,7 +507,8 @@ final class LiveContainerService: ContainerServiceBase {
         images    = (try? await fetchImages())   ?? []
         volumes   = (try? await fetchVolumes())  ?? []
         networks  = (try? await fetchNetworks()) ?? []
-        machines  = machineSnaps.map { mapMachine($0) }
+        let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
+        machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName) }
         builders  = builderSnaps.map { mapBuilder($0) }
     }
 
@@ -543,7 +544,20 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func fetchMachines() async throws -> [Machine] {
-        try await MachineClient().list().map { mapMachine($0) }
+        // Machines all boot the system default kernel — the snapshot records no
+        // per-machine kernel — so resolve it once and thread it into every row.
+        // A missing/failed default kernel degrades to a dash rather than failing
+        // the whole list fetch.
+        let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
+        return try await MachineClient().list().map { mapMachine($0, kernelName: kernelName) }
+    }
+
+    /// Display name for a machine's kernel: the default kernel binary's filename
+    /// (e.g. `vmlinux-6.18.15-186`). The `Kernel` type carries no version string,
+    /// so the filename is the most honest stable identifier. `nil` → `"–"`.
+    nonisolated static func kernelName(_ kernel: Kernel?) -> String {
+        guard let kernel else { return "–" }
+        return kernel.path.lastPathComponent
     }
 
     // MARK: - Mapping
@@ -685,7 +699,7 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    private func mapMachine(_ snap: MachineSnapshot) -> Machine {
+    private func mapMachine(_ snap: MachineSnapshot, kernelName: String) -> Machine {
         let diskGB = Double(snap.diskSize ?? 0) / 1_073_741_824
         let created = snap.createdDate.map {
             $0.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
@@ -704,7 +718,7 @@ final class LiveContainerService: ContainerServiceBase {
             diskUsedGB: 0,
             diskTotalGB: diskGB,
             uptimeString: uptimeString(from: snap.startedDate),
-            kernel: "–",
+            kernel: kernelName,
             resources: resources,
             created: created,
             homeMount: Self.mapHomeMount(snap.bootConfig.homeMount)
