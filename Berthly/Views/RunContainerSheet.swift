@@ -6,7 +6,10 @@ import SwiftUI
 @Observable
 private final class RunState {
     enum Result {
-        case success(reference: String, output: String)
+        /// `newContainerID` drives the success state's "Show Container" button — resolved by
+        /// diffing the service's container list against `preRunIDs` (the run itself refreshes
+        /// the list before returning), which works even when the name was auto-generated.
+        case success(reference: String, output: String, newContainerID: String?)
         case failure(message: String)
     }
 
@@ -48,6 +51,7 @@ struct RunContainerSheet: View {
     let service: ContainerServiceBase
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(MenuBarBridge.self) private var bridge
 
     @State private var selectedCategory: RunCategory = .general
 
@@ -134,16 +138,29 @@ struct RunContainerSheet: View {
             HStack {
                 Spacer()
                 switch state.result {
-                case .success:
-                    Button("Done") { dismiss() }
+                case .success(_, _, let newContainerID):
+                    if let newContainerID {
+                        Button("Done") { dismiss() }
+                            .keyboardShortcut(.cancelAction)
+                        Button("Show Container") {
+                            // The next thing a user does after running is almost always "go look
+                            // at it" — reuse the selection intent the menu bar rows use.
+                            bridge.pendingIntent = .selectCompute(.container(newContainerID))
+                            dismiss()
+                        }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return)
+                    } else {
+                        Button("Done") { dismiss() }
+                            .buttonStyle(.borderedProminent)
+                            .keyboardShortcut(.return)
+                    }
                 case .failure:
-                    Button("Close") { dismiss() }
+                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
                         .buttonStyle(.bordered)
                 case nil:
                     if state.isRunning {
-                        Button("Cancel") { cancelRun() }
+                        Button("Cancel") { cancelRun() }.keyboardShortcut(.cancelAction)
                         Button {} label: {
                             HStack(spacing: 6) {
                                 ProgressView().controlSize(.small)
@@ -153,7 +170,7 @@ struct RunContainerSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(true)
                     } else {
-                        Button("Cancel") { dismiss() }
+                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                         Button(submitLabel) { startSubmit() }
                             .buttonStyle(.borderedProminent)
                             .disabled(!canRun)
@@ -189,10 +206,27 @@ struct RunContainerSheet: View {
                 Text("Image")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                TextField("local/myapp:1.0", text: $reference)
-                    .textFieldStyle(.roundedBorder)
-                    .fontDesign(.monospaced)
-                    .onSubmit { if canRun { startSubmit() } }
+                HStack(spacing: 6) {
+                    TextField("local/myapp:1.0", text: $reference)
+                        .textFieldStyle(.roundedBorder)
+                        .fontDesign(.monospaced)
+                        .onSubmit { if canRun { startSubmit() } }
+                    // Local images as one-click suggestions — most runs use an image that's
+                    // already pulled or built, so don't make the user retype the reference.
+                    if !service.images.isEmpty {
+                        Menu {
+                            ForEach(service.images) { image in
+                                Button(image.fullName) { reference = image.fullName }
+                            }
+                        } label: {
+                            Image(systemName: "chevron.up.chevron.down")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                        .help("Choose a local image")
+                    }
+                }
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -217,19 +251,33 @@ struct RunContainerSheet: View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(RunCategory.allCases) { category in
+                    let modified = modifiedCount(for: category)
                     Button {
                         selectedCategory = category
                     } label: {
-                        Label(category.rawValue, systemImage: category.icon)
-                            .font(.callout)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
-                            .background(
-                                selectedCategory == category ? Color.berthlyAccent.opacity(0.15) : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 6)
-                            )
-                            .foregroundStyle(selectedCategory == category ? Color.berthlyAccent : .primary)
+                        HStack(spacing: 4) {
+                            Label(category.rawValue, systemImage: category.icon)
+                                .font(.callout)
+                            Spacer(minLength: 4)
+                            // With 7 tabs it's easy to forget a value set three tabs ago —
+                            // the count marks every category holding non-default settings.
+                            if modified > 0 {
+                                Text("\(modified)")
+                                    .font(.caption2.weight(.semibold))
+                                    .foregroundStyle(Color.berthlyAccent)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Color.berthlyAccent.opacity(0.15), in: Capsule())
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 6)
+                        .padding(.horizontal, 10)
+                        .background(
+                            selectedCategory == category ? Color.berthlyAccent.opacity(0.15) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
+                        .foregroundStyle(selectedCategory == category ? Color.berthlyAccent : .primary)
                     }
                     .buttonStyle(.plain)
                 }
@@ -250,6 +298,46 @@ struct RunContainerSheet: View {
             }
         }
         .frame(height: 420)
+    }
+
+    /// How many non-default settings a category currently holds. Counting rules mirror what
+    /// `startSubmit()` actually sends: blank/whitespace-only text and empty editor rows are
+    /// defaults, and sub-options gated off by a parent toggle (attach without start, DNS fields
+    /// under "Disable DNS") don't count.
+    private func modifiedCount(for category: RunCategory) -> Int {
+        func filled(_ s: String) -> Int { s.trimmingCharacters(in: .whitespaces).isEmpty ? 0 : 1 }
+        func filled(_ e: [StringEntry]) -> Int { e.count { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty } }
+
+        switch category {
+        case .general:
+            return filled(command)
+                + (platformChoice == .default ? 0 : 1)
+                + (startImmediately ? 0 : 1)
+                + (startImmediately && attachAndShowOutput ? 1 : 0)
+                + (removeWhenStopped ? 1 : 0)
+        case .storage:
+            return filled(volumes)
+                + mounts.count { !$0.target.trimmingCharacters(in: .whitespaces).isEmpty }
+                + filled(tmpfs)
+        case .network:
+            return ports.count { !$0.hostPort.trimmingCharacters(in: .whitespaces).isEmpty
+                                 || !$0.containerPort.trimmingCharacters(in: .whitespaces).isEmpty }
+                + filled(networks)
+        case .dns:
+            if noDns { return 1 }
+            return filled(dns) + filled(dnsDomain) + filled(dnsOptions) + filled(dnsSearch)
+        case .resources:
+            return filled(cpus) + filled(memory) + filled(shmSize) + filled(ulimits)
+        case .environment:
+            return env.count { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty }
+                + filled(envFile)
+                + labels.count { !$0.key.trimmingCharacters(in: .whitespaces).isEmpty }
+        case .security:
+            return filled(workdir) + filled(user) + filled(entrypoint) + filled(cidFile)
+                + [readOnly, initProcess, rosetta, ssh, interactive, tty, virtualization, insecureRegistry]
+                    .count { $0 }
+                + filled(capAdd) + filled(capDrop)
+        }
     }
 
     @ViewBuilder
@@ -459,7 +547,7 @@ struct RunContainerSheet: View {
     @ViewBuilder
     private var activeContent: some View {
         switch state.result {
-        case .success(let ref, let output):
+        case .success(let ref, let output, _):
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 12) {
                     Image(systemName: "checkmark.circle.fill")
@@ -564,8 +652,8 @@ struct RunContainerSheet: View {
         guard canRun, !state.isRunning else { return }
         let ref = reference.trimmingCharacters(in: .whitespaces)
         let nameTrimmed = name.trimmingCharacters(in: .whitespaces)
-        let commandParts = command.trimmingCharacters(in: .whitespaces)
-            .split(separator: " ").map(String.init)
+        // Shell-style lexing, not a naive space split — `sh -c "echo hi"` must stay 3 words.
+        let commandParts = ShellTokenizer.tokenize(command)
         let platform = platformChoice == .default ? nil : platformChoice.rawValue
         let workdirTrimmed = workdir.trimmingCharacters(in: .whitespaces)
         let userTrimmed = user.trimmingCharacters(in: .whitespaces)
@@ -620,10 +708,19 @@ struct RunContainerSheet: View {
             noDns: noDns
         )
 
+        // `runContainer` refreshes the container list before returning, so the new container is
+        // whatever ID appears that wasn't here before — works even for auto-generated names.
+        let preRunIDs = Set(service.containers.map(\.id))
+
         state.runTask = Task {
             do {
                 let output = try await service.runContainer(options: options)
-                state.result = .success(reference: nameTrimmed.isEmpty ? ref : nameTrimmed, output: output)
+                let newID = service.containers.map(\.id).first { !preRunIDs.contains($0) }
+                state.result = .success(
+                    reference: nameTrimmed.isEmpty ? ref : nameTrimmed,
+                    output: output,
+                    newContainerID: newID
+                )
             } catch is CancellationError {
                 state.result = nil
             } catch {
@@ -646,4 +743,5 @@ struct RunContainerSheet: View {
 
 #Preview {
     RunContainerSheet(service: MockContainerService())
+        .environment(MenuBarBridge())
 }
