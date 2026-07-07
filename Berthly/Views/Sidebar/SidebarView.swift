@@ -65,7 +65,15 @@ private struct SidebarRow: View {
     var body: some View {
         Label(label, systemImage: icon)
             .padding(.leading, indent ? 16 : 0)
-            .badge(badgeText ?? (badge.map { "\($0)" } ?? ""))
+            .badge(badgeLabel)
+    }
+
+    // A zero badge is noise (Mail/Reminders never show one), but the string-based `.badge()`
+    // overload doesn't get SwiftUI's hide-zero behavior — so map 0 (and absent counts) to nil.
+    private var badgeLabel: Text? {
+        if let badgeText { return Text(badgeText) }
+        if let badge, badge > 0 { return Text("\(badge)") }
+        return nil
     }
 }
 

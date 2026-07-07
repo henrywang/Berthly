@@ -56,14 +56,7 @@ private struct ContainerDetailContent: View {
 
             Divider()
 
-            HStack(spacing: 0) {
-                ForEach(DetailTab.allCases, id: \.self) { t in
-                    Button(t.rawValue) { tab = t }
-                        .buttonStyle(TabButtonStyle(isSelected: tab == t))
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 4)
+            DetailTabPicker(selection: $tab)
 
             Divider()
 
@@ -220,29 +213,32 @@ private struct OverviewTab: View {
     // MARK: Live metrics
 
     private var metricCards: some View {
+        // Until two samples exist there's no real value or trend to show — "0% · stable" over an
+        // empty chart placeholder reads as a rendering bug, not as "warming up".
+        let collecting = history.count < 2
         let cpuVals = history.map(\.cpu)
         let memVals = history.map(\.memMB)
         let netVals = history.map(\.netMBs)
-        let cpuTrend = trendDisplay(ContainerStatsMath.trend(for: cpuVals))
-        let memTrend = trendDisplay(ContainerStatsMath.trend(for: memVals))
-        let netTrend = trendDisplay(ContainerStatsMath.trend(for: netVals))
+        let cpuTrend = collecting ? ("", Color.secondary) : trendDisplay(ContainerStatsMath.trend(for: cpuVals))
+        let memTrend = collecting ? ("", Color.secondary) : trendDisplay(ContainerStatsMath.trend(for: memVals))
+        let netTrend = collecting ? ("", Color.secondary) : trendDisplay(ContainerStatsMath.trend(for: netVals))
 
         return HStack(spacing: 12) {
             MetricCard(
                 label: "CPU",
-                value: "\(Int(latestCPU))%",
+                value: collecting ? "—" : "\(Int(latestCPU))%",
                 trend: cpuTrend.0, trendColor: cpuTrend.1,
                 data: cpuVals, lineColor: .berthlyAccent
             )
             MetricCard(
                 label: "Memory",
-                value: "\(Int(latestMem)) MB",
+                value: collecting ? "—" : "\(Int(latestMem)) MB",
                 trend: memTrend.0, trendColor: memTrend.1,
                 data: memVals, lineColor: .purple
             )
             MetricCard(
                 label: "Network",
-                value: String(format: "%.1f MB/s", latestNet),
+                value: collecting ? "—" : String(format: "%.1f MB/s", latestNet),
                 trend: netTrend.0, trendColor: netTrend.1,
                 data: netVals, lineColor: .statusRunning
             )
@@ -410,6 +406,11 @@ private struct MetricCard: View {
                 RoundedRectangle(cornerRadius: 4)
                     .fill(lineColor.opacity(0.08))
                     .frame(height: 50)
+                    .overlay {
+                        Text("Collecting…")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
             }
         }
         .padding(16)
@@ -463,27 +464,26 @@ struct StatusBadge: View {
     }
 }
 
-// MARK: - Tab Button Style
+// MARK: - Detail Tab Picker
 
-struct TabButtonStyle: ButtonStyle {
-    let isSelected: Bool
+/// Segmented switcher for the detail panes (Overview/Logs/Terminal), shared by the container
+/// and machine detail views. A native segmented control rather than a custom underline tab
+/// strip — keyboard focus, VoiceOver, and appearance come for free.
+struct DetailTabPicker<Tab: Hashable & RawRepresentable & CaseIterable>: View
+    where Tab.RawValue == String, Tab.AllCases: RandomAccessCollection {
+    @Binding var selection: Tab
 
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.callout)
-            .foregroundStyle(isSelected ? .primary : .secondary)
-            .padding(.horizontal, 2)
-            .padding(.vertical, 8)
-            .overlay(alignment: .bottom) {
-                if isSelected {
-                    Rectangle()
-                        .fill(Color.berthlyAccent)
-                        .frame(height: 2)
-                        .padding(.horizontal, -2)
-                }
+    var body: some View {
+        Picker("View", selection: $selection) {
+            ForEach(Array(Tab.allCases), id: \.self) { t in
+                Text(t.rawValue)
             }
-            .contentShape(Rectangle())
-            .padding(.horizontal, 10)
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+        .padding(.horizontal, 24)
+        .padding(.vertical, 8)
     }
 }
 

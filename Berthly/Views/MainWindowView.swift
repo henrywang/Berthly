@@ -15,6 +15,9 @@ struct MainWindowView: View {
     @State private var showRunMenu = false
     @State private var showRunSheet = false
     @State private var showMachineCreateSheet = false
+    @State private var showVolumeCreateSheet = false
+    @State private var showNetworkCreateSheet = false
+    @State private var showAddRegistrySheet = false
     @State private var showBuildsPopover = false
     @State private var viewedBuildJob: BuildJob?
 
@@ -89,6 +92,15 @@ struct MainWindowView: View {
         .sheet(isPresented: $showMachineCreateSheet) {
             MachineCreateSheet(service: service)
         }
+        .sheet(isPresented: $showVolumeCreateSheet) {
+            VolumeCreateSheet()
+        }
+        .sheet(isPresented: $showNetworkCreateSheet) {
+            NetworkCreateSheet()
+        }
+        .sheet(isPresented: $showAddRegistrySheet) {
+            AddRegistrySheet()
+        }
         .sheet(item: $viewedBuildJob) { job in
             BuildImageSheet(service: service, existingJob: job)
         }
@@ -112,6 +124,12 @@ struct MainWindowView: View {
             showBuildSheet = true
         case .openPullSheet:
             showPullSheet = true
+        case .openCreateVolumeSheet:
+            showVolumeCreateSheet = true
+        case .openCreateNetworkSheet:
+            showNetworkCreateSheet = true
+        case .openAddRegistrySheet:
+            showAddRegistrySheet = true
         case nil:
             return
         }
@@ -119,6 +137,16 @@ struct MainWindowView: View {
     }
 
     private var detailVisible: Bool { selectedCompute != nil || (selectedImageID != nil && sidebarSelection == .images) }
+
+    /// The create action for the selected sidebar section, if it has one.
+    private var contextualAddAction: (title: String, action: () -> Void)? {
+        switch sidebarSelection {
+        case .volumes:    ("Add Volume…",   { showVolumeCreateSheet = true })
+        case .networks:   ("Add Network…",  { showNetworkCreateSheet = true })
+        case .registries: ("Add Registry…", { showAddRegistrySheet = true })
+        default:          nil
+        }
+    }
 
     // MARK: - Content pane (list)
 
@@ -155,6 +183,7 @@ struct MainWindowView: View {
             .buttonStyle(.borderedProminent)
             .tint(.berthlyAccent)
             .disabled(!service.isConnected)
+            .help("Run a container or create a machine")
             // Shortcuts live on the Container menu items (ContainerCommands), not here — the
             // menu is the canonical owner, and registering the same key twice is ambiguous.
             .background(
@@ -178,6 +207,7 @@ struct MainWindowView: View {
                 Label("Build", systemImage: "hammer")
             }
             .disabled(!service.isConnected)
+            .help("Build an image from a Dockerfile")
 
             Button {
                 showPullSheet = true
@@ -185,6 +215,17 @@ struct MainWindowView: View {
                 Label("Pull", systemImage: "arrow.down.circle")
             }
             .disabled(!service.isConnected)
+            .help("Pull an image from a registry")
+
+            // One home for section-scoped create actions (Finder/Notes keep primary actions in
+            // the toolbar), instead of each list view growing its own in-content button bar.
+            if let add = contextualAddAction {
+                Button(action: add.action) {
+                    Label(add.title, systemImage: "plus")
+                }
+                .disabled(!service.isConnected)
+                .help(add.title)
+            }
         }
 
         ToolbarItem(placement: .automatic) {

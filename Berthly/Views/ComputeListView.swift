@@ -188,6 +188,8 @@ private struct ContainerComputeRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            StatusGlyph(status: container.status)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(container.name)
                     .font(.system(.body, design: .default, weight: .medium))
@@ -278,6 +280,8 @@ private struct MachineComputeRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
+            StatusGlyph(status: machine.status)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(machine.name)
                     .font(.system(.body, design: .default, weight: .medium))
@@ -351,8 +355,28 @@ private struct MachineComputeRow: View {
     }
 }
 
+// MARK: - Status glyph
+
+/// Per-row state indicator: without it, status only exists as section membership, so an
+/// errored or paused container is indistinguishable from a plainly stopped one. Reuses the
+/// shape+color coding from `ContainerStatus` (shapes carry the meaning for colorblind users).
+private struct StatusGlyph: View {
+    let status: ContainerStatus
+
+    var body: some View {
+        Image(systemName: status.systemImage)
+            .font(.system(size: 9))
+            .foregroundStyle(status.color)
+            .frame(width: 12)
+            .accessibilityLabel(status.label)
+    }
+}
+
 // MARK: - Section headers
 
+// Two header levels stack here (RUNNING/STOPPED over CONTAINERS/MACHINES); the section level
+// is stronger (secondary vs tertiary) and the type level indents under it so they don't read
+// as the same hierarchy at a glance.
 private struct ComputeSectionHeader: View {
     let text: String
     init(_ text: String) { self.text = text }
@@ -360,7 +384,7 @@ private struct ComputeSectionHeader: View {
     var body: some View {
         Text(text)
             .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
             .textCase(nil)
     }
 }
@@ -381,6 +405,7 @@ private struct ComputeTypeHeader: View {
             .textCase(nil)
             .listRowSeparator(.hidden)
             .padding(.top, 4)
+            .padding(.leading, 8)
     }
 }
 

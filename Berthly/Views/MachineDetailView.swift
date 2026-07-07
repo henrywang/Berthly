@@ -44,14 +44,7 @@ private struct MachineDetailContent: View {
 
                 Divider()
 
-                HStack(spacing: 0) {
-                    ForEach(DetailTab.allCases, id: \.self) { t in
-                        Button(t.rawValue) { tab = t }
-                            .buttonStyle(TabButtonStyle(isSelected: tab == t))
-                    }
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 4)
+                DetailTabPicker(selection: $tab)
 
                 Divider()
 

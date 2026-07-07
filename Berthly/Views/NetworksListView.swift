@@ -3,7 +3,6 @@ import SwiftUI
 struct NetworksListView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
-    @State private var showCreateSheet = false
     @State private var filterText = ""
     @State private var isSearchPresented = false
 
@@ -17,22 +16,16 @@ struct NetworksListView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button { showCreateSheet = true } label: {
-                    Label("Add Network", systemImage: "plus")
-                }
-                .disabled(!service.isConnected)
-                .help("Create a new network")
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
             if service.networks.isEmpty {
                 ContentUnavailableView {
                     Label("No Networks", systemImage: "arrow.triangle.branch")
                 } description: {
                     Text("Add a network, or one created for a container will appear here.")
+                } actions: {
+                    // Same intent path the toolbar's Add button uses — MainWindowView owns the
+                    // sheet, so the empty state can't present it directly.
+                    Button("Add Network…") { bridge.pendingIntent = .openCreateNetworkSheet }
+                        .buttonStyle(.borderedProminent)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if filtered.isEmpty {
@@ -49,9 +42,6 @@ struct NetworksListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or subnet")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Networks")
-        .sheet(isPresented: $showCreateSheet) {
-            NetworkCreateSheet()
-        }
     }
 }
 

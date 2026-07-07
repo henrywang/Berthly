@@ -3,7 +3,6 @@ import SwiftUI
 struct VolumesListView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
-    @State private var showCreateSheet = false
     @State private var filterText = ""
     @State private var isSearchPresented = false
     @AppStorage("volumesSortOrder") private var sortOrderRaw = LibrarySortOrder.default.rawValue
@@ -30,11 +29,6 @@ struct VolumesListView: View {
             HStack {
                 Spacer()
                 LibrarySortMenu(selectionRaw: $sortOrderRaw)
-                Button { showCreateSheet = true } label: {
-                    Label("Add Volume", systemImage: "plus")
-                }
-                .disabled(!service.isConnected)
-                .help("Create a new volume")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
@@ -44,6 +38,11 @@ struct VolumesListView: View {
                     Label("No Volumes", systemImage: "cylinder")
                 } description: {
                     Text("Add a volume, or one created by a container will appear here.")
+                } actions: {
+                    // Same intent path the toolbar's Add button uses — MainWindowView owns the
+                    // sheet, so the empty state can't present it directly.
+                    Button("Add Volume…") { bridge.pendingIntent = .openCreateVolumeSheet }
+                        .buttonStyle(.borderedProminent)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if filtered.isEmpty {
@@ -67,9 +66,6 @@ struct VolumesListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Volumes")
-        .sheet(isPresented: $showCreateSheet) {
-            VolumeCreateSheet()
-        }
     }
 }
 

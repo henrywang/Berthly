@@ -17,6 +17,9 @@ final class MenuBarBridge {
         case openCreateMachineSheet
         case openBuildSheet
         case openPullSheet
+        case openCreateVolumeSheet
+        case openCreateNetworkSheet
+        case openAddRegistrySheet
     }
 
     var pendingIntent: Intent?

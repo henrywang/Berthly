@@ -381,7 +381,8 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(containerRow.waitForExistence(timeout: 10))
         containerRow.click()
 
-        let terminalTab = app.buttons["Terminal"]
+        // The detail tabs are a segmented Picker; its segments surface as radio buttons.
+        let terminalTab = app.radioButtons["Terminal"]
         XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
         terminalTab.click()
 
@@ -431,8 +432,9 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(containerRow.waitForExistence(timeout: 10))
         containerRow.click()
 
-        let terminalTab = app.buttons["Terminal"]
-        let overviewTab = app.buttons["Overview"]
+        // The detail tabs are a segmented Picker; its segments surface as radio buttons.
+        let terminalTab = app.radioButtons["Terminal"]
+        let overviewTab = app.radioButtons["Overview"]
         XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
 
         let options = XCTMeasureOptions()

@@ -206,9 +206,12 @@ struct RunContainerSheet: View {
                 Text("Image")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
+                // Field with the suggestions menu inside its trailing edge (same field-with-
+                // trailing-control container BuildImageSheet uses for Browse…) — a bare chevron
+                // floating outside the field is easy to miss and a tiny click target.
                 HStack(spacing: 6) {
                     TextField("local/myapp:1.0", text: $reference)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
                         .fontDesign(.monospaced)
                         .onSubmit { if canRun { startSubmit() } }
                     // Local images as one-click suggestions — most runs use an image that's
@@ -227,6 +230,10 @@ struct RunContainerSheet: View {
                         .help("Choose a local image")
                     }
                 }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.background, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -234,8 +241,12 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("Optional — auto-generated if left blank", text: $name)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .fontDesign(.monospaced)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
             }
         }
         .padding(20)

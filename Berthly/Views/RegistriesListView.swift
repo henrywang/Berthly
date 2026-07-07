@@ -4,7 +4,6 @@ struct RegistriesListView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
 
-    @State private var showAddRegistry = false
     @State private var errorMessage: String?
     @State private var filterText = ""
     @State private var isSearchPresented = false
@@ -29,6 +28,11 @@ struct RegistriesListView: View {
                     Label("No Registries", systemImage: "building.columns")
                 } description: {
                     Text("Add a registry to sign in — or run `container registry login`.")
+                } actions: {
+                    // Same intent path the toolbar's Add button uses — MainWindowView owns the
+                    // sheet, so the empty state can't present it directly.
+                    Button("Add Registry…") { bridge.pendingIntent = .openAddRegistrySheet }
+                        .buttonStyle(.borderedProminent)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if filtered.isEmpty {
@@ -50,9 +54,6 @@ struct RegistriesListView: View {
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Registries")
         .task { await service.loadRegistries() }
-        .sheet(isPresented: $showAddRegistry) {
-            AddRegistrySheet()
-        }
         .alert("Error", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
@@ -66,23 +67,14 @@ struct RegistriesListView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Registries")
-                    .font(.largeTitle.weight(.bold))
-                Text("Credentials for pushing & pulling images · shared by the daemon and every machine")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button {
-                showAddRegistry = true
-            } label: {
-                Label("Add registry", systemImage: "plus")
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.berthlyAccent)
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Registries")
+                .font(.largeTitle.weight(.bold))
+            Text("Credentials for pushing & pulling images · shared by the daemon and every machine")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
     }
 

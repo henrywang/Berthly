@@ -73,6 +73,11 @@ struct BuildImageSheet: View {
 
             Divider()
 
+            // A plain ScrollView reports a small ideal height, so the sheet used to open with
+            // the form cropped mid-control at the fold. While the collapsed form is short enough
+            // to show whole, let the scroll view self-size to its content (fixedSize); once
+            // Advanced expands or the build log takes over, switch to a fixed, scrolling height.
+            let selfSizing = job == nil && !showAdvanced
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     if let job {
@@ -83,7 +88,8 @@ struct BuildImageSheet: View {
                 }
                 .padding(20)
             }
-            .frame(maxHeight: 520)
+            .fixedSize(horizontal: false, vertical: selfSizing)
+            .frame(maxHeight: selfSizing ? nil : 520)
 
             Divider()
 
@@ -144,10 +150,31 @@ struct BuildImageSheet: View {
             Text("Tag")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            TextField("local/myapp:1.0", text: $tag)
-                .textFieldStyle(.roundedBorder)
-                .fontDesign(.monospaced)
-                .onSubmit { if canBuild { startBuild() } }
+            HStack(spacing: 6) {
+                TextField("local/myapp:1.0", text: $tag)
+                    .textFieldStyle(.plain)
+                    .fontDesign(.monospaced)
+                    .onSubmit { if canBuild { startBuild() } }
+                // Existing local tags as one-click suggestions — rebuilding an image you
+                // already have is the common case, so don't make the user retype the tag.
+                if !service.images.isEmpty {
+                    Menu {
+                        ForEach(service.images) { image in
+                            Button(image.fullName) { tag = image.fullName }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.up.chevron.down")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Reuse an existing tag")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.background, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
         }
 
         VStack(alignment: .leading, spacing: 6) {
