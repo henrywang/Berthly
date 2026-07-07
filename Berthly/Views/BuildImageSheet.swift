@@ -1,34 +1,18 @@
 import SwiftUI
 
-// MARK: - Build state
-
-@MainActor
-@Observable
-private final class BuildState {
-    struct LogLine: Identifiable { let id = UUID(); let text: String }
-
-    enum Result {
-        case success(reference: String)
-        case failure(message: String)
-    }
-
-    var logLines: [LogLine] = []
-    var isBuilding = false
-    var result: Result? = nil
-    var buildTask: Task<Void, Never>? = nil
-
-    func appendLog(_ text: String) {
-        logLines.append(LogLine(text: text))
-    }
-}
-
 // MARK: - Sheet
 
+/// Build form + live log. The build itself runs as a `BuildJob` owned by the app-level
+/// `BuildJobManager`, so this sheet can be dismissed ("Continue in Background") without
+/// interrupting it; the toolbar builds indicator surfaces the result. Passing `existingJob`
+/// reopens the sheet directly onto a running/finished job's log.
 struct BuildImageSheet: View {
     let service: ContainerServiceBase
     let prefillTag: String?
     let prefillContext: BuildContext?
+    let existingJob: BuildJob?
 
+    @Environment(BuildJobManager.self) private var buildManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var tag: String
@@ -46,12 +30,19 @@ struct BuildImageSheet: View {
     @State private var secrets: [StringEntry] = []
     @State private var pull: Bool = false
 
-    @State private var state = BuildState()
+    @State private var job: BuildJob?
 
-    init(service: ContainerServiceBase, prefillTag: String? = nil, prefillContext: BuildContext? = nil) {
+    init(
+        service: ContainerServiceBase,
+        prefillTag: String? = nil,
+        prefillContext: BuildContext? = nil,
+        existingJob: BuildJob? = nil
+    ) {
         self.service = service
         self.prefillTag = prefillTag
         self.prefillContext = prefillContext
+        self.existingJob = existingJob
+        _job = State(initialValue: existingJob)
         _tag = State(initialValue: prefillTag ?? "")
         _contextPath = State(initialValue: prefillContext?.contextPath ?? "")
         _dockerfilePath = State(initialValue: prefillContext?.dockerfilePath ?? "")
@@ -70,7 +61,7 @@ struct BuildImageSheet: View {
                     .font(.title2)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(prefillTag != nil ? "Rebuild Image" : "Build Image")
+                    Text(headerTitle)
                         .font(.headline)
                     Text("Build from a Dockerfile or Containerfile")
                         .font(.caption)
@@ -84,8 +75,8 @@ struct BuildImageSheet: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    if state.isBuilding || state.result != nil {
-                        activeContent
+                    if let job {
+                        activeContent(job)
                     } else {
                         idleContent
                     }
@@ -99,38 +90,45 @@ struct BuildImageSheet: View {
             // Footer
             HStack {
                 Spacer()
-                switch state.result {
-                case .success:
-                    Button("Done") { dismiss() }
+                switch job?.status {
+                case .succeeded:
+                    Button("Done") { markSeenAndDismiss() }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.return)
-                case .failure:
-                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
+                case .failed:
+                    Button("Close") { markSeenAndDismiss() }.keyboardShortcut(.cancelAction)
                         .buttonStyle(.bordered)
-                case nil:
-                    if state.isBuilding {
-                        Button("Cancel") { cancelBuild() }.keyboardShortcut(.cancelAction)
-                        Button {} label: {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.small)
-                                Text("Building…")
-                            }
-                        }
+                case .building:
+                    Button("Cancel Build") { cancelBuild() }
+                    Button("Continue in Background") { dismiss() }
                         .buttonStyle(.borderedProminent)
-                        .disabled(true)
-                    } else {
-                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                        Button("Build") { startBuild() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canBuild)
-                            .keyboardShortcut(.return)
-                    }
+                        .keyboardShortcut(.cancelAction)
+                        .help("The build keeps running; find it under the Builds toolbar indicator")
+                case nil:
+                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Build") { startBuild() }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(!canBuild)
+                        .keyboardShortcut(.return)
                 }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
         }
         .frame(width: 520)
+        // If the user watches the build finish right here, the result is already "seen" —
+        // don't leave a stale unseen badge on the toolbar indicator.
+        .onChange(of: job?.isFinished ?? false) { _, finished in
+            if finished { job?.seen = true }
+        }
+        .onAppear {
+            if existingJob?.isFinished == true { existingJob?.seen = true }
+        }
+    }
+
+    private var headerTitle: String {
+        if existingJob != nil { return "Build Log" }
+        return prefillTag != nil ? "Rebuild Image" : "Build Image"
     }
 
     private var canBuild: Bool {
@@ -251,11 +249,18 @@ struct BuildImageSheet: View {
     // MARK: - Active / done
 
     @ViewBuilder
-    private var activeContent: some View {
+    private func activeContent(_ job: BuildJob) -> some View {
+        Text(job.reference)
+            .font(.caption)
+            .fontDesign(.monospaced)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .truncationMode(.middle)
+
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
-                    ForEach(state.logLines) { line in
+                    ForEach(job.logLines) { line in
                         Text(line.text)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.primary)
@@ -270,15 +275,15 @@ struct BuildImageSheet: View {
             .background(.background)
             .clipShape(RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
-            .onChange(of: state.logLines.count) { _, _ in
-                if let last = state.logLines.last {
+            .onChange(of: job.logLines.count) { _, _ in
+                if let last = job.logLines.last {
                     withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
             }
         }
 
-        switch state.result {
-        case .success(let ref):
+        switch job.status {
+        case .succeeded:
             HStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -286,7 +291,7 @@ struct BuildImageSheet: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Image built successfully")
                         .font(.callout.weight(.semibold))
-                    Text(ref)
+                    Text(job.reference)
                         .font(.caption)
                         .fontDesign(.monospaced)
                         .foregroundStyle(.secondary)
@@ -297,7 +302,7 @@ struct BuildImageSheet: View {
             .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
 
-        case .failure(let msg):
+        case .failed(let msg):
             HStack(spacing: 12) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundStyle(.red)
@@ -312,7 +317,7 @@ struct BuildImageSheet: View {
             .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
 
-        case nil:
+        case .building:
             EmptyView()
         }
     }
@@ -354,67 +359,47 @@ struct BuildImageSheet: View {
     private func startBuild() {
         let ref = tag.trimmingCharacters(in: .whitespaces)
         let ctx = contextPath.trimmingCharacters(in: .whitespaces)
-        guard !ref.isEmpty, !ctx.isEmpty, !state.isBuilding else { return }
+        guard !ref.isEmpty, !ctx.isEmpty, job == nil else { return }
         let df = dockerfilePath.trimmingCharacters(in: .whitespaces)
         let platform = platformChoice == .default ? nil : platformChoice.rawValue
-        let argsDict = dict(from: buildArgs)
-        let labelsDict = dict(from: labels)
         let targetTrimmed = target.trimmingCharacters(in: .whitespaces)
-        let cpusValue = Int(cpus.trimmingCharacters(in: .whitespaces))
         let memoryTrimmed = memory.trimmingCharacters(in: .whitespaces)
-        let secretValues = secrets.map { $0.value.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-
-        state.isBuilding = true
-        state.result = nil
-        state.logLines = []
 
         let options = BuildOptions(
             reference: ref,
             contextPath: ctx,
             dockerfilePath: df.isEmpty ? nil : df,
             platform: platform,
-            buildArgs: argsDict,
+            buildArgs: dict(from: buildArgs),
             noCache: noCache,
-            labels: labelsDict,
+            labels: dict(from: labels),
             target: targetTrimmed.isEmpty ? nil : targetTrimmed,
-            cpus: cpusValue,
+            cpus: Int(cpus.trimmingCharacters(in: .whitespaces)),
             memory: memoryTrimmed.isEmpty ? nil : memoryTrimmed,
-            secrets: secretValues,
+            secrets: secrets.map { $0.value.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
             pull: pull
         )
 
-        state.buildTask = Task {
-            do {
-                try await service.buildImage(options: options, onLog: state.appendLog)
-                service.saveBuildContext(
-                    BuildContext(
-                        contextPath: ctx,
-                        dockerfilePath: df.isEmpty ? nil : df,
-                        platform: platform,
-                        buildArgs: argsDict,
-                        labels: labelsDict,
-                        target: targetTrimmed.isEmpty ? nil : targetTrimmed,
-                        noCache: noCache
-                    ),
-                    for: ref
-                )
-                state.result = .success(reference: ref)
-            } catch is CancellationError {
-                state.result = nil
-            } catch {
-                state.result = .failure(message: error.localizedDescription)
-            }
-            state.isBuilding = false
-            state.buildTask = nil
-        }
+        job = buildManager.start(options: options, service: service)
+        // First build is the natural moment to ask for notification permission — the build
+        // may finish while the user is elsewhere, and the grant is settled by then.
+        BuildNotifier.shared.prepare()
     }
 
     private func cancelBuild() {
-        state.buildTask?.cancel()
-        state.buildTask = nil
-        state.isBuilding = false
-        state.result = nil
-        state.logLines = []
+        guard let job else { return }
+        buildManager.cancel(job)
+        // A job opened from the builds indicator has no form behind it to fall back to.
+        if existingJob != nil {
+            dismiss()
+        } else {
+            self.job = nil
+        }
+    }
+
+    private func markSeenAndDismiss() {
+        job?.seen = true
+        dismiss()
     }
 }
 
@@ -422,6 +407,7 @@ struct BuildImageSheet: View {
 
 #Preview("Build – empty") {
     BuildImageSheet(service: MockContainerService())
+        .environment(BuildJobManager())
 }
 
 #Preview("Rebuild – with context") {
@@ -434,8 +420,10 @@ struct BuildImageSheet: View {
             target: "release"
         )
     )
+    .environment(BuildJobManager())
 }
 
 #Preview("Rebuild – CLI built (tag only)") {
     BuildImageSheet(service: MockContainerService(), prefillTag: "local/proxy:1.25")
+        .environment(BuildJobManager())
 }

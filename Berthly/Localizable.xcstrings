@@ -125,19 +125,22 @@
     "Build from a Dockerfile or Containerfile" : {
 
     },
-    "Build Image" : {
-
-    },
     "Build Image…" : {
 
     },
     "Builder Image" : {
 
     },
-    "Building…" : {
+    "Builds" : {
 
     },
     "Cancel" : {
+
+    },
+    "Cancel build" : {
+
+    },
+    "Cancel Build" : {
 
     },
     "Choose a local image" : {
@@ -153,6 +156,9 @@
 
     },
     "Clear" : {
+
+    },
+    "Clear Finished" : {
 
     },
     "Click to copy · %@" : {
@@ -195,6 +201,9 @@
 
     },
     "Containers reach the internet through the host (NAT)." : {
+
+    },
+    "Continue in Background" : {
 
     },
     "Copy" : {
@@ -546,6 +555,9 @@
     "No builder found. Create one with `container builder create`." : {
 
     },
+    "No builds" : {
+
+    },
     "No Compute Resources" : {
 
     },
@@ -645,9 +657,6 @@
     "Rebuild" : {
 
     },
-    "Rebuild Image" : {
-
-    },
     "reclaimable" : {
 
     },
@@ -661,6 +670,9 @@
 
     },
     "Registry host" : {
+
+    },
+    "Remove from list" : {
 
     },
     "Remove when stopped" : {
@@ -853,6 +865,9 @@
 
     },
     "Terminal Theme" : {
+
+    },
+    "The build keeps running; find it under the Builds toolbar indicator" : {
 
     },
     "The builder container will be shut down." : {

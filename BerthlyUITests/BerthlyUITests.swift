@@ -165,6 +165,118 @@ final class BerthlyUITests: XCTestCase {
         app.buttons["Cancel"].click()
     }
 
+    /// End-to-end background-build flow: start a rebuild (prefilled from the mock's saved
+    /// build context, so no NSOpenPanel is involved), send it to the background, keep using
+    /// the app, then find the finished result via the toolbar Builds indicator and reopen
+    /// its log. Mock mode: `MockContainerService.buildImage` streams scripted log lines and
+    /// succeeds after ~5s, which is what makes the "Succeeded in …" wait deterministic.
+    @MainActor
+    func testBuildContinuesInBackgroundAndSurfacesInBuildsIndicator() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        // Rebuild a built image whose context the mock has saved — the sheet arrives fully
+        // prefilled, so the Build button is enabled without touching a file picker.
+        let imagesSidebarItem = app.staticTexts["Images"]
+        XCTAssertTrue(imagesSidebarItem.waitForExistence(timeout: 10))
+        imagesSidebarItem.click()
+        let imageRow = app.staticTexts["local/web:1.4"]
+        XCTAssertTrue(imageRow.waitForExistence(timeout: 10))
+        imageRow.click()
+
+        let rebuildButton = app.buttons["Rebuild"]
+        XCTAssertTrue(rebuildButton.waitForExistence(timeout: 5))
+        rebuildButton.click()
+
+        // Scoped to the sheet: the toolbar has its own "Build" button.
+        let sheetBuildButton = app.sheets.firstMatch.buttons["Build"]
+        XCTAssertTrue(sheetBuildButton.waitForExistence(timeout: 5), "Rebuild sheet should appear")
+        sheetBuildButton.click()
+
+        let backgroundButton = app.buttons["Continue in Background"]
+        XCTAssertTrue(backgroundButton.waitForExistence(timeout: 5), "Building state should offer backgrounding")
+        backgroundButton.click()
+
+        // The app is free while the build runs: the sheet is gone and the toolbar
+        // indicator has taken over tracking the job.
+        XCTAssertFalse(app.sheets.firstMatch.exists, "Sheet should close while the build continues")
+        let buildsIndicator = app.buttons["buildsIndicator"]
+        XCTAssertTrue(buildsIndicator.waitForExistence(timeout: 5))
+
+        buildsIndicator.click()
+        // SwiftUI flattens the popover row's texts into its Button's label, e.g.
+        // "local/web:1.4, Succeeded in 5s" (confirmed via debugDescription) — there are no
+        // separate StaticTexts inside the row to query.
+        let successRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "local/web:1.4, Succeeded in")
+        ).firstMatch
+        XCTAssertTrue(successRow.waitForExistence(timeout: 15), "Finished build should appear in the popover")
+
+        // Reopening the job shows its full log in the sheet. Plain SwiftUI Texts here
+        // surface through AXValue, not label (same as the System page's log rows).
+        successRow.click()
+        func sheetText(_ text: String) -> XCUIElement {
+            app.staticTexts.matching(NSPredicate(format: "label == %@ OR value == %@", text, text)).firstMatch
+        }
+        XCTAssertTrue(sheetText("Build Log").waitForExistence(timeout: 5))
+        XCTAssertTrue(sheetText("Image built successfully").exists)
+        app.buttons["Done"].click()
+
+        XCTAssertTrue(app.windows.firstMatch.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    /// A build must survive the main window closing (red button): `BuildJobManager` is owned
+    /// by the App, not the window, and the app keeps running via the menu bar extra. Closing
+    /// the window mid-build, then reopening it through the menu bar's "Open Berthly", should
+    /// land on a Builds indicator that has the finished result waiting.
+    @MainActor
+    func testBuildSurvivesMainWindowCloseAndResultIsWaitingOnReopen() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        // Same prefilled-rebuild route as the background-build test above.
+        let imagesSidebarItem = app.staticTexts["Images"]
+        XCTAssertTrue(imagesSidebarItem.waitForExistence(timeout: 10))
+        imagesSidebarItem.click()
+        let imageRow = app.staticTexts["local/web:1.4"]
+        XCTAssertTrue(imageRow.waitForExistence(timeout: 10))
+        imageRow.click()
+        let rebuildButton = app.buttons["Rebuild"]
+        XCTAssertTrue(rebuildButton.waitForExistence(timeout: 5))
+        rebuildButton.click()
+        let sheetBuildButton = app.sheets.firstMatch.buttons["Build"]
+        XCTAssertTrue(sheetBuildButton.waitForExistence(timeout: 5))
+        sheetBuildButton.click()
+        let backgroundButton = app.buttons["Continue in Background"]
+        XCTAssertTrue(backgroundButton.waitForExistence(timeout: 5))
+        backgroundButton.click()
+
+        // Close the main window with the build still running.
+        let window = app.windows.firstMatch
+        window.buttons[XCUIIdentifierCloseWindow].click()
+
+        // Reopen via the menu bar extra — the only UI left once the window is gone.
+        let statusItem = app.statusItems.firstMatch
+        XCTAssertTrue(statusItem.waitForExistence(timeout: 5))
+        statusItem.click()
+        let openBerthly = app.buttons["Open Berthly"]
+        XCTAssertTrue(openBerthly.waitForExistence(timeout: 5))
+        openBerthly.click()
+
+        // The reopened window's Builds indicator still tracks the same job; the mock build
+        // (~5s) finishes within this wait and surfaces as a success row.
+        let buildsIndicator = app.buttons["buildsIndicator"]
+        XCTAssertTrue(buildsIndicator.waitForExistence(timeout: 10), "Builds indicator should survive window close/reopen")
+        buildsIndicator.click()
+        let successRow = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH %@", "local/web:1.4, Succeeded in")
+        ).firstMatch
+        XCTAssertTrue(successRow.waitForExistence(timeout: 15), "Finished build should be waiting after the window was closed mid-build")
+    }
+
     // MARK: - Menu Bar Extra
 
     /// Launches with the mock service and clicks the status item open — every menu bar test

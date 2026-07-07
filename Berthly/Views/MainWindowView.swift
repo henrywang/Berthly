@@ -4,6 +4,7 @@ import TerminalProgress
 struct MainWindowView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
+    @Environment(BuildJobManager.self) private var buildManager
     @State private var sidebarSelection: SidebarSelection? = .compute
     @State private var selectedCompute: ComputeItem?
     @State private var selectedImageID: String?
@@ -14,6 +15,8 @@ struct MainWindowView: View {
     @State private var showRunMenu = false
     @State private var showRunSheet = false
     @State private var showMachineCreateSheet = false
+    @State private var showBuildsPopover = false
+    @State private var viewedBuildJob: BuildJob?
 
     var body: some View {
         NavigationSplitView {
@@ -85,6 +88,9 @@ struct MainWindowView: View {
         }
         .sheet(isPresented: $showMachineCreateSheet) {
             MachineCreateSheet(service: service)
+        }
+        .sheet(item: $viewedBuildJob) { job in
+            BuildImageSheet(service: service, existingJob: job)
         }
         // Lets the menu bar tell whether a main window already exists before deciding whether to
         // call `openWindow(id:)` — that API has no built-in single-instance behavior for a plain
@@ -186,6 +192,27 @@ struct MainWindowView: View {
         }
 
         ToolbarItem(placement: .automatic) {
+            if !buildManager.jobs.isEmpty {
+                Button {
+                    showBuildsPopover = true
+                } label: {
+                    BuildsToolbarLabel(manager: buildManager)
+                }
+                .accessibilityLabel("Builds")
+                .accessibilityIdentifier("buildsIndicator")
+                .background(
+                    PopoverAnchor(isPresented: $showBuildsPopover) {
+                        BuildsPopover(manager: buildManager) { job in
+                            showBuildsPopover = false
+                            viewedBuildJob = job
+                        }
+                    }
+                )
+                .help("Builds")
+            }
+        }
+
+        ToolbarItem(placement: .automatic) {
             Button {
                 guard !isRefreshing else { return }
                 isRefreshing = true
@@ -212,5 +239,6 @@ struct MainWindowView: View {
     MainWindowView()
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())
+        .environment(BuildJobManager())
         .frame(width: 1200, height: 780)
 }

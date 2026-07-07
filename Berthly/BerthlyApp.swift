@@ -7,6 +7,7 @@ import SwiftUI
 struct BerthlyApp: App {
     @State private var service: ContainerServiceBase = Self.makeService()
     @State private var menuBarBridge = MenuBarBridge()
+    @State private var buildJobManager = BuildJobManager()
     /// Mirrors the General settings toggle — `MenuBarExtra(isInserted:)` inserts/removes the
     /// status item live as it changes.
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
@@ -33,6 +34,7 @@ struct BerthlyApp: App {
             MainWindowView()
                 .environment(service)
                 .environment(menuBarBridge)
+                .environment(buildJobManager)
         }
         .defaultSize(width: 1200, height: 780)
         .windowStyle(.titleBar)
