@@ -7,6 +7,19 @@
 
 import XCTest
 
+extension XCUIApplication {
+    /// Every test must launch through this. Berthly is a menu-bar app — closing the main window
+    /// leaves it running, and quitting it in that state makes macOS window restoration relaunch
+    /// it with *zero* windows. A test launching plainly then times out against an invisible app,
+    /// purely because of how the app was last quit on this machine. Ignoring persisted state
+    /// keeps launches deterministic (CLAUDE.md: control all inputs, reset state every launch).
+    static func berthly() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
+        return app
+    }
+}
+
 final class BerthlyUITests: XCTestCase {
 
     override func setUpWithError() throws {
@@ -30,7 +43,7 @@ final class BerthlyUITests: XCTestCase {
     /// so this never depends on `container system` being installed or running.
     @MainActor
     func testMainWindowLaunchesWithSidebarAndToolbar() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launch()
 
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
@@ -47,7 +60,7 @@ final class BerthlyUITests: XCTestCase {
     /// without needing to scroll them into view first.
     @MainActor
     func testSystemPageShowsDaemonLogEvents() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -67,7 +80,7 @@ final class BerthlyUITests: XCTestCase {
     /// disabled in that state and this shouldn't be flaky in environments without `container`.
     @MainActor
     func testBuildSheetOpensAndClosesWithoutCrashing() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launch()
 
         let buildButton = app.buttons["Build"]
@@ -92,7 +105,7 @@ final class BerthlyUITests: XCTestCase {
     /// sheets.
     @MainActor
     func testRunSheetOpensAndClosesWithoutCrashing() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launch()
 
         let runButton = app.buttons["Run"]
@@ -121,7 +134,7 @@ final class BerthlyUITests: XCTestCase {
     /// triggers without needing to force that state in a live `container` install.
     @MainActor
     func testDaemonStoppedShowsStartButtonAndConnectsOnTap() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "installedButStopped"
         app.launch()
@@ -143,7 +156,7 @@ final class BerthlyUITests: XCTestCase {
     /// "Container Not Installed" through the confirm alert to connected content.
     @MainActor
     func testNotInstalledGateInstallsAndConnects() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "notInstalled"
         app.launch()
@@ -173,7 +186,7 @@ final class BerthlyUITests: XCTestCase {
     /// "Container System Stopped" while the update silently kept running.
     @MainActor
     func testVersionMismatchGateUpdatesAndConnects() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "versionMismatch"
         app.launch()
@@ -205,7 +218,7 @@ final class BerthlyUITests: XCTestCase {
     /// enabled. Covers both routes: Container -> RunContainerSheet, Machine -> MachineCreateSheet.
     @MainActor
     func testRunMenuOpensEitherContainerOrMachineSheet() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -234,7 +247,7 @@ final class BerthlyUITests: XCTestCase {
     /// succeeds after ~5s, which is what makes the "Succeeded in …" wait deterministic.
     @MainActor
     func testBuildContinuesInBackgroundAndSurfacesInBuildsIndicator() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -295,7 +308,7 @@ final class BerthlyUITests: XCTestCase {
     /// land on a Builds indicator that has the finished result waiting.
     @MainActor
     func testBuildSurvivesMainWindowCloseAndResultIsWaitingOnReopen() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -347,7 +360,7 @@ final class BerthlyUITests: XCTestCase {
     @MainActor
     @discardableResult
     private func launchAndOpenMenuBarExtra() throws -> XCUIApplication {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -435,7 +448,7 @@ final class BerthlyUITests: XCTestCase {
     /// — opening the tab is enough to prove the fix without a live daemon.
     @MainActor
     func testTerminalTabOpensWithoutCrashing() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -455,7 +468,7 @@ final class BerthlyUITests: XCTestCase {
 
     @MainActor
     func testMemoryAndCPUUsageDuringSheetChurn() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -486,7 +499,7 @@ final class BerthlyUITests: XCTestCase {
     /// future regression here as real rather than noise.
     @MainActor
     func testMemoryAndCPUUsageDuringTerminalTabChurn() throws {
-        let app = XCUIApplication()
+        let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
@@ -513,7 +526,7 @@ final class BerthlyUITests: XCTestCase {
     @MainActor
     func testLaunchPerformance() throws {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
+            XCUIApplication.berthly().launch()
         }
     }
 }
