@@ -167,6 +167,39 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["installContainerButton"].exists)
     }
 
+    /// Regression: the update's progress screen must survive the daemonState transitions the
+    /// update itself causes. `upgradeContainer` stops the daemon first, and progress state that
+    /// lived inside the versionMismatch gate got torn down at that transition — users saw
+    /// "Container System Stopped" while the update silently kept running.
+    @MainActor
+    func testVersionMismatchGateUpdatesAndConnects() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "versionMismatch"
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Update Required"].waitForExistence(timeout: 10))
+        app.buttons["updateContainerButton"].click()
+
+        let confirmButton = app.sheets.firstMatch.buttons["Update"]
+        // Matched by identifier (label/value exposure of SwiftUI Text is unreliable on macOS),
+        // built before clicking so waitForExistence starts sampling immediately — the progress
+        // window is only as long as the mock's simulated update.
+        let progressText = app.staticTexts["operationProgressMessage"]
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Update confirmation alert should appear")
+        confirmButton.click()
+
+        // The progress screen persists through the mock's stopped→connecting transitions; with
+        // the old per-gate state this text vanished as soon as the daemon state changed.
+        XCTAssertTrue(
+            progressText.waitForExistence(timeout: 3),
+            "Update progress screen should appear and survive daemon state changes"
+        )
+
+        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["updateContainerButton"].exists)
+    }
+
     /// The Run button opens a popover with both choices before landing on either sheet — pure UI
     /// state with no daemon operation involved, so the mock just needs the toolbar's Run button
     /// enabled. Covers both routes: Container -> RunContainerSheet, Machine -> MachineCreateSheet.

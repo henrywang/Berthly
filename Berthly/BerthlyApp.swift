@@ -24,6 +24,8 @@ struct BerthlyApp: App {
         case "installedButStopped": mock.daemonState = .installedButStopped
         case "notInstalled":        mock.daemonState = .notInstalled
         case "checking":            mock.daemonState = .checking
+        case "versionMismatch":
+            mock.daemonState = .versionMismatch(installed: "1.0.0", required: ContainerCompatibility.requiredVersion)
         default: break
         }
         return mock

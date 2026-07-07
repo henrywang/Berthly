@@ -479,9 +479,6 @@
     "Install container v%@…" : {
 
     },
-    "Install Failed" : {
-
-    },
     "Installed" : {
 
     },
@@ -995,9 +992,6 @@
     "Update Container to v%@…" : {
 
     },
-    "Update Failed" : {
-
-    },
     "Update Required" : {
 
     },
@@ -1041,6 +1035,9 @@
 
     },
     "Wrap" : {
+
+    },
+    "You may be asked for your admin password. This can take a few minutes." : {
 
     }
   },

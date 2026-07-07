@@ -396,7 +396,11 @@ final class MockContainerService: ContainerServiceBase {
     override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         await stopDaemon()
         onLog("Updating to version \(ContainerCompatibility.requiredVersion)...")
-        try? await Task.sleep(for: .milliseconds(200))
+        // Simulated download/install latency, like pullImage's — also what keeps the progress
+        // screen observable to UI tests asserting it survives the daemon-state transitions.
+        // XCUITest only samples element existence about once per second, so this must hold the
+        // progress screen up for a couple of polls or the assertion races the transition.
+        try? await Task.sleep(for: .seconds(2))
         onLog("Updated successfully")
         installedContainerVersion = ContainerCompatibility.requiredVersion
         await startDaemon()
@@ -404,11 +408,11 @@ final class MockContainerService: ContainerServiceBase {
 
     override func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         onLog("Downloading container-\(ContainerCompatibility.requiredVersion)-installer-signed.pkg…")
-        try? await Task.sleep(for: .milliseconds(200))
+        try? await Task.sleep(for: .milliseconds(400))
         onLog("Verifying package signature…")
-        try? await Task.sleep(for: .milliseconds(200))
+        try? await Task.sleep(for: .milliseconds(400))
         onLog("Installing…")
-        try? await Task.sleep(for: .milliseconds(200))
+        try? await Task.sleep(for: .milliseconds(400))
         installedContainerVersion = ContainerCompatibility.requiredVersion
         await startDaemon()
     }

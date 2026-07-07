@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import class AppKit.NSApplication
 import AsyncHTTPClient
 import ContainerAPIClient
 import ContainerBuild
@@ -27,6 +28,10 @@ final class LiveContainerService: ContainerServiceBase {
     private var pollTask: Task<Void, Never>?
     private var isStarting = false
     private var isStopping = false
+    /// The in-flight elevated `osascript` (install/update), if any. Tracked so it can be killed
+    /// on task cancellation and on app quit — an orphaned osascript otherwise blocks on its
+    /// admin-password dialog forever and stalls every later authorization prompt behind it.
+    private var privilegedProcess: Foundation.Process?
     private var isBuilding = false
     private var systemConfig: ContainerSystemConfig?
     private static let log = Logger(label: "app.berthly.container")
@@ -59,6 +64,13 @@ final class LiveContainerService: ContainerServiceBase {
         loadBuildContexts()
         loadPinnedItems()
         startPolling()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.privilegedProcess?.terminate()
+            }
+        }
     }
 
     private func loadBuildContexts() {
@@ -295,10 +307,18 @@ final class LiveContainerService: ContainerServiceBase {
             throw ContainerizationError(.invalidState, message: "Couldn't stop the container daemon before upgrading.")
         }
 
-        try await Self.runPrivilegedShellCommand(
-            "/usr/local/bin/update-container.sh -v \(ContainerCompatibility.requiredVersion)",
-            onLog: onLog
-        )
+        do {
+            try await runPrivilegedShellCommand(
+                "/usr/local/bin/update-container.sh -v \(ContainerCompatibility.requiredVersion)",
+                onLog: onLog
+            )
+        } catch {
+            // Put the daemon back the way we found it — the user should land on a running
+            // (still-old) setup, not stranded on the stopped gate. Unstructured Task so a
+            // cancelled operation can't suppress the restart.
+            Task { await self.startDaemon() }
+            throw error
+        }
 
         await startDaemon()
     }
@@ -321,7 +341,7 @@ final class LiveContainerService: ContainerServiceBase {
         try await Self.verifyPackageSignature(at: pkgPath)
         onLog("Signature OK (signed by Apple)")
 
-        try await Self.runPrivilegedShellCommand(
+        try await runPrivilegedShellCommand(
             "/usr/sbin/installer -pkg \(pkgPath) -target /",
             onLog: onLog
         )
@@ -366,15 +386,45 @@ final class LiveContainerService: ContainerServiceBase {
         }
     }
 
+    /// Builds the AppleScript source for an elevated shell command. `do shell script` runs with
+    /// a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits `/usr/local/bin` — which made
+    /// the upstream update script's final `container --version` self-check exit 1 *after* the
+    /// update had already succeeded. Prepending `/usr/local/bin` fixes every lookup of
+    /// container's binaries inside the elevated shell.
+    nonisolated static func privilegedAppleScript(for shellCommand: String) -> String {
+        "do shell script \"export PATH=/usr/local/bin:$PATH; \(shellCommand)\" with administrator privileges"
+    }
+
+    /// `osascript` reports the user dismissing the admin-password dialog as
+    /// `execution error: User canceled. (-128)` on stderr with exit code 1 — indistinguishable
+    /// from a real failure by exit code alone.
+    nonisolated static func userCancelledAdminPrompt(_ outputLines: [String]) -> Bool {
+        outputLines.contains { $0.contains("(-128)") }
+    }
+
+    /// Error text for a failed elevated command: the output tail is almost always more useful
+    /// than the exit code, so include it when there is any.
+    nonisolated static func privilegedFailureMessage(exitCode: Int32, outputLines: [String]) -> String {
+        let tail = outputLines.suffix(6).joined(separator: "\n")
+        if tail.isEmpty {
+            return "The elevated command failed (exit code \(exitCode)) and produced no output."
+        }
+        return "The elevated command failed (exit code \(exitCode)):\n\(tail)"
+    }
+
     /// Runs a shell command elevated via `osascript ... with administrator privileges`,
     /// which shows the native macOS admin-password dialog — no custom UI, no deprecated
-    /// `AuthorizationExecuteWithPrivileges`. `nonisolated` so the blocking-until-exit machinery
-    /// below never touches the main thread; `onLog` hops back to `MainActor` per line.
-    private nonisolated static func runPrivilegedShellCommand(
+    /// `AuthorizationExecuteWithPrivileges`. The process is tracked in `privilegedProcess` and
+    /// killed on task cancellation and app quit: an orphaned osascript sits on its password
+    /// dialog forever and silently blocks every subsequent authorization prompt on the system.
+    /// `onLog` hops back to `MainActor` per line. Dismissing the password dialog surfaces as
+    /// `CancellationError`, same as the in-app Cancel button.
+    private func runPrivilegedShellCommand(
         _ shellCommand: String,
         onLog: @MainActor @escaping (String) -> Void
     ) async throws {
-        let appleScript = "do shell script \"\(shellCommand)\" with administrator privileges"
+        try Task.checkCancellation()
+        let appleScript = Self.privilegedAppleScript(for: shellCommand)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -386,36 +436,59 @@ final class LiveContainerService: ContainerServiceBase {
         process.standardError = pipe
 
         let readHandle = pipe.fileHandleForReading
-        let drainTask = Task.detached(priority: .userInitiated) {
+        let drainTask = Task.detached(priority: .userInitiated) { () -> [String] in
+            var collected: [String] = []
             while true {
                 let data = readHandle.availableData
-                if data.isEmpty { return }
+                if data.isEmpty { return collected }
                 guard let str = String(data: data, encoding: .utf8) else { continue }
                 for line in str.components(separatedBy: .newlines) where !line.isEmpty {
+                    collected.append(line)
                     await MainActor.run { onLog(line) }
                 }
             }
         }
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            process.terminationHandler = { finishedProcess in
-                Task {
-                    await drainTask.value
-                    if finishedProcess.terminationStatus == 0 {
-                        continuation.resume()
-                    } else {
-                        continuation.resume(throwing: ContainerizationError(
-                            .internalError,
-                            message: "The elevated command failed (exit code \(finishedProcess.terminationStatus)) — the admin prompt may have been cancelled, or the command itself failed."
-                        ))
+        privilegedProcess = process
+        defer { privilegedProcess = nil }
+
+        do {
+            try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                    process.terminationHandler = { finishedProcess in
+                        Task {
+                            let outputLines = await drainTask.value
+                            if finishedProcess.terminationStatus == 0 {
+                                continuation.resume()
+                            } else if Self.userCancelledAdminPrompt(outputLines) {
+                                continuation.resume(throwing: CancellationError())
+                            } else {
+                                continuation.resume(throwing: ContainerizationError(
+                                    .internalError,
+                                    message: Self.privilegedFailureMessage(
+                                        exitCode: finishedProcess.terminationStatus,
+                                        outputLines: outputLines
+                                    )
+                                ))
+                            }
+                        }
+                    }
+                    do {
+                        try process.run()
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
                 }
+            } onCancel: {
+                // isRunning guards the never-launched case (terminate() would raise); a process
+                // that already exited ignores the extra SIGTERM.
+                if process.isRunning { process.terminate() }
             }
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
-            }
+        } catch {
+            // A SIGTERM from cancellation surfaces as a nonzero exit — report it as the
+            // cancellation it is, not as a failure.
+            try Task.checkCancellation()
+            throw error
         }
     }
 

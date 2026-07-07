@@ -644,6 +644,42 @@ struct ContainerCompatibilityTests {
     }
 }
 
+// MARK: - LiveContainerService privileged-command helpers (pure, no Process spawned)
+
+struct PrivilegedCommandHelperTests {
+
+    /// `do shell script`'s default PATH omits /usr/local/bin, which broke the upstream update
+    /// script's final `container --version` self-check — the AppleScript must prepend it.
+    @Test func appleScriptPrependsUsrLocalBinToPath() {
+        let script = LiveContainerService.privilegedAppleScript(for: "/usr/local/bin/update-container.sh -v 1.1.0")
+        #expect(script.hasPrefix("do shell script \"export PATH=/usr/local/bin:$PATH; "))
+        #expect(script.contains("/usr/local/bin/update-container.sh -v 1.1.0"))
+        #expect(script.hasSuffix("with administrator privileges"))
+    }
+
+    @Test func dismissedAdminPromptIsDetectedAsCancellation() {
+        let osascriptError = ["execution error: User canceled. (-128)"]
+        #expect(LiveContainerService.userCancelledAdminPrompt(osascriptError))
+        #expect(!LiveContainerService.userCancelledAdminPrompt(["Error: Installer failed"]))
+        #expect(!LiveContainerService.userCancelledAdminPrompt([]))
+    }
+
+    @Test func failureMessageIncludesOutputTail() {
+        let message = LiveContainerService.privilegedFailureMessage(
+            exitCode: 1,
+            outputLines: ["Downloading package…", "Error: Installer failed"]
+        )
+        #expect(message.contains("exit code 1"))
+        #expect(message.contains("Error: Installer failed"))
+    }
+
+    @Test func failureMessageWithoutOutputSaysSo() {
+        let message = LiveContainerService.privilegedFailureMessage(exitCode: 1, outputLines: [])
+        #expect(message.contains("exit code 1"))
+        #expect(message.contains("no output"))
+    }
+}
+
 // MARK: - MockContainerService
 
 @MainActor

@@ -10,11 +10,49 @@ struct DaemonGateView<Content: View>: View {
     @Environment(ContainerServiceBase.self) private var service
     @ViewBuilder private let content: () -> Content
 
+    /// An in-flight install/update. Held here — NOT inside the per-state gate subviews — because
+    /// the operation itself changes `daemonState` (stop → installedButStopped → connecting…),
+    /// which tears the current gate down mid-flight. State at this level survives those
+    /// transitions, so the progress screen stays up until the operation actually finishes.
+    @State private var operationMessage: String?
+    @State private var operationLogs: [String] = []
+    @State private var operationTask: Task<Void, Never>?
+    @State private var operationError: OperationError?
+
+    private struct OperationError: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
+
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
     }
 
     var body: some View {
+        Group {
+            if let message = operationMessage {
+                ProgressLogScreen(message: message, logLines: operationLogs) {
+                    operationTask?.cancel()
+                }
+            } else {
+                gate
+            }
+        }
+        .alert(
+            operationError?.title ?? "Operation Failed",
+            isPresented: Binding(
+                get: { operationError != nil },
+                set: { if !$0 { operationError = nil } }
+            )
+        ) {
+            Button("OK") { operationError = nil }
+        } message: {
+            Text(operationError?.message ?? "")
+        }
+    }
+
+    @ViewBuilder private var gate: some View {
         switch service.daemonState {
         case .connected:
             content()
@@ -29,7 +67,14 @@ struct DaemonGateView<Content: View>: View {
             progressScreen(message: "Stopping container system…")
 
         case .notInstalled:
-            InstallGate()
+            InstallGate {
+                runOperation(
+                    message: "Installing container v\(ContainerCompatibility.requiredVersion)…",
+                    failureTitle: "Install Failed"
+                ) { service, onLog in
+                    try await service.installContainer(onLog: onLog)
+                }
+            }
 
         case .installedButStopped:
             ContentUnavailableView {
@@ -50,7 +95,14 @@ struct DaemonGateView<Content: View>: View {
             case .tooOld, nil:
                 // nil can't actually happen (the state only exists because the check failed),
                 // but falling into the upgrade gate is the sane answer if it somehow does.
-                VersionMismatchGate(installed: installed, required: required)
+                VersionMismatchGate(installed: installed, required: required) {
+                    runOperation(
+                        message: "Updating container to v\(required)…",
+                        failureTitle: "Update Failed"
+                    ) { service, onLog in
+                        try await service.upgradeContainer(onLog: onLog)
+                    }
+                }
             }
 
         case .error(let message):
@@ -69,6 +121,33 @@ struct DaemonGateView<Content: View>: View {
         }
     }
 
+    /// Runs a privileged maintenance operation with the shared progress screen. Activates the
+    /// app first so the admin-password dialog appears on the user's current space instead of
+    /// wherever the app's window happens to live. Cancellation (the progress screen's Cancel)
+    /// is not an error — the service kills the elevated process and we just return to the gate.
+    private func runOperation(
+        message: String,
+        failureTitle: String,
+        _ work: @escaping (ContainerServiceBase, @MainActor @escaping (String) -> Void) async throws -> Void
+    ) {
+        NSApp.activate(ignoringOtherApps: true)
+        operationMessage = message
+        operationLogs = []
+        operationTask = Task {
+            do {
+                try await work(service) { line in
+                    operationLogs.append(line)
+                }
+            } catch is CancellationError {
+                // User hit Cancel — no alert.
+            } catch {
+                operationError = OperationError(title: failureTitle, message: error.localizedDescription)
+            }
+            operationMessage = nil
+            operationTask = nil
+        }
+    }
+
     // MARK: - Not installed
 
     /// Guided first-time install: download the pinned release's signed pkg, verify it, run the
@@ -76,68 +155,33 @@ struct DaemonGateView<Content: View>: View {
     /// GitHub-releases route stays as a secondary link for users who'd rather run the pkg
     /// themselves.
     private struct InstallGate: View {
-        @Environment(ContainerServiceBase.self) private var service
+        let onConfirm: () -> Void
         @State private var showInstallConfirm = false
-        @State private var isInstalling = false
-        @State private var logLines: [String] = []
-        @State private var errorMessage: String?
 
         var body: some View {
-            Group {
-                if isInstalling {
-                    ProgressLogScreen(
-                        message: "Installing container v\(ContainerCompatibility.requiredVersion)…",
-                        logLines: logLines
-                    )
-                } else {
-                    ContentUnavailableView {
-                        Label("Container Not Installed", systemImage: "shippingbox")
-                    } description: {
-                        Text("Berthly manages containers through Apple's container tool, which isn't installed on this Mac.")
-                    } actions: {
-                        VStack(spacing: 8) {
-                            Button("Install container v\(ContainerCompatibility.requiredVersion)…") {
-                                showInstallConfirm = true
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .accessibilityIdentifier("installContainerButton")
-
-                            Button("Download manually from GitHub…") {
-                                NSWorkspace.shared.open(URL(string: "https://github.com/apple/container/releases/latest")!)
-                            }
-                            .buttonStyle(.link)
-                        }
+            ContentUnavailableView {
+                Label("Container Not Installed", systemImage: "shippingbox")
+            } description: {
+                Text("Berthly manages containers through Apple's container tool, which isn't installed on this Mac.")
+            } actions: {
+                VStack(spacing: 8) {
+                    Button("Install container v\(ContainerCompatibility.requiredVersion)…") {
+                        showInstallConfirm = true
                     }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("installContainerButton")
+
+                    Button("Download manually from GitHub…") {
+                        NSWorkspace.shared.open(URL(string: "https://github.com/apple/container/releases/latest")!)
+                    }
+                    .buttonStyle(.link)
                 }
             }
             .alert("Install container v\(ContainerCompatibility.requiredVersion)?", isPresented: $showInstallConfirm) {
-                Button("Install") { startInstall() }
+                Button("Install") { onConfirm() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Berthly downloads Apple's signed installer package from GitHub, verifies it, and installs it. You'll be asked for your admin password.")
-            }
-            .alert("Install Failed", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-        }
-
-        private func startInstall() {
-            isInstalling = true
-            logLines = []
-            Task {
-                do {
-                    try await service.installContainer { line in
-                        logLines.append(line)
-                    }
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
-                isInstalling = false
             }
         }
     }
@@ -146,63 +190,31 @@ struct DaemonGateView<Content: View>: View {
 
     /// The version-mismatch gate blocks every page — including the System page, where the update
     /// button normally lives — so the fix has to be offered right here or the user is stuck being
-    /// told to update with no way to do it. Reuses `service.upgradeContainer` (the System page's
-    /// flow): stop daemon → run the upstream update script with an admin prompt → restart.
+    /// told to update with no way to do it. Confirms, then hands off to `service.upgradeContainer`
+    /// (stop daemon → run the upstream update script with an admin prompt → restart).
     private struct VersionMismatchGate: View {
         let installed: String
         let required: String
-        @Environment(ContainerServiceBase.self) private var service
+        let onConfirm: () -> Void
         @State private var showUpdateConfirm = false
-        @State private var isUpdating = false
-        @State private var logLines: [String] = []
-        @State private var errorMessage: String?
 
         var body: some View {
-            Group {
-                if isUpdating {
-                    ProgressLogScreen(message: "Updating container to v\(required)…", logLines: logLines)
-                } else {
-                    ContentUnavailableView {
-                        Label("Update Required", systemImage: "exclamationmark.triangle")
-                    } description: {
-                        Text("Installed: v\(installed) · Required: v\(required) or newer")
-                    } actions: {
-                        Button("Update Container to v\(required)…") {
-                            showUpdateConfirm = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("updateContainerButton")
-                    }
+            ContentUnavailableView {
+                Label("Update Required", systemImage: "exclamationmark.triangle")
+            } description: {
+                Text("Installed: v\(installed) · Required: v\(required) or newer")
+            } actions: {
+                Button("Update Container to v\(required)…") {
+                    showUpdateConfirm = true
                 }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("updateContainerButton")
             }
             .alert("Update container to v\(required)?", isPresented: $showUpdateConfirm) {
-                Button("Update", role: .destructive) { startUpdate() }
+                Button("Update", role: .destructive) { onConfirm() }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password.")
-            }
-            .alert("Update Failed", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-        }
-
-        private func startUpdate() {
-            isUpdating = true
-            logLines = []
-            Task {
-                do {
-                    try await service.upgradeContainer { line in
-                        logLines.append(line)
-                    }
-                } catch {
-                    errorMessage = error.localizedDescription
-                }
-                isUpdating = false
             }
         }
     }
@@ -228,11 +240,15 @@ struct DaemonGateView<Content: View>: View {
 
     // MARK: - Shared progress + log screen
 
-    /// Spinner, status line, and a scrolling monospaced log — shared by the install and update
-    /// flows so both privileged operations report progress identically.
-    private struct ProgressLogScreen: View {
+    /// Spinner, status line, scrolling monospaced log, and a Cancel button — shared by the
+    /// install and update flows so both privileged operations report progress identically.
+    /// The update script's output only arrives when it finishes (`do shell script` doesn't
+    /// stream), so the hint below the spinner is what tells the user an admin prompt is coming.
+    /// `fileprivate` (not `private`) so the preview at the bottom of this file can render it.
+    fileprivate struct ProgressLogScreen: View {
         let message: String
         let logLines: [String]
+        let onCancel: () -> Void
 
         var body: some View {
             VStack(spacing: 14) {
@@ -241,6 +257,10 @@ struct DaemonGateView<Content: View>: View {
                 Text(message)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("operationProgressMessage")
+                Text("You may be asked for your admin password. This can take a few minutes.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
                 if !logLines.isEmpty {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 2) {
@@ -257,6 +277,10 @@ struct DaemonGateView<Content: View>: View {
                     .background(.background, in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
                 }
+                Button("Cancel", role: .cancel) {
+                    onCancel()
+                }
+                .accessibilityIdentifier("cancelOperationButton")
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -327,5 +351,18 @@ struct DaemonGateView<Content: View>: View {
         Text("Live content here")
     }
     .environment(MockContainerService() as ContainerServiceBase)
+    .frame(width: 600, height: 500)
+}
+
+#Preview("Operation in progress") {
+    DaemonGateView<Text>.ProgressLogScreen(
+        message: "Updating container to v1.1.0…",
+        logLines: [
+            "Updating to release version 1.1.0",
+            "Downloading package from: https://github.com/apple/container/releases/…",
+            "Installing package to /usr/local…",
+        ],
+        onCancel: {}
+    )
     .frame(width: 600, height: 500)
 }
