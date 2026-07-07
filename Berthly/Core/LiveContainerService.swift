@@ -295,20 +295,85 @@ final class LiveContainerService: ContainerServiceBase {
             throw ContainerizationError(.invalidState, message: "Couldn't stop the container daemon before upgrading.")
         }
 
-        try await Self.runPrivilegedUpdateScript(version: ContainerCompatibility.requiredVersion, onLog: onLog)
+        try await Self.runPrivilegedShellCommand(
+            "/usr/local/bin/update-container.sh -v \(ContainerCompatibility.requiredVersion)",
+            onLog: onLog
+        )
 
         await startDaemon()
     }
 
-    /// Runs `update-container.sh` elevated via `osascript ... with administrator privileges`,
+    /// First-time install: downloads the pinned release's signed installer pkg, verifies its
+    /// signature, and runs `installer` elevated. The upstream `update-container.sh` can't be used
+    /// here — that script is installed *by* the pkg, so on a machine without `container` it
+    /// doesn't exist yet. `startDaemon()` afterwards bootstraps the default kernel, so a fresh
+    /// Mac goes straight to a working setup.
+    override func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        let version = ContainerCompatibility.requiredVersion
+        let pkgName = "container-\(version)-installer-signed.pkg"
+        let url = URL(string: "https://github.com/apple/container/releases/download/\(version)/\(pkgName)")!
+
+        onLog("Downloading \(pkgName)…")
+        let pkgPath = try await Self.downloadFile(from: url, suggestedName: pkgName)
+        onLog("Downloaded to \(pkgPath)")
+
+        onLog("Verifying package signature…")
+        try await Self.verifyPackageSignature(at: pkgPath)
+        onLog("Signature OK (signed by Apple)")
+
+        try await Self.runPrivilegedShellCommand(
+            "/usr/sbin/installer -pkg \(pkgPath) -target /",
+            onLog: onLog
+        )
+
+        onLog("Starting container system…")
+        await startDaemon()
+    }
+
+    private nonisolated static func downloadFile(from url: URL, suggestedName: String) async throws -> String {
+        let (tempURL, response) = try await URLSession.shared.download(from: url)
+        if let http = response as? HTTPURLResponse, http.statusCode != 200 {
+            throw ContainerizationError(
+                .internalError,
+                message: "Download failed (HTTP \(http.statusCode)) for \(url.absoluteString)"
+            )
+        }
+        let destination = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedName)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: tempURL, to: destination)
+        return destination.path
+    }
+
+    /// Refuses to hand a pkg to the elevated installer unless `pkgutil` confirms it's signed by
+    /// Apple — a hijacked download (or a truncated file) must fail here, before the admin prompt.
+    private nonisolated static func verifyPackageSignature(at pkgPath: String) async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil")
+        process.arguments = ["--check-signature", pkgPath]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        guard process.terminationStatus == 0,
+              output.contains("signed by a developer certificate issued by Apple") || output.contains("signed Apple Software") else {
+            throw ContainerizationError(
+                .internalError,
+                message: "The downloaded installer package failed signature verification — refusing to install it.\n\(output)"
+            )
+        }
+    }
+
+    /// Runs a shell command elevated via `osascript ... with administrator privileges`,
     /// which shows the native macOS admin-password dialog — no custom UI, no deprecated
     /// `AuthorizationExecuteWithPrivileges`. `nonisolated` so the blocking-until-exit machinery
     /// below never touches the main thread; `onLog` hops back to `MainActor` per line.
-    private nonisolated static func runPrivilegedUpdateScript(
-        version: String,
+    private nonisolated static func runPrivilegedShellCommand(
+        _ shellCommand: String,
         onLog: @MainActor @escaping (String) -> Void
     ) async throws {
-        let shellCommand = "/usr/local/bin/update-container.sh -v \(version)"
         let appleScript = "do shell script \"\(shellCommand)\" with administrator privileges"
 
         let process = Process()
@@ -341,7 +406,7 @@ final class LiveContainerService: ContainerServiceBase {
                     } else {
                         continuation.resume(throwing: ContainerizationError(
                             .internalError,
-                            message: "container update failed (exit code \(finishedProcess.terminationStatus)) — the admin prompt may have been cancelled, or the update script failed."
+                            message: "The elevated command failed (exit code \(finishedProcess.terminationStatus)) — the admin prompt may have been cancelled, or the command itself failed."
                         ))
                     }
                 }

@@ -568,27 +568,59 @@ struct MachineHomeMountMappingTests {
 struct ContainerCompatibilityTests {
 
     @Test func exactMatchIsCompatible() {
-        #expect(ContainerCompatibility.isCompatible(installed: "1.0.0", required: "1.0.0"))
+        #expect(ContainerCompatibility.isCompatible(installed: "1.1.0", required: "1.1.0"))
     }
 
     @Test func patchDifferenceIsCompatible() {
-        #expect(ContainerCompatibility.isCompatible(installed: "1.0.7", required: "1.0.0"))
+        #expect(ContainerCompatibility.isCompatible(installed: "1.1.7", required: "1.1.0"))
+        #expect(ContainerCompatibility.isCompatible(installed: "1.1.0", required: "1.1.3"))
     }
 
-    @Test func minorDifferenceIsIncompatible() {
-        #expect(!ContainerCompatibility.isCompatible(installed: "1.1.0", required: "1.0.0"))
+    // Post-1.0 semver: a daemon with a newer minor is additive and safe for this client.
+    @Test func newerMinorIsCompatible() {
+        #expect(ContainerCompatibility.isCompatible(installed: "1.2.0", required: "1.1.0"))
+    }
+
+    @Test func olderMinorIsIncompatible() {
+        #expect(!ContainerCompatibility.isCompatible(installed: "1.0.4", required: "1.1.0"))
     }
 
     @Test func majorDifferenceIsIncompatible() {
-        #expect(!ContainerCompatibility.isCompatible(installed: "2.0.0", required: "1.0.0"))
+        #expect(!ContainerCompatibility.isCompatible(installed: "2.0.0", required: "1.1.0"))
+        #expect(!ContainerCompatibility.isCompatible(installed: "0.9.0", required: "1.1.0"))
     }
 
     @Test func untaggedBuildSuffixIsIgnored() {
-        #expect(ContainerCompatibility.isCompatible(installed: "1.0.0-3-gabcdef", required: "1.0.0"))
+        #expect(ContainerCompatibility.isCompatible(installed: "1.1.0-3-gabcdef", required: "1.1.0"))
     }
 
     @Test func malformedVersionIsIncompatible() {
-        #expect(!ContainerCompatibility.isCompatible(installed: "not-a-version", required: "1.0.0"))
+        #expect(!ContainerCompatibility.isCompatible(installed: "not-a-version", required: "1.1.0"))
+    }
+
+    // Mismatch direction decides which gate the user sees: tooOld offers the in-place update,
+    // tooNew must never touch the install (upstream can't downgrade in place).
+    @Test func mismatchIsNilWhenCompatible() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.1.0", required: "1.1.0") == nil)
+        #expect(ContainerCompatibility.mismatch(installed: "1.2.0", required: "1.1.0") == nil)
+    }
+
+    @Test func mismatchOlderMinorIsTooOld() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.0.4", required: "1.1.0") == .tooOld)
+    }
+
+    @Test func mismatchOlderMajorIsTooOld() {
+        #expect(ContainerCompatibility.mismatch(installed: "0.9.0", required: "1.1.0") == .tooOld)
+    }
+
+    @Test func mismatchNewerMajorIsTooNew() {
+        #expect(ContainerCompatibility.mismatch(installed: "2.0.0", required: "1.1.0") == .tooNew)
+    }
+
+    // A newer minor within the same major is compatible, so the only way "newer" mismatches is
+    // by major — there is no tooNew inside major 1.
+    @Test func mismatchMalformedIsTooOld() {
+        #expect(ContainerCompatibility.mismatch(installed: "garbage", required: "1.1.0") == .tooOld)
     }
 
     // Regression: `apiServerVersion` from the health-check ping is `ReleaseVersion.singleLine`'s

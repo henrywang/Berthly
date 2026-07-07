@@ -62,9 +62,19 @@ private struct DaemonVersionSection: View {
     @State private var logLines: [String] = []
     @State private var errorMessage: String?
 
-    private var isCompatible: Bool {
-        guard let installed = service.installedContainerVersion else { return true }
-        return ContainerCompatibility.isCompatible(installed: installed)
+    private var mismatch: ContainerCompatibility.Mismatch? {
+        guard let installed = service.installedContainerVersion else { return nil }
+        return ContainerCompatibility.mismatch(installed: installed)
+    }
+
+    private var isCompatible: Bool { mismatch == nil }
+
+    private var statusText: String {
+        switch mismatch {
+        case nil: "Up to date"
+        case .tooOld: "Update available"
+        case .tooNew: "Newer than Berthly supports"
+        }
     }
 
     var body: some View {
@@ -73,7 +83,7 @@ private struct DaemonVersionSection: View {
                 HStack(spacing: 5) {
                     Image(systemName: isCompatible ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
                         .imageScale(.small)
-                    Text(isCompatible ? "Up to date" : "Update available")
+                    Text(statusText)
                         .font(.callout.weight(.medium))
                 }
                 .foregroundStyle(isCompatible ? Color.statusRunning : Color.statusError)
@@ -91,7 +101,10 @@ private struct DaemonVersionSection: View {
             }
             .disabled(isStopping || isUpdating)
 
-            if !isCompatible {
+            // Only an out-of-date install is fixable from here — a *newer*-major container can't
+            // be downgraded in place (upstream requires a full uninstall), so the status row's
+            // "Newer than Berthly supports" text is the whole story for that case.
+            if mismatch == .tooOld {
                 Button("Update Container to v\(ContainerCompatibility.requiredVersion)…") {
                     showUpdateConfirm = true
                 }

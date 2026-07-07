@@ -68,13 +68,13 @@
     "Add a volume, or one created by a container will appear here." : {
 
     },
-    "Add Network" : {
+    "Add Network…" : {
 
     },
-    "Add registry" : {
+    "Add Registry…" : {
 
     },
-    "Add Volume" : {
+    "Add Volume…" : {
 
     },
     "Advanced" : {
@@ -104,7 +104,10 @@
     "Berthly" : {
 
     },
-    "Berthly manages containers through Apple's container CLI, which isn't installed on this Mac.\nOnce installed, Berthly detects it automatically." : {
+    "Berthly downloads Apple's signed installer package from GitHub, verifies it, and installs it. You'll be asked for your admin password." : {
+
+    },
+    "Berthly manages containers through Apple's container tool, which isn't installed on this Mac." : {
 
     },
     "Boot immediately" : {
@@ -117,6 +120,9 @@
 
     },
     "Build" : {
+
+    },
+    "Build an image from a Dockerfile" : {
 
     },
     "Build context" : {
@@ -165,6 +171,9 @@
 
     },
     "Close" : {
+
+    },
+    "Collecting…" : {
 
     },
     "Command" : {
@@ -263,12 +272,6 @@
     "Create" : {
 
     },
-    "Create a new network" : {
-
-    },
-    "Create a new volume" : {
-
-    },
     "Create Machine" : {
 
     },
@@ -350,6 +353,9 @@
     "Done" : {
 
     },
+    "Download manually from GitHub…" : {
+
+    },
     "e.g. 1g" : {
 
     },
@@ -428,9 +434,6 @@
     "General" : {
 
     },
-    "Get container…" : {
-
-    },
     "Hide token" : {
 
     },
@@ -467,18 +470,30 @@
     "INSPECT" : {
 
     },
+    "Install" : {
+
+    },
+    "Install container v%@?" : {
+
+    },
+    "Install container v%@…" : {
+
+    },
+    "Install Failed" : {
+
+    },
     "Installed" : {
 
     },
     "Installed container doesn't match the version Berthly requires — open Berthly to update" : {
 
     },
-    "Installed: v%@ · Required: v%@" : {
+    "Installed: v%@ · Required: v%@ or newer" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "Installed: v%1$@ · Required: v%2$@"
+            "value" : "Installed: v%1$@ · Required: v%2$@ or newer"
           }
         }
       }
@@ -630,6 +645,9 @@
     "Pull" : {
 
     },
+    "Pull an image from a registry" : {
+
+    },
     "Pull Image" : {
 
     },
@@ -690,6 +708,9 @@
     "Retry" : {
 
     },
+    "Reuse an existing tag" : {
+
+    },
     "Reused on next push & pull · never written to config.toml" : {
 
     },
@@ -700,6 +721,9 @@
 
     },
     "Run" : {
+
+    },
+    "Run a container or create a machine" : {
 
     },
     "Run a container or create a machine to get started." : {
@@ -882,6 +906,16 @@
     "The exact vminit and builder image versions this install of Berthly is built against — these must match what the installed container CLI expects." : {
 
     },
+    "The installed container (v%@) is newer than this version of Berthly supports (v%@).\nUpdate Berthly to keep using it — your container installation won't be touched." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "The installed container (v%1$@) is newer than this version of Berthly supports (v%2$@).\nUpdate Berthly to keep using it — your container installation won't be touched."
+          }
+        }
+      }
+    },
     "This action cannot be undone." : {
 
     },
@@ -949,13 +983,10 @@
     "Unpin" : {
 
     },
-    "Up to date" : {
-
-    },
     "Update" : {
 
     },
-    "Update available" : {
+    "Update Berthly" : {
 
     },
     "Update container to v%@?" : {
@@ -968,9 +999,6 @@
 
     },
     "Update Required" : {
-
-    },
-    "Updating container to v%@…" : {
 
     },
     "Use Recommended" : {
@@ -989,6 +1017,9 @@
 
     },
     "v%@" : {
+
+    },
+    "View" : {
 
     },
     "VM Init Image" : {

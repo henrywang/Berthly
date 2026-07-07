@@ -138,6 +138,35 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
+    /// First-launch guided install: the notInstalled gate offers an in-app install, which (in
+    /// the mock) fakes download/verify/install and then connects. Asserts the full path from
+    /// "Container Not Installed" through the confirm alert to connected content.
+    @MainActor
+    func testNotInstalledGateInstallsAndConnects() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "notInstalled"
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["Container Not Installed"].waitForExistence(timeout: 10))
+        let installButton = app.buttons["installContainerButton"]
+        XCTAssertTrue(installButton.exists)
+
+        installButton.click()
+
+        // The confirmation alert's Install button — matched by title within the alert sheet
+        // (a bare app.buttons["Install"] also matches the TouchBar's copy of the default button),
+        // since SwiftUI alert buttons don't reliably surface accessibility identifiers on macOS.
+        let confirmButton = app.sheets.firstMatch.buttons["Install"]
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Install confirmation alert should appear")
+        confirmButton.click()
+
+        // Mock installContainer streams fake progress, then startDaemon() lands on connected —
+        // the gate swaps to the seeded compute list.
+        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.buttons["installContainerButton"].exists)
+    }
+
     /// The Run button opens a popover with both choices before landing on either sheet — pure UI
     /// state with no daemon operation involved, so the mock just needs the toolbar's Run button
     /// enabled. Covers both routes: Container -> RunContainerSheet, Machine -> MachineCreateSheet.

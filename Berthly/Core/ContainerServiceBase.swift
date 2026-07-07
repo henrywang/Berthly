@@ -83,6 +83,9 @@ class ContainerServiceBase {
     func startDaemon() async {}
     func stopDaemon() async {}
     func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
+    /// First-time guided install of the `container` toolchain: download the pinned release's
+    /// signed pkg, verify its signature, run the installer (admin prompt), then start the daemon.
+    func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
     func refresh() async {}
 
     func fetchDiskUsage() async throws {}

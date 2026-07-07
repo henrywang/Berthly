@@ -402,6 +402,17 @@ final class MockContainerService: ContainerServiceBase {
         await startDaemon()
     }
 
+    override func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        onLog("Downloading container-\(ContainerCompatibility.requiredVersion)-installer-signed.pkg…")
+        try? await Task.sleep(for: .milliseconds(200))
+        onLog("Verifying package signature…")
+        try? await Task.sleep(for: .milliseconds(200))
+        onLog("Installing…")
+        try? await Task.sleep(for: .milliseconds(200))
+        installedContainerVersion = ContainerCompatibility.requiredVersion
+        await startDaemon()
+    }
+
     override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
         let layerCount = 8
         let totalBytes: Int64 = 145_000_000
