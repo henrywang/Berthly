@@ -8,7 +8,11 @@ import Foundation
 /// newer minor is additive and safe to talk to, an older daemon may lack APIs this client calls,
 /// and a different major may break the wire protocol. So compatibility is: same major, and
 /// installed minor >= required minor. Patch releases are ignored.
-enum ContainerCompatibility {
+///
+/// `nonisolated`: pure string comparison with no shared state — without it, the module's
+/// MainActor default isolation makes `Mismatch`'s `Equatable` conformance actor-isolated,
+/// which nonisolated callers (e.g. test suites) warn on under Swift 6 checking.
+nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
     static let requiredVersion = "1.1.0"
 

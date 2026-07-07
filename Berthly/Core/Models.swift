@@ -9,7 +9,10 @@ enum ComputeItem: Hashable {
 
 // MARK: - Daemon
 
-enum DaemonState: Equatable {
+/// `nonisolated`: pure value type — without it, the module's MainActor default isolation makes
+/// the `Equatable` conformance actor-isolated, which nonisolated callers (e.g. test suites)
+/// warn on under Swift 6 checking.
+nonisolated enum DaemonState: Equatable {
     case checking
     case notInstalled
     case installedButStopped

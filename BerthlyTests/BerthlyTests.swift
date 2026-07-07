@@ -724,6 +724,18 @@ struct MockContainerServiceTests {
         }
     }
 
+    /// The install log must mention the first-run kernel bootstrap — the live flow downloads it
+    /// silently inside `startDaemon`, and the log line is the only user-visible sign of it.
+    @Test func installContainerLogsKernelBootstrapAndConnects() async throws {
+        let mock = MockContainerService()
+        mock.daemonState = .notInstalled
+        var logs: [String] = []
+        try await mock.installContainer { logs.append($0) }
+        #expect(logs.contains { $0.contains("kernel") })
+        #expect(mock.daemonState.isConnectedCase)
+        #expect(mock.installedContainerVersion == ContainerCompatibility.requiredVersion)
+    }
+
     @Test func startContainerFlipsStatusToRunning() async throws {
         let mock = MockContainerService()
         guard let stopped = mock.containers.first(where: { $0.status == .stopped }) else {

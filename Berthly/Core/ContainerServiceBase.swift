@@ -80,7 +80,9 @@ class ContainerServiceBase {
     func deleteNetwork(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
-    func startDaemon() async {}
+    /// `onLog` reports slow first-run bootstrap steps (kernel/vminit downloads) that otherwise
+    /// happen silently inside daemon startup — the guided install flow shows them in its log.
+    func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {}
     func stopDaemon() async {}
     func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
     /// First-time guided install of the `container` toolchain: download the pinned release's

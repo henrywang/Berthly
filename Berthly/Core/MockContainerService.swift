@@ -381,7 +381,7 @@ final class MockContainerService: ContainerServiceBase {
         ))
     }
 
-    override func startDaemon() async {
+    override func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {
         daemonState = .connecting
         try? await Task.sleep(for: .milliseconds(200))
         daemonState = .connected
@@ -413,6 +413,11 @@ final class MockContainerService: ContainerServiceBase {
         try? await Task.sleep(for: .milliseconds(400))
         onLog("Installing…")
         try? await Task.sleep(for: .milliseconds(400))
+        // The live service reports the first-run kernel/vminit bootstrap downloads through the
+        // same log — mirror one so the mock's install log reads like the real flow's.
+        onLog("Downloading default kernel…")
+        try? await Task.sleep(for: .milliseconds(400))
+        onLog("Default kernel installed")
         installedContainerVersion = ContainerCompatibility.requiredVersion
         await startDaemon()
     }

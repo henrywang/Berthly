@@ -4,7 +4,11 @@ import Foundation
 /// hands back cumulative counters; turning those into a CPU percentage / network rate is delta
 /// math that runs in `OverviewTab`'s poll loop. Extracted here so it's testable without a live
 /// `ContainerClient` connection (per CLAUDE.md: logic doesn't belong trapped in a view).
-enum ContainerStatsMath {
+///
+/// `nonisolated`: pure math — without it, the module's MainActor default isolation makes
+/// `Trend`'s `Equatable` conformance actor-isolated, which nonisolated callers (e.g. test
+/// suites) warn on under Swift 6 checking.
+nonisolated enum ContainerStatsMath {
     /// Direction of a metric series over its trailing sparkline window.
     enum Trend: Equatable {
         case stable

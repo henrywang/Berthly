@@ -168,10 +168,11 @@ final class LiveContainerService: ContainerServiceBase {
 
     /// Native (launchd, no CLI shelling) implementation of `container system start`: registers
     /// (or restarts) the `container-apiserver` launchd service, waits for it to respond, and
-    /// bootstraps the vminit filesystem image and default kernel on first run — silently, since
-    /// this app has no interactive terminal to ask the CLI's "install the kernel? [Y/n]" prompt,
-    /// and a daemon without a kernel can't run anything anyway.
-    override func startDaemon() async {
+    /// bootstraps the vminit filesystem image and default kernel on first run — without asking,
+    /// since this app has no interactive terminal for the CLI's "install the kernel? [Y/n]"
+    /// prompt, and a daemon without a kernel can't run anything anyway. Those bootstrap
+    /// downloads are sizeable, so they report to `onLog` when a caller provides one.
+    override func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {
         guard !isStarting, !isStopping else { return }
         guard FileManager.default.fileExists(atPath: Self.apiServerExecutablePath) else {
             daemonState = .notInstalled
@@ -192,8 +193,8 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         let containerSystemConfig = await resolvedSystemConfig()
-        await installVminitImageIfNeeded(containerSystemConfig: containerSystemConfig)
-        await installDefaultKernelIfNeeded(containerSystemConfig: containerSystemConfig)
+        await installVminitImageIfNeeded(containerSystemConfig: containerSystemConfig, onLog: onLog)
+        await installDefaultKernelIfNeeded(containerSystemConfig: containerSystemConfig, onLog: onLog)
 
         // Clear before polling — `poll()` no-ops while `isStarting` is true, so this must happen
         // before the call below, not in a `defer` (which wouldn't fire until after `poll()` returns).
@@ -320,7 +321,7 @@ final class LiveContainerService: ContainerServiceBase {
             throw error
         }
 
-        await startDaemon()
+        await startDaemon(onLog: onLog)
     }
 
     /// First-time install: downloads the pinned release's signed installer pkg, verifies its
@@ -347,7 +348,7 @@ final class LiveContainerService: ContainerServiceBase {
         )
 
         onLog("Starting container system…")
-        await startDaemon()
+        await startDaemon(onLog: onLog)
     }
 
     private nonisolated static func downloadFile(from url: URL, suggestedName: String) async throws -> String {
@@ -564,12 +565,16 @@ final class LiveContainerService: ContainerServiceBase {
     /// `SystemStart.installInitialFilesystem`. Soft-fails (logs only) like the CLI does, since a
     /// hiccup here shouldn't block the daemon from reporting connected; a later operation that
     /// actually needs it will surface a clearer error at that point.
-    private func installVminitImageIfNeeded(containerSystemConfig: ContainerSystemConfig) async {
+    private func installVminitImageIfNeeded(
+        containerSystemConfig: ContainerSystemConfig,
+        onLog: (@MainActor (String) -> Void)? = nil
+    ) async {
         let reference = containerSystemConfig.vminit.image
         if let existing = try? await ClientImage.get(reference: reference, containerSystemConfig: containerSystemConfig),
            (try? await existing.getSnapshot(platform: .current)) != nil {
             return
         }
+        onLog?("Downloading base container filesystem (\(reference))…")
         do {
             let image = try await ClientImage.pull(
                 reference: reference,
@@ -579,17 +584,23 @@ final class LiveContainerService: ContainerServiceBase {
                 progressUpdate: nil
             )
             try await image.unpack(platform: nil)
+            onLog?("Base container filesystem installed")
         } catch {
             Self.log.error("failed to install base container filesystem", metadata: ["error": "\(error)"])
             lastStartupWarning = "Couldn't install the base container filesystem: \(error.localizedDescription)"
+            onLog?("Couldn't install the base container filesystem: \(error.localizedDescription)")
         }
     }
 
     /// Downloads and installs the recommended default kernel if none is configured yet — mirrors
     /// `SystemStart.installDefaultKernel`, but always installs rather than prompting (see
     /// `startDaemon`'s doc comment for why). Soft-fails like `installVminitImageIfNeeded`.
-    private func installDefaultKernelIfNeeded(containerSystemConfig: ContainerSystemConfig) async {
+    private func installDefaultKernelIfNeeded(
+        containerSystemConfig: ContainerSystemConfig,
+        onLog: (@MainActor (String) -> Void)? = nil
+    ) async {
         guard (try? await ClientKernel.getDefaultKernel(for: .current)) == nil else { return }
+        onLog?("Downloading default kernel from \(containerSystemConfig.kernel.url.absoluteString)…")
         do {
             try await ClientKernel.installKernelFromTar(
                 tarFile: containerSystemConfig.kernel.url.absoluteString,
@@ -598,9 +609,11 @@ final class LiveContainerService: ContainerServiceBase {
                 progressUpdate: nil,
                 force: true
             )
+            onLog?("Default kernel installed")
         } catch {
             Self.log.error("failed to install default kernel", metadata: ["error": "\(error)"])
             lastStartupWarning = "Couldn't install the default kernel: \(error.localizedDescription)"
+            onLog?("Couldn't install the default kernel: \(error.localizedDescription)")
         }
     }
 
