@@ -1607,21 +1607,33 @@ final class LiveContainerService: ContainerServiceBase {
     private func dialOrStartBuilder(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
-        memory: String?
+        memory: String?,
+        onLog: @MainActor @escaping (String) -> Void
     ) async throws -> ContainerBuild.Builder {
         let deadline = Date().addingTimeInterval(300)
+        // Whether we've had to start the builder this call. Gates the user-facing messages so the
+        // common fast path (builder already running → first dial succeeds) stays silent, and the
+        // retry loop announces the start exactly once instead of on every failed dial.
+        var announcedStart = false
         while true {
             do {
                 let socket = try await ContainerClient().dial(id: ContainerBuild.Builder.builderContainerId, port: 8088)
                 let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
                 let builder = try ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
                 _ = try await builder.info()
+                if announcedStart { onLog("Build environment ready.") }
                 return builder
             } catch {
                 guard Date() < deadline else {
                     throw ContainerizationError(.timeout, message: "Timed out waiting for the builder to start.")
                 }
-                try await startBuilderContainer(containerSystemConfig: containerSystemConfig, cpus: cpus, memory: memory)
+                // Without this, the build log sits empty through the builder image download and VM
+                // boot (tens of seconds on first build) and looks hung.
+                if !announcedStart {
+                    onLog("Starting the build environment…")
+                    announcedStart = true
+                }
+                try await startBuilderContainer(containerSystemConfig: containerSystemConfig, cpus: cpus, memory: memory, onLog: onLog)
                 try await Task.sleep(for: .seconds(5))
             }
         }
@@ -1634,7 +1646,8 @@ final class LiveContainerService: ContainerServiceBase {
     private func startBuilderContainer(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
-        memory: String?
+        memory: String?,
+        onLog: @MainActor @escaping (String) -> Void
     ) async throws {
         let builderImage = containerSystemConfig.build.image
         let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
@@ -1681,7 +1694,17 @@ final class LiveContainerService: ContainerServiceBase {
 
         try Utility.validEntityName(builderContainerId)
 
-        let image = try await ClientImage.fetch(reference: builderImage, platform: builderPlatform, containerSystemConfig: containerSystemConfig)
+        // The slow part on first build. `fetch` streams size events only when it actually pulls —
+        // a cached image resolves via `get` with no events — so the reporter emits its throttled
+        // "Downloading builder image… N MB" progress lines exactly when a real download happens,
+        // and stays silent otherwise (no misleading line on the cached path).
+        let pullReporter = BuilderPullReporter(imageReference: builderImage, onLog: onLog)
+        let image = try await ClientImage.fetch(
+            reference: builderImage,
+            platform: builderPlatform,
+            containerSystemConfig: containerSystemConfig,
+            progressUpdate: pullReporter.handler
+        )
         _ = try await image.getCreateSnapshot(platform: builderPlatform)
 
         let imageDesc = ImageDescription(reference: builderImage, descriptor: image.descriptor)
@@ -1778,7 +1801,7 @@ final class LiveContainerService: ContainerServiceBase {
         let platforms = try Self.buildPlatforms(for: options)
 
         let containerSystemConfig = await resolvedSystemConfig()
-        let builder = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig, cpus: options.cpus.map { Int64($0) }, memory: options.memory)
+        let builder = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig, cpus: options.cpus.map { Int64($0) }, memory: options.memory, onLog: onLog)
 
         let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
         let buildID = UUID().uuidString
