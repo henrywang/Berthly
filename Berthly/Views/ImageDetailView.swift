@@ -237,7 +237,7 @@ private struct PlatformsSection: View {
 // MARK: - Generic key/value rows
 
 private struct InspectSection: View {
-    let title: String
+    let title: LocalizedStringKey
     let rows: [(String, String)]
     let monoKeys: [String]
 
@@ -273,7 +273,7 @@ private struct InspectSection: View {
 // MARK: - Mono list (env vars)
 
 private struct MonoListSection: View {
-    let title: String
+    let title: LocalizedStringKey
     let items: [String]
 
     var body: some View {

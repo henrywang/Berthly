@@ -34,6 +34,21 @@ private enum RunCategory: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    /// Localizable display title. A `switch` of string literals (rather than reusing `rawValue`)
+    /// so each name is extracted into the String Catalog — `LocalizedStringKey(rawValue)` from a
+    /// runtime string wouldn't be picked up by Xcode's literal extraction.
+    var titleKey: LocalizedStringKey {
+        switch self {
+        case .general:     "General"
+        case .storage:     "Storage"
+        case .network:     "Network"
+        case .dns:         "DNS"
+        case .resources:   "Resources"
+        case .environment: "Environment"
+        case .security:    "Security"
+        }
+    }
+
     var icon: String {
         switch self {
         case .general:     return "gearshape"
@@ -267,7 +282,7 @@ struct RunContainerSheet: View {
                         selectedCategory = category
                     } label: {
                         HStack(spacing: 4) {
-                            Label(category.rawValue, systemImage: category.icon)
+                            Label(category.titleKey, systemImage: category.icon)
                                 .font(.callout)
                             Spacer(minLength: 4)
                             // With 7 tabs it's easy to forget a value set three tabs ago —

@@ -32,7 +32,7 @@ struct SystemView: View {
 // MARK: - Shared
 
 /// A grouped-form section header: small SF Symbol + title, matching System Settings.
-private func sectionHeader(_ title: String, systemImage: String) -> some View {
+private func sectionHeader(_ title: LocalizedStringKey, systemImage: String) -> some View {
     Label(title, systemImage: systemImage)
 }
 
@@ -579,6 +579,7 @@ private struct DaemonLogView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("Copy all logs to the clipboard")
+                    .accessibilityLabel("Copy all logs")
                     .padding(8)
                 }
             }

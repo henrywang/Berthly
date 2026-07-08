@@ -177,6 +177,7 @@ private struct ImageRow: View {
                         }
                         .buttonStyle(.hoverIcon)
                         .help("Run from this image")
+                        .accessibilityLabel("Run from this image")
 
                         Button(role: .destructive) { showDeleteConfirm = true } label: {
                             Image(systemName: "trash")

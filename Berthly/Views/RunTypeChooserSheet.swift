@@ -35,8 +35,8 @@ struct RunTypeMenuContent: View {
 private struct RunTypeOption: View {
     let icon: String
     let iconColor: Color
-    let title: String
-    let subtitle: String
+    let title: LocalizedStringKey
+    let subtitle: LocalizedStringKey
     let shortcut: String?
     let action: () -> Void
 

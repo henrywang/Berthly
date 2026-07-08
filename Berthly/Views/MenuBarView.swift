@@ -389,6 +389,7 @@ private struct MenuBarContainerRow: View {
                 .buttonStyle(.hoverIcon)
                 .disabled(isWorking)
                 .help("Restart")
+                .accessibilityLabel("Restart")
                 Button {
                     run { try await service.stopContainer(container.id) }
                 } label: {
@@ -406,6 +407,7 @@ private struct MenuBarContainerRow: View {
                 .buttonStyle(.hoverIcon)
                 .disabled(isWorking)
                 .help("Start")
+                .accessibilityLabel("Start")
             }
         }
         .opacity(isWorking ? 0.5 : 1)
@@ -467,6 +469,7 @@ private struct MenuBarMachineRow: View {
                 .buttonStyle(.hoverIcon)
                 .disabled(isWorking)
                 .help("Start")
+                .accessibilityLabel("Start")
             }
         }
         .opacity(isWorking ? 0.5 : 1)

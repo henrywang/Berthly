@@ -96,6 +96,7 @@ private struct BuildJobRow: View {
                     }
                     .buttonStyle(.plain)
                     .help("Remove from list")
+                    .accessibilityLabel("Remove from list")
                     .opacity(isHovering ? 1 : 0)
                 } else {
                     Button(action: onCancel) {

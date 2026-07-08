@@ -9,7 +9,7 @@ struct KeyValuePair: Identifiable {
 }
 
 struct KeyValueEditor: View {
-    let title: String
+    let title: LocalizedStringKey
     let keyPlaceholder: String
     let valuePlaceholder: String
     @Binding var pairs: [KeyValuePair]
@@ -36,6 +36,7 @@ struct KeyValueEditor: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("Remove")
                     }
                 }
                 Button {
@@ -59,7 +60,7 @@ struct StringEntry: Identifiable {
 }
 
 struct StringListEditor: View {
-    let title: String
+    let title: LocalizedStringKey
     let placeholder: String
     var helpText: String? = nil
     @Binding var entries: [StringEntry]
@@ -82,6 +83,7 @@ struct StringListEditor: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("Remove")
                     }
                 }
                 Button {
@@ -116,7 +118,7 @@ struct PortEntry: Identifiable {
 }
 
 struct PortRowsEditor: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var entries: [PortEntry]
 
     var body: some View {
@@ -143,6 +145,7 @@ struct PortRowsEditor: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .accessibilityLabel("Protocol")
                         Button {
                             entries.removeAll { $0.id == entry.id }
                         } label: {
@@ -150,6 +153,7 @@ struct PortRowsEditor: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("Remove")
                         Spacer()
                     }
                 }
@@ -181,7 +185,7 @@ struct MountEntry: Identifiable {
 }
 
 struct MountRowsEditor: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var entries: [MountEntry]
 
     var body: some View {
@@ -197,6 +201,7 @@ struct MountRowsEditor: View {
                         }
                         .labelsHidden()
                         .fixedSize()
+                        .accessibilityLabel("Mount type")
                         if entry.type != .tmpfs {
                             TextField("source", text: $entry.source)
                                 .textFieldStyle(.roundedBorder)
@@ -205,6 +210,7 @@ struct MountRowsEditor: View {
                         Image(systemName: "arrow.right")
                             .foregroundStyle(.tertiary)
                             .font(.caption)
+                            .accessibilityHidden(true)
                         TextField("target path", text: $entry.target)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
@@ -217,6 +223,7 @@ struct MountRowsEditor: View {
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(.secondary)
+                        .accessibilityLabel("Remove")
                     }
                 }
                 Button {
@@ -249,7 +256,7 @@ enum SheetPlatformChoice: String, CaseIterable {
 }
 
 struct PlatformPicker: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var selection: SheetPlatformChoice
 
     var body: some View {

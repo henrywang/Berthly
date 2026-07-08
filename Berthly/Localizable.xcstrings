@@ -68,6 +68,9 @@
     "Add a volume, or one created by a container will appear here." : {
 
     },
+    "Add capabilities" : {
+
+    },
     "Add Network…" : {
 
     },
@@ -125,6 +128,9 @@
     "Build an image from a Dockerfile" : {
 
     },
+    "Build arguments" : {
+
+    },
     "Build context" : {
 
     },
@@ -132,6 +138,9 @@
 
     },
     "Build Image…" : {
+
+    },
+    "Builder" : {
 
     },
     "Builder Image" : {
@@ -185,6 +194,9 @@
     "Compute" : {
 
     },
+    "Config" : {
+
+    },
     "Connection Error" : {
 
     },
@@ -212,6 +224,9 @@
     "Container System Stopped" : {
 
     },
+    "CONTAINERS" : {
+
+    },
     "Containers reach the internet through the host (NAT)." : {
 
     },
@@ -219,6 +234,9 @@
 
     },
     "Copy" : {
+
+    },
+    "Copy all logs" : {
 
     },
     "Copy all logs to the clipboard" : {
@@ -293,6 +311,9 @@
     "Credentials for pushing & pulling images · shared by the daemon and every machine" : {
 
     },
+    "Daemon Logs" : {
+
+    },
     "default" : {
 
     },
@@ -338,7 +359,22 @@
     "DISK" : {
 
     },
+    "Disk Usage" : {
+
+    },
+    "DNS" : {
+
+    },
     "DNS domain" : {
+
+    },
+    "DNS options" : {
+
+    },
+    "DNS search domains" : {
+
+    },
+    "DNS servers" : {
 
     },
     "docker.io" : {
@@ -357,6 +393,9 @@
 
     },
     "Download manually from GitHub…" : {
+
+    },
+    "Drop capabilities" : {
 
     },
     "e.g. 1g" : {
@@ -387,6 +426,15 @@
 
     },
     "Entrypoint override" : {
+
+    },
+    "Env files" : {
+
+    },
+    "Environment" : {
+
+    },
+    "Environment variables" : {
 
     },
     "Error" : {
@@ -440,6 +488,9 @@
     "Hide token" : {
 
     },
+    "History" : {
+
+    },
     "Home directory mount" : {
 
     },
@@ -468,6 +519,9 @@
 
     },
     "Index" : {
+
+    },
+    "Infrastructure Images" : {
 
     },
     "INSPECT" : {
@@ -522,6 +576,9 @@
     "Kernel Binary" : {
 
     },
+    "Labels" : {
+
+    },
     "Launch at login" : {
 
     },
@@ -540,10 +597,19 @@
     "Machine not found" : {
 
     },
+    "MACHINES" : {
+
+    },
     "Memory" : {
 
     },
     "Mode" : {
+
+    },
+    "Mount type" : {
+
+    },
+    "Mounts" : {
 
     },
     "MOUNTS · VIRTIOFS" : {
@@ -565,6 +631,9 @@
 
     },
     "NAT" : {
+
+    },
+    "Network" : {
 
     },
     "Networks" : {
@@ -645,7 +714,19 @@
     "Platform" : {
 
     },
+    "Platforms" : {
+
+    },
+    "Ports" : {
+
+    },
     "Pre-filled from config.toml's recommended kernel — edit to install a different one." : {
+
+    },
+    "Protocol" : {
+
+    },
+    "Provision a full Linux VM" : {
 
     },
     "Provision a new container machine from an image" : {
@@ -702,6 +783,9 @@
     "Registry host" : {
 
     },
+    "Remove" : {
+
+    },
     "Remove from list" : {
 
     },
@@ -712,6 +796,12 @@
 
     },
     "Required" : {
+
+    },
+    "Resource limits (ulimit)" : {
+
+    },
+    "Resources" : {
 
     },
     "Restart" : {
@@ -762,10 +852,19 @@
     "Run…" : {
 
     },
+    "RUNNING %lld" : {
+
+    },
     "RW" : {
 
     },
     "Saves as  %@" : {
+
+    },
+    "Secrets" : {
+
+    },
+    "Security" : {
 
     },
     "Select a section" : {
@@ -873,6 +972,12 @@
     "Stop the machine first" : {
 
     },
+    "STOPPED %lld" : {
+
+    },
+    "Storage" : {
+
+    },
     "Stored in the Keychain · the daemon keeps running." : {
 
     },
@@ -974,6 +1079,9 @@
 
     },
     "This will remove the image from local storage." : {
+
+    },
+    "Tmpfs paths" : {
 
     },
     "Token or password for this host" : {

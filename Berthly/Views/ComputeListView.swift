@@ -378,8 +378,8 @@ private struct StatusGlyph: View {
 // is stronger (secondary vs tertiary) and the type level indents under it so they don't read
 // as the same hierarchy at a glance.
 private struct ComputeSectionHeader: View {
-    let text: String
-    init(_ text: String) { self.text = text }
+    let text: LocalizedStringKey
+    init(_ text: LocalizedStringKey) { self.text = text }
 
     var body: some View {
         Text(text)
@@ -390,9 +390,9 @@ private struct ComputeSectionHeader: View {
 }
 
 private struct ComputeTypeHeader: View {
-    let text: String
+    let text: LocalizedStringKey
     let systemImage: String
-    init(_ text: String, systemImage: String) {
+    init(_ text: LocalizedStringKey, systemImage: String) {
         self.text = text
         self.systemImage = systemImage
     }

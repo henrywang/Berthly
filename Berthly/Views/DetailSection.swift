@@ -4,7 +4,7 @@ import SwiftUI
 /// title matches the section-header convention used across the app's other detail panes
 /// (Image/Machine/Compute detail views).
 struct DetailSection<Content: View>: View {
-    let title: String
+    let title: LocalizedStringKey
     @ViewBuilder let content: () -> Content
 
     var body: some View {

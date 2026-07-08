@@ -57,7 +57,7 @@ struct SidebarView: View {
 
 private struct SidebarRow: View {
     let icon: String
-    let label: String
+    let label: LocalizedStringKey
     var badge: Int? = nil
     var badgeText: String? = nil
     var indent: Bool = false
