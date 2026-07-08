@@ -396,27 +396,36 @@ final class MockContainerService: ContainerServiceBase {
     override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         await stopDaemon()
         onLog("Updating to version \(ContainerCompatibility.requiredVersion)...")
-        // Simulated download/install latency, like pullImage's — also what keeps the progress
-        // screen observable to UI tests asserting it survives the daemon-state transitions.
-        // XCUITest only samples element existence about once per second, so this must hold the
-        // progress screen up for a couple of polls or the assertion races the transition.
-        try? await Task.sleep(for: .seconds(2))
+        do {
+            // Simulated download/install latency, like pullImage's — also what keeps the progress
+            // screen observable to UI tests asserting it survives the daemon-state transitions.
+            // XCUITest only samples element existence about once per second, so this must hold the
+            // progress screen up for a couple of polls or the assertion races the transition.
+            // Cancellation propagates (no `try?`) so the progress screen's Cancel button behaves
+            // like the live service's: abort, and put the daemon back the way we found it.
+            try await Task.sleep(for: .seconds(2))
+        } catch {
+            await startDaemon()
+            throw error
+        }
         onLog("Updated successfully")
         installedContainerVersion = ContainerCompatibility.requiredVersion
         await startDaemon()
     }
 
     override func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        // Cancellation propagates from the sleeps (no `try?`) so Cancel aborts the mock install
+        // like it aborts the live one; nothing is installed yet, so there's nothing to restore.
         onLog("Downloading container-\(ContainerCompatibility.requiredVersion)-installer-signed.pkg…")
-        try? await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(400))
         onLog("Verifying package signature…")
-        try? await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(400))
         onLog("Installing…")
-        try? await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(400))
         // The live service reports the first-run kernel/vminit bootstrap downloads through the
         // same log — mirror one so the mock's install log reads like the real flow's.
         onLog("Downloading default kernel…")
-        try? await Task.sleep(for: .milliseconds(400))
+        try await Task.sleep(for: .milliseconds(400))
         onLog("Default kernel installed")
         installedContainerVersion = ContainerCompatibility.requiredVersion
         await startDaemon()

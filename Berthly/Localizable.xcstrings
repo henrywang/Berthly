@@ -479,6 +479,9 @@
     "Install container v%@…" : {
 
     },
+    "Install Failed" : {
+
+    },
     "Installed" : {
 
     },
@@ -494,6 +497,9 @@
           }
         }
       }
+    },
+    "Installing container v%@…" : {
+
     },
     "Installing…" : {
 
@@ -595,6 +601,9 @@
 
     },
     "OK" : {
+
+    },
+    "Operation Failed" : {
 
     },
     "Optional" : {
@@ -992,7 +1001,13 @@
     "Update Container to v%@…" : {
 
     },
+    "Update Failed" : {
+
+    },
     "Update Required" : {
+
+    },
+    "Updating container to v%@…" : {
 
     },
     "Use Recommended" : {

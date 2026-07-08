@@ -40,7 +40,10 @@ struct DaemonGateView<Content: View>: View {
             }
         }
         .alert(
-            operationError?.title ?? "Operation Failed",
+            // `String(localized:)` throughout the operation strings: they travel through plain
+            // `String` properties into `Text`/`.alert`'s verbatim StringProtocol overloads, so
+            // unlike literals they aren't auto-localized at the point of display.
+            operationError?.title ?? String(localized: "Operation Failed"),
             isPresented: Binding(
                 get: { operationError != nil },
                 set: { if !$0 { operationError = nil } }
@@ -69,8 +72,8 @@ struct DaemonGateView<Content: View>: View {
         case .notInstalled:
             InstallGate {
                 runOperation(
-                    message: "Installing container v\(ContainerCompatibility.requiredVersion)…",
-                    failureTitle: "Install Failed"
+                    message: String(localized: "Installing container v\(ContainerCompatibility.requiredVersion)…"),
+                    failureTitle: String(localized: "Install Failed")
                 ) { service, onLog in
                     try await service.installContainer(onLog: onLog)
                 }
@@ -97,8 +100,8 @@ struct DaemonGateView<Content: View>: View {
                 // but falling into the upgrade gate is the sane answer if it somehow does.
                 VersionMismatchGate(installed: installed, required: required) {
                     runOperation(
-                        message: "Updating container to v\(required)…",
-                        failureTitle: "Update Failed"
+                        message: String(localized: "Updating container to v\(required)…"),
+                        failureTitle: String(localized: "Update Failed")
                     ) { service, onLog in
                         try await service.upgradeContainer(onLog: onLog)
                     }
@@ -161,6 +164,7 @@ struct DaemonGateView<Content: View>: View {
         var body: some View {
             ContentUnavailableView {
                 Label("Container Not Installed", systemImage: "shippingbox")
+                    .accessibilityIdentifier("notInstalledGateTitle")
             } description: {
                 Text("Berthly manages containers through Apple's container tool, which isn't installed on this Mac.")
             } actions: {
@@ -201,6 +205,7 @@ struct DaemonGateView<Content: View>: View {
         var body: some View {
             ContentUnavailableView {
                 Label("Update Required", systemImage: "exclamationmark.triangle")
+                    .accessibilityIdentifier("updateRequiredGateTitle")
             } description: {
                 Text("Installed: v\(installed) · Required: v\(required) or newer")
             } actions: {

@@ -161,7 +161,7 @@ final class BerthlyUITests: XCTestCase {
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "notInstalled"
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Container Not Installed"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["notInstalledGateTitle"].waitForExistence(timeout: 10))
         let installButton = app.buttons["installContainerButton"]
         XCTAssertTrue(installButton.exists)
 
@@ -191,7 +191,7 @@ final class BerthlyUITests: XCTestCase {
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "versionMismatch"
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["Update Required"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["updateRequiredGateTitle"].waitForExistence(timeout: 10))
         app.buttons["updateContainerButton"].click()
 
         let confirmButton = app.sheets.firstMatch.buttons["Update"]

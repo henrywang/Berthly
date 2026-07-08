@@ -657,11 +657,73 @@ struct PrivilegedCommandHelperTests {
         #expect(script.hasSuffix("with administrator privileges"))
     }
 
+    /// A quoted path inside the shell command must not terminate the AppleScript string literal
+    /// early — backslashes and double quotes get escaped for embedding.
+    @Test func appleScriptEscapesQuotesAndBackslashes() {
+        let script = LiveContainerService.privilegedAppleScript(for: #"/bin/echo "a\b""#)
+        #expect(script.contains(#"/bin/echo \"a\\b\""#))
+        #expect(script.hasSuffix("with administrator privileges"))
+    }
+
     @Test func dismissedAdminPromptIsDetectedAsCancellation() {
         let osascriptError = ["execution error: User canceled. (-128)"]
         #expect(LiveContainerService.userCancelledAdminPrompt(osascriptError))
         #expect(!LiveContainerService.userCancelledAdminPrompt(["Error: Installer failed"]))
         #expect(!LiveContainerService.userCancelledAdminPrompt([]))
+    }
+
+    /// The cancel check is anchored to the end of the line: command output that merely mentions
+    /// -128 mid-line is a real failure, not a dismissed password dialog, and must not be
+    /// silently swallowed as a cancellation.
+    @Test func midLineMinus128IsNotACancellation() {
+        #expect(!LiveContainerService.userCancelledAdminPrompt(["curl: transfer failed (-128) while downloading"]))
+    }
+
+    @Test func shellQuotingWrapsAndSplicesSingleQuotes() {
+        #expect(LiveContainerService.shellQuoted("/tmp/plain.pkg") == "'/tmp/plain.pkg'")
+        #expect(LiveContainerService.shellQuoted("/tmp/it's here.pkg") == #"'/tmp/it'\''s here.pkg'"#)
+    }
+
+    // The signature gate pins Apple's actual Containerization release identity (verified against
+    // the real signed 1.1.0 pkg). The generic "issued by Apple" status describes every Developer
+    // ID certificate, so it alone must never be enough — that's the hijacked-download case.
+    @Test func signatureCheckAcceptsApplesContainerizationIdentity() {
+        let realOutput = """
+        Package "container-1.1.0-installer-signed.pkg":
+           Status: signed by a developer certificate issued by Apple for distribution
+           Certificate Chain:
+            1. Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)
+        """
+        #expect(LiveContainerService.isAcceptableSignature(output: realOutput, terminationStatus: 0))
+    }
+
+    @Test func signatureCheckRejectsOtherDeveloperIDs() {
+        let attackerOutput = """
+        Package "container-1.1.0-installer-signed.pkg":
+           Status: signed by a developer certificate issued by Apple for distribution
+           Certificate Chain:
+            1. Developer ID Installer: Evil Corp LLC (ABC123XYZ0)
+        """
+        #expect(!LiveContainerService.isAcceptableSignature(output: attackerOutput, terminationStatus: 0))
+    }
+
+    @Test func signatureCheckRejectsNonzeroExitEvenWithMatchingOutput() {
+        let output = "1. Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
+        #expect(!LiveContainerService.isAcceptableSignature(output: output, terminationStatus: 1))
+        #expect(!LiveContainerService.isAcceptableSignature(output: "", terminationStatus: 0))
+    }
+
+    /// The elevated command must stage the pkg out of the user-writable temp dir, re-verify the
+    /// staged copy, and install that same copy — closing the swap window between the user-space
+    /// signature check and the root install.
+    @Test func stagedInstallCommandVerifiesAndInstallsTheStagedCopy() {
+        let command = LiveContainerService.stagedInstallCommand(pkgPath: "/tmp/container-1.1.0-installer-signed.pkg")
+        #expect(command.contains("/usr/bin/mktemp -d"))
+        #expect(command.contains("/bin/cp '/tmp/container-1.1.0-installer-signed.pkg' \"$staging/container.pkg\""))
+        #expect(command.contains("pkgutil --check-signature \"$staging/container.pkg\""))
+        #expect(command.contains("grep -e 'Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)'"))
+        #expect(command.contains("installer -pkg \"$staging/container.pkg\" -target /"))
+        #expect(command.contains("/bin/rm -rf \"$staging\""))
     }
 
     @Test func failureMessageIncludesOutputTail() {
@@ -734,6 +796,30 @@ struct MockContainerServiceTests {
         #expect(logs.contains { $0.contains("kernel") })
         #expect(mock.daemonState.isConnectedCase)
         #expect(mock.installedContainerVersion == ContainerCompatibility.requiredVersion)
+    }
+
+    /// Cancel during a mock install must abort like the live flow (which kills the elevated
+    /// process): the error propagates and the state stays on the not-installed gate.
+    @Test func installContainerCancellationAbortsWithoutConnecting() async {
+        let mock = MockContainerService()
+        mock.daemonState = .notInstalled
+        mock.installedContainerVersion = nil
+        let task = Task { try await mock.installContainer { _ in } }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(mock.installedContainerVersion == nil)
+    }
+
+    /// Cancel during a mock update mirrors the live service's failure path: the old version
+    /// stays, and the daemon is restarted rather than left stranded on the stopped gate.
+    @Test func upgradeContainerCancellationRestartsDaemonOnOldVersion() async {
+        let mock = MockContainerService()
+        mock.installedContainerVersion = "1.0.0"
+        let task = Task { try await mock.upgradeContainer { _ in } }
+        task.cancel()
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(mock.installedContainerVersion == "1.0.0")
+        #expect(mock.daemonState.isConnectedCase)
     }
 
     @Test func startContainerFlipsStatusToRunning() async throws {

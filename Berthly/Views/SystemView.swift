@@ -55,12 +55,8 @@ private func monoValue(_ text: String) -> some View {
 
 private struct DaemonVersionSection: View {
     @Environment(ContainerServiceBase.self) private var service
-    @State private var showUpdateConfirm = false
-    @State private var isUpdating = false
     @State private var showStopConfirm = false
     @State private var isStopping = false
-    @State private var logLines: [String] = []
-    @State private var errorMessage: String?
 
     private var mismatch: ContainerCompatibility.Mismatch? {
         guard let installed = service.installedContainerVersion else { return nil }
@@ -99,52 +95,16 @@ private struct DaemonVersionSection: View {
             Button("Stop Container Daemon…", role: .destructive) {
                 showStopConfirm = true
             }
-            .disabled(isStopping || isUpdating)
+            .disabled(isStopping)
 
-            // Only an out-of-date install is fixable from here — a *newer*-major container can't
-            // be downgraded in place (upstream requires a full uninstall), so the status row's
-            // "Newer than Berthly supports" text is the whole story for that case.
-            if mismatch == .tooOld {
-                Button("Update Container to v\(ContainerCompatibility.requiredVersion)…") {
-                    showUpdateConfirm = true
-                }
-                .disabled(isUpdating)
-            }
-
-            if isUpdating {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(logLines.enumerated()), id: \.offset) { _, line in
-                            Text(line)
-                                .font(.system(.caption, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                        }
-                    }
-                }
-                .frame(maxHeight: 120)
-            }
+            // No update button here, deliberately: an incompatible install flips `daemonState`
+            // to `.versionMismatch` on the next poll, and DaemonGateView blocks this whole page
+            // behind the gate that owns the update flow (with progress state that survives the
+            // daemon restarting mid-update — state held here would be torn down with the page).
+            // The status row can still disagree with "Up to date" for a moment mid-poll, so it
+            // stays informational.
         } header: {
             sectionHeader("Container Daemon", systemImage: "shippingbox")
-        }
-        .alert("Update container to v\(ContainerCompatibility.requiredVersion)?", isPresented: $showUpdateConfirm) {
-            Button("Update", role: .destructive) {
-                isUpdating = true
-                logLines = []
-                Task {
-                    do {
-                        try await service.upgradeContainer { line in
-                            logLines.append(line)
-                        }
-                    } catch {
-                        errorMessage = error.localizedDescription
-                    }
-                    isUpdating = false
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password.")
         }
         .alert("Stop the container daemon?", isPresented: $showStopConfirm) {
             Button("Stop", role: .destructive) {
@@ -157,14 +117,6 @@ private struct DaemonVersionSection: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This stops every running container on this Mac, not just ones Berthly manages.")
-        }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
         }
     }
 }

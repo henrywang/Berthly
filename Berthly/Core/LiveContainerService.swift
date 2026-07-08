@@ -343,7 +343,7 @@ final class LiveContainerService: ContainerServiceBase {
         onLog("Signature OK (signed by Apple)")
 
         try await runPrivilegedShellCommand(
-            "/usr/sbin/installer -pkg \(pkgPath) -target /",
+            Self.stagedInstallCommand(pkgPath: pkgPath),
             onLog: onLog
         )
 
@@ -365,21 +365,32 @@ final class LiveContainerService: ContainerServiceBase {
         return destination.path
     }
 
+    /// The exact leaf-certificate identity `pkgutil --check-signature` prints for apple/container
+    /// release pkgs, including Apple's Containerization team ID — verified against the real
+    /// signed 1.1.0 pkg. Deliberately NOT the generic "signed by a developer certificate issued
+    /// by Apple" status line: every registered Developer ID on earth matches that phrase, which
+    /// would let any developer's pkg through this gate. If upstream ever rotates its signing
+    /// identity, installs fail closed with the verification error until this is re-pinned
+    /// (re-check alongside `ContainerCompatibility.requiredVersion` bumps).
+    nonisolated static let appleSignatureMarkers = [
+        "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)",
+    ]
+
+    /// The acceptance predicate for `pkgutil --check-signature`, extracted pure so the
+    /// security-critical decision is testable without spawning a process.
+    nonisolated static func isAcceptableSignature(output: String, terminationStatus: Int32) -> Bool {
+        terminationStatus == 0 && appleSignatureMarkers.contains { output.contains($0) }
+    }
+
     /// Refuses to hand a pkg to the elevated installer unless `pkgutil` confirms it's signed by
-    /// Apple — a hijacked download (or a truncated file) must fail here, before the admin prompt.
+    /// Apple itself — a hijacked download (or a truncated file) must fail here, before the admin
+    /// prompt.
     private nonisolated static func verifyPackageSignature(at pkgPath: String) async throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/sbin/pkgutil")
-        process.arguments = ["--check-signature", pkgPath]
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        try process.run()
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        let output = String(data: data, encoding: .utf8) ?? ""
-        guard process.terminationStatus == 0,
-              output.contains("signed by a developer certificate issued by Apple") || output.contains("signed Apple Software") else {
+        let (status, output) = try await runProcessCollectingOutput(
+            executablePath: "/usr/sbin/pkgutil",
+            arguments: ["--check-signature", pkgPath]
+        )
+        guard isAcceptableSignature(output: output, terminationStatus: status) else {
             throw ContainerizationError(
                 .internalError,
                 message: "The downloaded installer package failed signature verification — refusing to install it.\n\(output)"
@@ -387,20 +398,77 @@ final class LiveContainerService: ContainerServiceBase {
         }
     }
 
-    /// Builds the AppleScript source for an elevated shell command. `do shell script` runs with
-    /// a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits `/usr/local/bin` — which made
-    /// the upstream update script's final `container --version` self-check exit 1 *after* the
-    /// update had already succeeded. Prepending `/usr/local/bin` fixes every lookup of
-    /// container's binaries inside the elevated shell.
+    /// Runs a short command to completion without blocking a cooperative-pool thread — the
+    /// blocking drain happens inside `terminationHandler`, which fires on Process's own private
+    /// queue. Only for commands whose output fits the pipe buffer (~64 KB): a chattier command
+    /// would fill the pipe and never exit. `pkgutil --check-signature` prints a few hundred bytes.
+    private nonisolated static func runProcessCollectingOutput(
+        executablePath: String,
+        arguments: [String]
+    ) async throws -> (terminationStatus: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        return try await withCheckedThrowingContinuation { continuation in
+            process.terminationHandler = { finished in
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                continuation.resume(returning: (finished.terminationStatus, String(data: data, encoding: .utf8) ?? ""))
+            }
+            do {
+                try process.run()
+            } catch {
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    /// Shell-quotes a value for safe interpolation into an `sh` command: wrapped in single
+    /// quotes, embedded single quotes spliced out as `'\''`.
+    nonisolated static func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// The elevated install command. The pkg was already signature-checked in user space (so a
+    /// bad download fails before the password prompt), but that copy sits in the user-writable
+    /// temp directory — anything running as this user could swap it between that check and the
+    /// root install. So the elevated shell copies the pkg into a root-owned staging directory
+    /// (mode 700 under sticky /tmp, untouchable by the user), re-verifies the signature on the
+    /// copy, and installs that copy: what got verified is exactly what gets installed.
+    nonisolated static func stagedInstallCommand(pkgPath: String) -> String {
+        let grepMarkers = appleSignatureMarkers.map { "-e \(shellQuoted($0))" }.joined(separator: " ")
+        return "staging=$(/usr/bin/mktemp -d /tmp/berthly-install.XXXXXX)"
+            + " && /bin/cp \(shellQuoted(pkgPath)) \"$staging/container.pkg\""
+            + " && /usr/sbin/pkgutil --check-signature \"$staging/container.pkg\" | /usr/bin/grep \(grepMarkers)"
+            + " && /usr/sbin/installer -pkg \"$staging/container.pkg\" -target /"
+            + "; status=$?; /bin/rm -rf \"$staging\"; exit $status"
+    }
+
+    /// Builds the AppleScript source for an elevated shell command. The command is embedded in
+    /// an AppleScript string literal, so backslashes and double quotes are escaped — without
+    /// that, a command containing a quoted path would terminate the literal early and execute a
+    /// mangled script. `do shell script` runs with a minimal PATH
+    /// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits `/usr/local/bin` — which made the upstream
+    /// update script's final `container --version` self-check exit 1 *after* the update had
+    /// already succeeded. Prepending `/usr/local/bin` fixes every lookup of container's binaries
+    /// inside the elevated shell.
     nonisolated static func privilegedAppleScript(for shellCommand: String) -> String {
-        "do shell script \"export PATH=/usr/local/bin:$PATH; \(shellCommand)\" with administrator privileges"
+        let escaped = shellCommand
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "do shell script \"export PATH=/usr/local/bin:$PATH; \(escaped)\" with administrator privileges"
     }
 
     /// `osascript` reports the user dismissing the admin-password dialog as
     /// `execution error: User canceled. (-128)` on stderr with exit code 1 — indistinguishable
-    /// from a real failure by exit code alone.
+    /// from a real failure by exit code alone. The message text is localized on non-English
+    /// systems, so only the trailing error code is matched — but anchored to the end of the
+    /// line, so command output that merely *mentions* -128 mid-line can't masquerade as a
+    /// cancellation and silently suppress a real failure.
     nonisolated static func userCancelledAdminPrompt(_ outputLines: [String]) -> Bool {
-        outputLines.contains { $0.contains("(-128)") }
+        outputLines.contains { $0.hasSuffix("(-128)") }
     }
 
     /// Error text for a failed elevated command: the output tail is almost always more useful
