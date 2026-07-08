@@ -26,6 +26,14 @@ struct ContainerCommands: Commands {
                 .disabled(!service.isConnected)
         }
 
+        // Command palette (⌘K). Sits under the View menu — the standard home for
+        // navigation/lookup surfaces — and, per this file's convention, the *menu item* owns the
+        // shortcut. Available even while disconnected: it still offers section navigation.
+        CommandGroup(after: .sidebar) {
+            Button("Command Palette…") { bridge.commandPaletteToken += 1; ensureWindow() }
+                .keyboardShortcut("k", modifiers: .command)
+        }
+
         CommandMenu("Container") {
             Button("Run Container…") { send(.openRunContainerSheet) }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
@@ -57,6 +65,12 @@ struct ContainerCommands: Commands {
 
     private func send(_ intent: MenuBarBridge.Intent) {
         bridge.pendingIntent = intent
+        ensureWindow()
+    }
+
+    /// Open the main window if none exists, so a menu action taken with every window closed still
+    /// lands somewhere (the token/intent survives until the window mounts and reads it).
+    private func ensureWindow() {
         if !bridge.isMainWindowOpen {
             openWindow(id: "main")
         }

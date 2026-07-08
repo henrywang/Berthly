@@ -29,6 +29,12 @@ final class MenuBarBridge {
     /// always re-fire even if the field is already visible.
     var searchFocusToken = 0
 
+    /// Bumped by View > Command Palette (⌘K). `MainWindowView` observes it and presents the
+    /// palette overlay — a token (not a Bool) for the same reason as `searchFocusToken`: repeated
+    /// ⌘K should re-open/re-focus it, and the shortcut can arrive from the menu while no window is
+    /// open (the token survives until the window mounts and reads it).
+    var commandPaletteToken = 0
+
     /// Set by `MainWindowView`'s `.onAppear`/`.onDisappear`. `openWindow(id:)` has no built-in
     /// single-instance behavior for a plain `WindowGroup` — without checking this first, the menu
     /// bar's "Open Berthly"/"Run…"/row-tap actions would open a duplicate window every time one

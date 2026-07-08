@@ -240,6 +240,108 @@ final class BerthlyUITests: XCTestCase {
         app.buttons["Cancel"].click()
     }
 
+    /// Command palette (⌘K): opens, filters live via the ranked matcher, dispatches the selected
+    /// action on Return, and dismisses. Deterministic via `MockContainerService` (connected, with
+    /// seeded containers). This locks in the keyboard-driven surface that the manual screenshot
+    /// pass verified — screenshots are ephemeral, so the regression guard lives here.
+    @MainActor
+    func testCommandPaletteOpensFiltersAndDispatches() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        // Open with ⌘K.
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+
+        // Typing filters: "system" should surface the System nav row and drop the Compute one.
+        searchField.typeText("system")
+        let systemRow = app.descendants(matching: .any)["palette.nav.system"]
+        XCTAssertTrue(systemRow.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["palette.nav.compute"].exists)
+
+        // Return dispatches the top result and dismisses the palette.
+        app.typeKey(.return, modifierFlags: [])
+        XCTAssertFalse(searchField.waitForExistence(timeout: 2), "Palette should dismiss after Return")
+        // The navigation actually happened: a System-page-only section appears.
+        XCTAssertTrue(app.staticTexts["Disk Usage"].waitForExistence(timeout: 5))
+    }
+
+    /// Regression: ⌘K must present the palette even when it arrives *before a window exists*.
+    /// Berthly is a menu-bar app, so the main window is often closed; the menu shortcut then bumps
+    /// the token and opens a window, and the freshly-mounted view must still present the palette
+    /// (via `.onAppear`, since `.onChange` won't fire for a token bumped before it mounted).
+    @MainActor
+    func testCommandPalettePresentsWhenTriggeredWithNoWindowOpen() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        // Close the main window; the app keeps running (MenuBarExtra), no window present.
+        app.typeKey("w", modifierFlags: .command)
+        // ⌘K now: reopens a window AND must present the palette on that fresh mount.
+        app.typeKey("k", modifierFlags: .command)
+        XCTAssertTrue(app.textFields["commandPaletteSearchField"].waitForExistence(timeout: 5),
+                      "⌘K with no window open should reopen the window and present the palette")
+    }
+
+    /// Regression: selecting a container via the palette *from a non-Compute section* must open
+    /// its detail. The dispatch sets `sidebarSelection = .compute`, which fires
+    /// `MainWindowView`'s `.onChange(of: sidebarSelection)` clearing `selectedCompute`; without the
+    /// one-runloop defer in `selectCompute(_:)` the selection is wiped and nothing opens. Starting
+    /// on the System page is what makes the section actually change and exposes the bug.
+    @MainActor
+    func testCommandPaletteSelectContainerFromNonComputeSection() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        // Move off Compute first, so the palette's `sidebarSelection = .compute` is a real change.
+        app.staticTexts["System"].click()
+        XCTAssertTrue(app.staticTexts["Disk Usage"].waitForExistence(timeout: 5))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+
+        // Select the web-frontend container (mock seeds it). Top result for this query.
+        searchField.typeText("open web-frontend")
+        XCTAssertTrue(app.descendants(matching: .any)["palette.container.select.3f9a2b7c1d"].waitForExistence(timeout: 5))
+        app.typeKey(.return, modifierFlags: [])
+
+        // The detail pane opened: its Overview/Logs/Terminal tab picker (radioButtons) is present,
+        // which only renders when a compute item is selected. This fails without the defer fix.
+        XCTAssertTrue(app.radioButtons["Terminal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.radioButtons["Overview"].exists)
+    }
+
+    /// ⎋ dismisses the palette without dispatching, and a non-matching query shows the empty state.
+    @MainActor
+    func testCommandPaletteEscapeDismissesAndEmptyState() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+
+        searchField.typeText("zzzznomatch")
+        XCTAssertTrue(app.staticTexts["No matching commands"].waitForExistence(timeout: 5))
+
+        app.typeKey(.escape, modifierFlags: [])
+        XCTAssertFalse(searchField.waitForExistence(timeout: 2), "Palette should dismiss on Escape")
+    }
+
     /// End-to-end background-build flow: start a rebuild (prefilled from the mock's saved
     /// build context, so no NSOpenPanel is involved), send it to the background, keep using
     /// the app, then find the finished result via the toolbar Builds indicator and reopen

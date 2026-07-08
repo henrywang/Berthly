@@ -20,6 +20,10 @@ struct MainWindowView: View {
     @State private var showAddRegistrySheet = false
     @State private var showBuildsPopover = false
     @State private var viewedBuildJob: BuildJob?
+    @State private var showCommandPalette = false
+    /// Last `commandPaletteToken` this window has acted on, so a ⌘K that predates the window's mount
+    /// is presented exactly once via `.onAppear` (see `presentPaletteIfRequested()`).
+    @State private var lastPaletteToken = 0
 
     var body: some View {
         NavigationSplitView {
@@ -107,8 +111,87 @@ struct MainWindowView: View {
         // Lets the menu bar tell whether a main window already exists before deciding whether to
         // call `openWindow(id:)` — that API has no built-in single-instance behavior for a plain
         // `WindowGroup`, so calling it unconditionally opens a duplicate window every time.
-        .onAppear { bridge.isMainWindowOpen = true }
+        .onAppear {
+            bridge.isMainWindowOpen = true
+            // Catch a ⌘K that arrived *before* this window mounted (menu shortcut with no window
+            // open): the token was already bumped, so `.onChange` won't fire for it — mirrors the
+            // `.onAppear { handlePendingIntent() }` above for `pendingIntent`.
+            presentPaletteIfRequested()
+        }
         .onDisappear { bridge.isMainWindowOpen = false }
+        // Command palette (⌘K) — a top-center overlay driven by the bridge token, so the shortcut
+        // works from the menu even when it arrives before this window has mounted.
+        .overlay {
+            if showCommandPalette {
+                CommandPaletteView(
+                    commands: buildPaletteCommands(
+                        isConnected: service.isConnected,
+                        containers: service.containers,
+                        machines: service.machines),
+                    onRun: dispatch,
+                    isPresented: $showCommandPalette)
+            }
+        }
+        .onChange(of: bridge.commandPaletteToken) { _, _ in presentPaletteIfRequested() }
+    }
+
+    /// Present the palette for a ⌘K that hasn't been consumed yet. Idempotent via `lastPaletteToken`
+    /// so it can run from both `.onAppear` (window mounted after the shortcut) and `.onChange`
+    /// (shortcut while the window is open) without double-firing or presenting on plain launch.
+    private func presentPaletteIfRequested() {
+        guard bridge.commandPaletteToken != lastPaletteToken else { return }
+        lastPaletteToken = bridge.commandPaletteToken
+        showCommandPalette = true
+    }
+
+    /// Map a palette action onto the existing sheet/navigation/service plumbing. Kept here (not in
+    /// the palette view) so the view stays presentation-only and every action reuses the same
+    /// state this window already owns.
+    private func dispatch(_ action: PaletteAction) {
+        switch action {
+        case .navigate(let section):
+            selectedCompute = nil
+            selectedImageID = nil
+            sidebarSelection = sidebarSelection(for: section)
+        case .runContainer:    showRunSheet = true
+        case .createMachine:   showMachineCreateSheet = true
+        case .buildImage:      showBuildSheet = true
+        case .pullImage:       showPullSheet = true
+        case .createVolume:    showVolumeCreateSheet = true
+        case .createNetwork:   showNetworkCreateSheet = true
+        case .addRegistry:     showAddRegistrySheet = true
+        case .refresh:         Task { await service.refresh() }
+        case .selectContainer(let id): selectCompute(.container(id))
+        case .selectMachine(let id):   selectCompute(.machine(id))
+        // Lifecycle actions are fire-and-forget: the list/detail reflect the resulting state on the
+        // next poll. A failure leaves the object's state unchanged (visible to the user) rather
+        // than popping an alert over the palette.
+        case .startContainer(let id):   Task { try? await service.startContainer(id) }
+        case .stopContainer(let id):    Task { try? await service.stopContainer(id) }
+        case .restartContainer(let id): Task { try? await service.restartContainer(id) }
+        case .startMachine(let id):     Task { try? await service.startMachine(id) }
+        case .stopMachine(let id):      Task { try? await service.stopMachine(id) }
+        }
+    }
+
+    /// Select a compute item, switching to the Compute section first. The section switch fires
+    /// `.onChange(of: sidebarSelection)`, which clears `selectedCompute` — so the selection is
+    /// deferred to the next runloop to land *after* that clear rather than being wiped by it.
+    /// When already on Compute the switch is a no-op and this simply selects one tick later.
+    private func selectCompute(_ item: ComputeItem) {
+        sidebarSelection = .compute
+        DispatchQueue.main.async { selectedCompute = item }
+    }
+
+    private func sidebarSelection(for section: PaletteSection) -> SidebarSelection {
+        switch section {
+        case .compute:    .compute
+        case .volumes:    .volumes
+        case .networks:   .networks
+        case .images:     .images
+        case .registries: .registries
+        case .system:     .system
+        }
     }
 
     private func handlePendingIntent() {
