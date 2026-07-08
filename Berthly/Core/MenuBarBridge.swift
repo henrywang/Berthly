@@ -35,6 +35,13 @@ final class MenuBarBridge {
     /// open (the token survives until the window mounts and reads it).
     var commandPaletteToken = 0
 
+    /// Set by the palette's "Open Shell in X" action alongside selecting X. The matching
+    /// container/machine detail view consumes it (on both `.onAppear` and `.onChange`, since the
+    /// request usually arrives with a *fresh* detail mount) by switching to its Terminal tab, then
+    /// clears it. A nil-clearing optional (not a token) so each request fires exactly once and a
+    /// new request for a different item always re-fires — same shape as `pendingIntent`.
+    var terminalRequest: ComputeItem? = nil
+
     /// Set by `MainWindowView`'s `.onAppear`/`.onDisappear`. `openWindow(id:)` has no built-in
     /// single-instance behavior for a plain `WindowGroup` — without checking this first, the menu
     /// bar's "Open Berthly"/"Run…"/row-tap actions would open a duplicate window every time one

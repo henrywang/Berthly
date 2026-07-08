@@ -322,6 +322,63 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.radioButtons["Overview"].exists)
     }
 
+    /// Regression: palette "Open Shell in X" from a non-detail section must open X's detail *and*
+    /// land on the Terminal tab. The tab lives in a freshly-mounted detail view, so the request is
+    /// consumed on `.onAppear` (not just `.onChange`) — without that, it silently stays on Overview.
+    @MainActor
+    func testCommandPaletteOpenShellRoutesToTerminalTab() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        // Start on System so opening a container's shell is a fresh detail mount.
+        app.staticTexts["System"].click()
+        XCTAssertTrue(app.staticTexts["Disk Usage"].waitForExistence(timeout: 5))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("shell web-frontend") // web-frontend is a running container in the mock
+        app.typeKey(.return, modifierFlags: [])
+
+        // Detail opened on Terminal, not the default Overview. The segmented picker exposes
+        // selection via its `value` (1 = selected), and the tab switch happens on the detail's
+        // onAppear — so wait for value == 1 rather than reading it once (avoids a mount race).
+        let terminal = app.radioButtons["Terminal"]
+        XCTAssertTrue(terminal.waitForExistence(timeout: 5))
+        expectation(for: NSPredicate(format: "value == 1"), evaluatedWith: terminal)
+        waitForExpectations(timeout: 5)
+    }
+
+    /// Palette "Delete X" never deletes directly — it must confirm first, then remove the item.
+    @MainActor
+    func testCommandPaletteDeleteConfirmsThenRemoves() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        // `worker` is a stopped container in the mock (so Delete is offered).
+        XCTAssertTrue(app.staticTexts["worker"].waitForExistence(timeout: 5))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("delete worker")
+        app.typeKey(.return, modifierFlags: [])
+
+        // A confirmation appears rather than deleting outright. Scope to the window's button —
+        // `app.buttons["Delete"]` also matches a Touch Bar element, which isn't clickable.
+        let confirmDelete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5), "Delete must confirm before removing")
+        confirmDelete.click()
+
+        // The container is gone.
+        XCTAssertTrue(app.staticTexts["worker"].waitForNonExistence(timeout: 5))
+    }
+
     /// ⎋ dismisses the palette without dispatching, and a non-matching query shows the empty state.
     @MainActor
     func testCommandPaletteEscapeDismissesAndEmptyState() throws {

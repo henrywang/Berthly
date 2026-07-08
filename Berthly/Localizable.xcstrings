@@ -329,6 +329,9 @@
     "Delete Container" : {
 
     },
+    "Delete failed" : {
+
+    },
     "Delete Image" : {
 
     },
@@ -1037,6 +1040,9 @@
       }
     },
     "This action cannot be undone." : {
+
+    },
+    "This can't be undone." : {
 
     },
     "This image is used by %lld container%@. Deleting it may affect those containers." : {

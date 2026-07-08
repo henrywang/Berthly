@@ -20,6 +20,7 @@ struct MachineDetailView: View {
 private struct MachineDetailContent: View {
     let machineID: String
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @State private var tab: DetailTab    = .overview
     @State private var isWorking         = false
     @State private var errorMessage: String?
@@ -79,7 +80,16 @@ private struct MachineDetailContent: View {
             } message: {
                 Text(errorMessage ?? "")
             }
+            // Palette "Open Shell" routing — see the matching comment in ContainerDetailView.
+            .onAppear { consumeTerminalRequestIfRequested() }
+            .onChange(of: bridge.terminalRequest) { _, _ in consumeTerminalRequestIfRequested() }
         }
+    }
+
+    private func consumeTerminalRequestIfRequested() {
+        guard bridge.terminalRequest == .machine(machineID) else { return }
+        tab = .terminal
+        bridge.terminalRequest = nil
     }
 
     // MARK: - Header
@@ -470,6 +480,7 @@ private struct TerminalNotRunning: View {
     let mock = MockContainerService()
     MachineDetailView(machineID: mock.machines[0].id)
         .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 680, height: 560)
 }
 
@@ -477,5 +488,6 @@ private struct TerminalNotRunning: View {
     let mock = MockContainerService()
     MachineDetailView(machineID: mock.machines[1].id) // ci-runner is stopped
         .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 680, height: 560)
 }

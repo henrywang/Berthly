@@ -24,6 +24,7 @@ struct ContainerDetailView: View {
 private struct ContainerDetailContent: View {
     let containerID: String
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(MenuBarBridge.self) private var bridge
     @State private var tab: DetailTab = .overview
     @State private var isWorking    = false
     @State private var errorMessage: String?
@@ -88,7 +89,18 @@ private struct ContainerDetailContent: View {
         .sheet(isPresented: $showCopySheet) {
             CopyFilesSheet(service: service, containerID: container.id, targetName: container.name)
         }
+        // Palette "Open Shell" routing. `.onChange` covers the already-selected container;
+        // `.onAppear` covers the usual case where selecting this container mounts the view fresh
+        // (with the request already set), which `.onChange` would miss.
+        .onAppear { consumeTerminalRequestIfRequested() }
+        .onChange(of: bridge.terminalRequest) { _, _ in consumeTerminalRequestIfRequested() }
         } // end if let container
+    }
+
+    private func consumeTerminalRequestIfRequested() {
+        guard bridge.terminalRequest == .container(containerID) else { return }
+        tab = .terminal
+        bridge.terminalRequest = nil
     }
 
     // MARK: - Header
@@ -493,6 +505,7 @@ struct DetailTabPicker<Tab: Hashable & RawRepresentable & CaseIterable>: View
     let mock = MockContainerService()
     ContainerDetailView(containerID: mock.containers[0].id)
         .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 760, height: 600)
 }
 
@@ -501,5 +514,6 @@ struct DetailTabPicker<Tab: Hashable & RawRepresentable & CaseIterable>: View
     let mock = MockContainerService()
     ContainerDetailView(containerID: mock.containers[4].id) // worker is stopped
         .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
         .frame(width: 760, height: 600)
 }

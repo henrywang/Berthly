@@ -24,6 +24,10 @@ struct MainWindowView: View {
     /// Last `commandPaletteToken` this window has acted on, so a ⌘K that predates the window's mount
     /// is presented exactly once via `.onAppear` (see `presentPaletteIfRequested()`).
     @State private var lastPaletteToken = 0
+    /// The compute item a palette "Delete" action wants to remove, pending confirmation. `nil` when
+    /// no delete is in flight.
+    @State private var pendingDelete: ComputeItem?
+    @State private var deleteErrorMessage: String?
 
     var body: some View {
         NavigationSplitView {
@@ -133,6 +137,24 @@ struct MainWindowView: View {
             }
         }
         .onChange(of: bridge.commandPaletteToken) { _, _ in presentPaletteIfRequested() }
+        // Palette "Delete" confirmation — the palette never deletes directly.
+        .alert("Delete \(pendingDeleteName)?", isPresented: Binding(
+            get: { pendingDelete != nil },
+            set: { if !$0 { pendingDelete = nil } }
+        ), presenting: pendingDelete) { item in
+            Button("Delete", role: .destructive) { performPendingDelete(item) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("This can't be undone.")
+        }
+        .alert("Delete failed", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK") { deleteErrorMessage = nil }
+        } message: {
+            Text(deleteErrorMessage ?? "")
+        }
     }
 
     /// Present the palette for a ⌘K that hasn't been consumed yet. Idempotent via `lastPaletteToken`
@@ -163,6 +185,11 @@ struct MainWindowView: View {
         case .refresh:         Task { await service.refresh() }
         case .selectContainer(let id): selectCompute(.container(id))
         case .selectMachine(let id):   selectCompute(.machine(id))
+        case .openContainerShell(let id): openShell(.container(id))
+        case .openMachineShell(let id):   openShell(.machine(id))
+        // Destructive — confirmed before it runs (unlike the fire-and-forget lifecycle actions).
+        case .deleteContainer(let id): pendingDelete = .container(id)
+        case .deleteMachine(let id):   pendingDelete = .machine(id)
         // Lifecycle actions are fire-and-forget: the list/detail reflect the resulting state on the
         // next poll. A failure leaves the object's state unchanged (visible to the user) rather
         // than popping an alert over the palette.
@@ -181,6 +208,38 @@ struct MainWindowView: View {
     private func selectCompute(_ item: ComputeItem) {
         sidebarSelection = .compute
         DispatchQueue.main.async { selectedCompute = item }
+    }
+
+    /// Select a compute item and ask its detail view to open the Terminal tab. The request is set
+    /// before the selection so the (usually fresh) detail mount reads it on appear.
+    private func openShell(_ item: ComputeItem) {
+        bridge.terminalRequest = item
+        selectCompute(item)
+    }
+
+    /// The name shown in the delete confirmation, resolved from the pending item.
+    private var pendingDeleteName: String {
+        switch pendingDelete {
+        case .container(let id): service.containers.first { $0.id == id }?.name ?? "this container"
+        case .machine(let id):   service.machines.first { $0.id == id }?.name ?? "this machine"
+        case nil:                ""
+        }
+    }
+
+    /// Run the confirmed delete. Clears the selection if the deleted item was showing (so the
+    /// detail pane doesn't flash "not found"), and surfaces failures rather than swallowing them.
+    private func performPendingDelete(_ item: ComputeItem) {
+        if selectedCompute == item { selectedCompute = nil }
+        Task {
+            do {
+                switch item {
+                case .container(let id): try await service.deleteContainer(id)
+                case .machine(let id):   try await service.deleteMachine(id)
+                }
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func sidebarSelection(for section: PaletteSection) -> SidebarSelection {

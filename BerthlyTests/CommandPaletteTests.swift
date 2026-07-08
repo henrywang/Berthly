@@ -135,6 +135,43 @@ import Testing
         #expect(!actions.contains(.stopMachine("util")))
     }
 
+    @Test func runningContainerOffersShellNotDelete() {
+        let commands = buildPaletteCommands(isConnected: true, containers: [container("c1", "web", status: .running)], machines: [])
+        let actions = commands.map(\.action)
+        #expect(actions.contains(.openContainerShell("c1")))
+        #expect(!actions.contains(.deleteContainer("c1")))
+    }
+
+    @Test func stoppedContainerOffersDeleteNotShell() {
+        let commands = buildPaletteCommands(isConnected: true, containers: [container("c1", "worker", status: .stopped)], machines: [])
+        let actions = commands.map(\.action)
+        #expect(actions.contains(.deleteContainer("c1")))
+        #expect(!actions.contains(.openContainerShell("c1")))
+    }
+
+    @Test func pausedContainerOffersDeleteNotShell() {
+        // Terminal needs a running container, but delete is disabled only while running — so a
+        // paused container gets Delete but not Open Shell.
+        let commands = buildPaletteCommands(isConnected: true, containers: [container("c1", "sandbox", status: .paused)], machines: [])
+        let actions = commands.map(\.action)
+        #expect(actions.contains(.deleteContainer("c1")))
+        #expect(!actions.contains(.openContainerShell("c1")))
+    }
+
+    @Test func runningMachineOffersShellNotDelete() {
+        let commands = buildPaletteCommands(isConnected: true, containers: [], machines: [machine("m1", "dev", status: .running)])
+        let actions = commands.map(\.action)
+        #expect(actions.contains(.openMachineShell("m1")))
+        #expect(!actions.contains(.deleteMachine("m1")))
+    }
+
+    @Test func stoppedMachineOffersDeleteNotShell() {
+        let commands = buildPaletteCommands(isConnected: true, containers: [], machines: [machine("m1", "ci", status: .stopped)])
+        let actions = commands.map(\.action)
+        #expect(actions.contains(.deleteMachine("m1")))
+        #expect(!actions.contains(.openMachineShell("m1")))
+    }
+
     @Test func containerImageIsSearchableViaSubtitleAndKeywords() {
         let commands = buildPaletteCommands(isConnected: true, containers: [container("c1", "web", status: .running, image: "nginx:latest")], machines: [])
         let ranked = rankedPaletteCommands(commands, query: "nginx")

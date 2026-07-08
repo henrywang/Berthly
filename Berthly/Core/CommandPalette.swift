@@ -38,6 +38,12 @@ nonisolated enum PaletteAction: Equatable {
     case restartContainer(String)
     case startMachine(String)
     case stopMachine(String)
+    case openContainerShell(String)
+    case openMachineShell(String)
+    // Delete is confirmed by MainWindowView before it runs — it is not fire-and-forget like the
+    // lifecycle actions above.
+    case deleteContainer(String)
+    case deleteMachine(String)
 }
 
 /// One row in the palette. `keywords` are extra match terms not shown in the UI (e.g. an image
@@ -194,6 +200,23 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
                 subtitle: container.image, systemImage: "play.fill", keywords: ["container"],
                 action: .startContainer(container.id)))
         }
+
+        // Shell needs a live TTY — the Terminal tab is only usable while running (matches the
+        // detail view, which shows "not running" otherwise).
+        if container.status == .running {
+            commands.append(PaletteCommand(
+                id: "container.shell.\(container.id)", title: "Open Shell in \(name)",
+                subtitle: container.image, systemImage: "terminal",
+                keywords: ["container", "terminal", "exec", "bash", "sh"],
+                action: .openContainerShell(container.id)))
+        }
+        // Delete mirrors the list UI, which disables deletion while the container is running.
+        if container.status != .running {
+            commands.append(PaletteCommand(
+                id: "container.delete.\(container.id)", title: "Delete \(name)",
+                subtitle: container.image, systemImage: "trash", keywords: ["container", "remove"],
+                action: .deleteContainer(container.id)))
+        }
     }
 
     for machine in machines where !machine.isUtility {
@@ -214,6 +237,20 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
                 id: "machine.start.\(machine.id)", title: "Start \(name)",
                 subtitle: "machine", systemImage: "play.fill", keywords: ["machine", "vm"],
                 action: .startMachine(machine.id)))
+        }
+
+        if machine.status == .running {
+            commands.append(PaletteCommand(
+                id: "machine.shell.\(machine.id)", title: "Open Shell in \(name)",
+                subtitle: "machine", systemImage: "terminal",
+                keywords: ["machine", "vm", "terminal", "exec", "shell"],
+                action: .openMachineShell(machine.id)))
+        }
+        if machine.status != .running {
+            commands.append(PaletteCommand(
+                id: "machine.delete.\(machine.id)", title: "Delete \(name)",
+                subtitle: "machine", systemImage: "trash", keywords: ["machine", "vm", "remove"],
+                action: .deleteMachine(machine.id)))
         }
     }
 
