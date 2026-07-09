@@ -104,6 +104,65 @@ struct StringListEditor: View {
     }
 }
 
+// MARK: - Network list editor (--network) — select-only rows, no free text
+
+struct NetworkListEditor: View {
+    let title: LocalizedStringKey
+    var helpText: String? = nil
+    let availableNetworks: [Network]
+    @Binding var entries: [StringEntry]
+
+    /// New rows start on the standard network rather than blank, since that's what an empty
+    /// `--network` list already resolves to — a fresh row shouldn't look unset.
+    private var defaultNetworkName: String? {
+        (availableNetworks.first(where: \.isDefault) ?? availableNetworks.first)?.name
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            VStack(spacing: 6) {
+                ForEach($entries) { $entry in
+                    HStack(spacing: 8) {
+                        Picker("", selection: $entry.value) {
+                            ForEach(availableNetworks) { network in
+                                Text(network.isDefault ? "\(network.name) (default)" : network.name)
+                                    .tag(network.name)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Button {
+                            entries.removeAll { $0.id == entry.id }
+                        } label: {
+                            Image(systemName: "minus.circle.fill")
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("Remove")
+                    }
+                }
+                Button {
+                    entries.append(StringEntry(value: defaultNetworkName ?? ""))
+                } label: {
+                    Label("Add", systemImage: "plus.circle.fill")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .disabled(availableNetworks.isEmpty)
+            }
+            if let helpText {
+                Text(helpText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+}
+
 // MARK: - Port mapping row editor
 
 enum PortProtocolChoice: String, CaseIterable {

@@ -435,10 +435,10 @@ struct RunContainerSheet: View {
     @ViewBuilder
     private var networkFields: some View {
         PortRowsEditor(title: "Ports", entries: $ports)
-        StringListEditor(
+        NetworkListEditor(
             title: "Networks",
-            placeholder: "name, or name,mtu=1400",
             helpText: defaultNetworkHelpText,
+            availableNetworks: service.networks,
             entries: $networks
         )
     }
