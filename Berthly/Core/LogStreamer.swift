@@ -21,17 +21,24 @@ enum LogStreamer {
         let fhs = try await fetch()
         guard let fh = fhs.first else { return }
 
-        // Drain whatever's already buffered off the main actor.
-        let existing = await Task.detached(priority: .utility) {
-            fh.readDataToEndOfFile()
+        // Drain whatever's already buffered off the main actor. `readToEnd()` (not the deprecated
+        // `readDataToEndOfFile()`) surfaces a bad/closed descriptor as a catchable Swift `Error`
+        // instead of an uncatchable NSException — the deprecated calls crash the whole process the
+        // moment the daemon closes the log pipe out from under a still-polling read.
+        let existing = try await Task.detached(priority: .utility) {
+            try fh.readToEnd() ?? Data()
         }.value
         for line in lines(from: existing) { onLine(line) }
 
-        // Follow new data.
+        // Follow new data. `read(upToCount:)` (not the deprecated `availableData`) returns nil at
+        // EOF instead of an empty Data(), so the loop ends cleanly once the source closes rather
+        // than polling a dead handle forever.
         while !Task.isCancelled {
             try await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { break }
-            let data = await Task.detached(priority: .utility) { fh.availableData }.value
+            guard let data = try await Task.detached(priority: .utility, operation: {
+                try fh.read(upToCount: 65_536)
+            }).value else { break }
             for line in lines(from: data) { onLine(line) }
         }
     }
