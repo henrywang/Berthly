@@ -379,6 +379,71 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["worker"].waitForNonExistence(timeout: 5))
     }
 
+    /// Return must submit the sheet from *any* field, not just the one with the first
+    /// `.onSubmit`. A focused TextField's field editor swallows Return itself rather than
+    /// forwarding it to `.keyboardShortcut(.return)` on the Create button — the sheet needs a
+    /// container-level `.onSubmit` to catch it regardless of which field has focus. Covers just
+    /// VolumeCreateSheet; the same fix (and same risk of regressing) applies to every other
+    /// create/run/build/pull/add-registry/set-kernel/copy sheet.
+    @MainActor
+    func testReturnSubmitsVolumeCreateFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("create volume")
+        app.typeKey(.return, modifierFlags: [])
+
+        let nameField = app.windows.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "VolumeCreateSheet name field should appear")
+        nameField.click()
+        nameField.typeText("probe-volume")
+
+        // Move focus to the Size field (no field-specific .onSubmit) before pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.windows.buttons["Create"].firstMatch.waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    /// Delete is irreversible, so unlike the Run/Build/Create sheets (where Return submits),
+    /// Return must never confirm it — only an explicit click can. Guards against a future change
+    /// (e.g. adding `.keyboardShortcut(.defaultAction)` to "Delete" for consistency with the other
+    /// sheets) accidentally wiring Enter to a destructive, unrecoverable action.
+    @MainActor
+    func testReturnDoesNotConfirmDeleteInConfirmationAlert() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["worker"].waitForExistence(timeout: 5))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("delete worker")
+        app.typeKey(.return, modifierFlags: [])
+
+        let confirmDelete = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5), "Delete must confirm before removing")
+
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.staticTexts["worker"].exists, "Return must not confirm a destructive delete")
+        XCTAssertTrue(confirmDelete.exists, "Confirmation dialog should still be open")
+
+        // Only an explicit click deletes.
+        confirmDelete.click()
+        XCTAssertTrue(app.staticTexts["worker"].waitForNonExistence(timeout: 5))
+    }
+
     /// ⎋ dismisses the palette without dispatching, and a non-matching query shows the empty state.
     @MainActor
     func testCommandPaletteEscapeDismissesAndEmptyState() throws {

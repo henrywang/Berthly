@@ -10,6 +10,11 @@ import SwiftUI
 /// is a PAT typed/pasted from elsewhere, never a credential the Passwords app would know.
 struct NoAutoFillSecureField: NSViewRepresentable {
     @Binding var text: String
+    /// Called on Return. Being a raw `NSViewRepresentable`, this field doesn't participate in
+    /// SwiftUI's `.onSubmit` bubbling the way `TextField`/`SecureField` do — without this, Return
+    /// while this field has focus is silently swallowed by the field editor instead of reaching a
+    /// container's `.onSubmit` or the sheet's default-action button.
+    var onSubmit: () -> Void = {}
 
     func makeNSView(context: Context) -> NSSecureTextField {
         let field = AutoFillSuppressingSecureTextField()
@@ -31,16 +36,26 @@ struct NoAutoFillSecureField: NSViewRepresentable {
         if field.stringValue != text {
             field.stringValue = text
         }
+        context.coordinator.onSubmit = onSubmit
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text, onSubmit: onSubmit) }
 
     final class Coordinator: NSObject, NSTextFieldDelegate {
         private let text: Binding<String>
-        init(text: Binding<String>) { self.text = text }
+        var onSubmit: () -> Void
+        init(text: Binding<String>, onSubmit: @escaping () -> Void) {
+            self.text = text
+            self.onSubmit = onSubmit
+        }
         func controlTextDidChange(_ notification: Notification) {
             guard let field = notification.object as? NSTextField else { return }
             text.wrappedValue = field.stringValue
+        }
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            guard commandSelector == #selector(NSResponder.insertNewline(_:)) else { return false }
+            onSubmit()
+            return true
         }
     }
 }

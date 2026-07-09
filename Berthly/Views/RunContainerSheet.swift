@@ -198,6 +198,12 @@ struct RunContainerSheet: View {
             .padding(.vertical, 14)
         }
         .frame(width: 720)
+        // Catches Return from any text field in idleContent — including the many dynamic rows in
+        // StringListEditor/KeyValueEditor/PortRowsEditor/MountRowsEditor, none of which have their
+        // own .onSubmit. Without this, `.keyboardShortcut(.return)` on the Run/Create button below
+        // only fires when no field has focus, since a focused TextField's field editor swallows
+        // Return itself rather than forwarding it to the window's default button.
+        .onSubmit { if canRun { startSubmit() } }
     }
 
     private var canRun: Bool {
@@ -228,7 +234,6 @@ struct RunContainerSheet: View {
                     TextField("local/myapp:1.0", text: $reference)
                         .textFieldStyle(.plain)
                         .fontDesign(.monospaced)
-                        .onSubmit { if canRun { startSubmit() } }
                     // Local images as one-click suggestions — most runs use an image that's
                     // already pulled or built, so don't make the user retype the reference.
                     if !service.images.isEmpty {

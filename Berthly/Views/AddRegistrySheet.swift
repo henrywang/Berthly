@@ -75,7 +75,7 @@ struct AddRegistrySheet: View {
                                     // provide the exact same native chrome as the other fields
                                     // (matching a hand-drawn border/fill to `.roundedBorder` is
                                     // unreliable — it isn't any AppKit bezel style).
-                                    NoAutoFillSecureField(text: $password)
+                                    NoAutoFillSecureField(text: $password, onSubmit: { if canSubmit { submit() } })
                                         .padding(.horizontal, 5)
                                         .frame(height: 21)
                                         .background(
@@ -150,6 +150,10 @@ struct AddRegistrySheet: View {
             .padding(.vertical, 14)
         }
         .frame(width: 560)
+        // Catches Return from the Host/Username fields — the Password field is a raw
+        // NSViewRepresentable (see NoAutoFillSecureField) and is wired separately above since it
+        // doesn't participate in SwiftUI's .onSubmit bubbling.
+        .onSubmit { if canSubmit { submit() } }
     }
 
     private func submit() {

@@ -45,7 +45,6 @@ struct NetworkCreateSheet: View {
                     TextField("my-network", text: $name)
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
-                        .onSubmit { if canSubmit { submit() } }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -84,6 +83,10 @@ struct NetworkCreateSheet: View {
                 }
             }
             .padding(20)
+            // Catches Return from any text field above, not just the one it's typed in —
+            // `.keyboardShortcut(.return)` on the Create button below only fires when no field
+            // has focus, since a focused TextField's field editor swallows Return itself.
+            .onSubmit { if canSubmit { submit() } }
 
             Divider()
 

@@ -42,7 +42,6 @@ struct VolumeCreateSheet: View {
                     TextField("my-volume", text: $name)
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
-                        .onSubmit { if canSubmit { submit() } }
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
@@ -62,6 +61,10 @@ struct VolumeCreateSheet: View {
                 }
             }
             .padding(20)
+            // Catches Return from any text field above, not just the one it's typed in —
+            // `.keyboardShortcut(.return)` on the Create button below only fires when no field
+            // has focus, since a focused TextField's field editor swallows Return itself.
+            .onSubmit { if canSubmit { submit() } }
 
             Divider()
 

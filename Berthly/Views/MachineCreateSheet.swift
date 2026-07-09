@@ -84,6 +84,10 @@ struct MachineCreateSheet: View {
                     }
                 }
                 .padding(20)
+                // Catches Return from any text field above, not just the one it's typed in —
+                // `.keyboardShortcut(.return)` on the Create button below only fires when no
+                // field has focus, since a focused TextField's field editor swallows Return.
+                .onSubmit { if canCreate { startSubmit() } }
             }
             .frame(maxHeight: 420)
 
@@ -141,7 +145,6 @@ struct MachineCreateSheet: View {
             TextField("local/myapp:1.0", text: $reference)
                 .textFieldStyle(.roundedBorder)
                 .fontDesign(.monospaced)
-                .onSubmit { if canCreate { startSubmit() } }
         }
 
         VStack(alignment: .leading, spacing: 6) {

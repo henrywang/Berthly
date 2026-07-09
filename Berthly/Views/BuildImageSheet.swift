@@ -122,6 +122,12 @@ struct BuildImageSheet: View {
             .padding(.vertical, 14)
         }
         .frame(width: 520)
+        // Catches Return from any text field in idleContent — including Target stage, CPUs,
+        // Memory, and the KeyValueEditor/StringListEditor rows, none of which have their own
+        // .onSubmit. Without this, `.keyboardShortcut(.return)` on the Build button below only
+        // fires when no field has focus, since a focused TextField's field editor swallows
+        // Return itself rather than forwarding it to the window's default button.
+        .onSubmit { if canBuild { startBuild() } }
         // If the user watches the build finish right here, the result is already "seen" —
         // don't leave a stale unseen badge on the toolbar indicator.
         .onChange(of: job?.isFinished ?? false) { _, finished in
@@ -154,7 +160,6 @@ struct BuildImageSheet: View {
                 TextField("local/myapp:1.0", text: $tag)
                     .textFieldStyle(.plain)
                     .fontDesign(.monospaced)
-                    .onSubmit { if canBuild { startBuild() } }
                 // Existing local tags as one-click suggestions — rebuilding an image you
                 // already have is the common case, so don't make the user retype the tag.
                 if !service.images.isEmpty {
