@@ -83,10 +83,7 @@ struct NetworkCreateSheet: View {
                 }
             }
             .padding(20)
-            // Catches Return from any text field above, not just the one it's typed in —
-            // `.keyboardShortcut(.return)` on the Create button below only fires when no field
-            // has focus, since a focused TextField's field editor swallows Return itself.
-            .onSubmit { if canSubmit { submit() } }
+            .submitsOnReturn(when: canSubmit, action: submit)
 
             Divider()
 

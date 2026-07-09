@@ -439,9 +439,14 @@ final class LiveContainerService: ContainerServiceBase {
     /// copy, and installs that copy: what got verified is exactly what gets installed.
     nonisolated static func stagedInstallCommand(pkgPath: String) -> String {
         let grepMarkers = appleSignatureMarkers.map { "-e \(shellQuoted($0))" }.joined(separator: " ")
+        // The signature is captured into a variable rather than piped straight into `grep` —
+        // `sig=$(pkgutil ...)` preserves pkgutil's own exit status on the assignment, whereas
+        // `pkgutil ... | grep ...` would report grep's exit status instead, letting a failing
+        // pkgutil silently pass if its partial output happened to still match.
         return "staging=$(/usr/bin/mktemp -d /tmp/berthly-install.XXXXXX)"
             + " && /bin/cp \(shellQuoted(pkgPath)) \"$staging/container.pkg\""
-            + " && /usr/sbin/pkgutil --check-signature \"$staging/container.pkg\" | /usr/bin/grep \(grepMarkers)"
+            + " && sig=$(/usr/sbin/pkgutil --check-signature \"$staging/container.pkg\")"
+            + " && echo \"$sig\" | /usr/bin/grep \(grepMarkers)"
             + " && /usr/sbin/installer -pkg \"$staging/container.pkg\" -target /"
             + "; status=$?; /bin/rm -rf \"$staging\"; exit $status"
     }
@@ -465,10 +470,11 @@ final class LiveContainerService: ContainerServiceBase {
     /// `execution error: User canceled. (-128)` on stderr with exit code 1 — indistinguishable
     /// from a real failure by exit code alone. The message text is localized on non-English
     /// systems, so only the trailing error code is matched — but anchored to the end of the
-    /// line, so command output that merely *mentions* -128 mid-line can't masquerade as a
-    /// cancellation and silently suppress a real failure.
+    /// line (after trimming trailing whitespace some locales append), so command output that
+    /// merely *mentions* -128 mid-line can't masquerade as a cancellation and silently suppress
+    /// a real failure.
     nonisolated static func userCancelledAdminPrompt(_ outputLines: [String]) -> Bool {
-        outputLines.contains { $0.hasSuffix("(-128)") }
+        outputLines.contains { $0.trimmingCharacters(in: .whitespaces).hasSuffix("(-128)") }
     }
 
     /// Error text for a failed elevated command: the output tail is almost always more useful

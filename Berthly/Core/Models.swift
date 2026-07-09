@@ -260,8 +260,10 @@ extension DiskUsageSummary.Category {
 }
 
 /// Human-readable byte size (KB/MB/GB), used throughout the System page's disk-usage displays and
-/// by `PruneResult.summaryText` below.
-func formatDiskBytes(_ bytes: UInt64) -> String {
+/// by `PruneResult.summaryText` below. Pure formatting with no actor-isolated state, so it's
+/// `nonisolated` — callable from `DownloadProgress`, which stays `nonisolated` itself since it's
+/// folded on a background progress-event stream.
+nonisolated func formatDiskBytes(_ bytes: UInt64) -> String {
     let mb = Double(bytes) / 1_048_576
     if mb >= 1_024 { return String(format: "%.1f GB", mb / 1_024) }
     if mb >= 1 { return String(format: "%.1f MB", mb) }

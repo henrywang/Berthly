@@ -987,6 +987,9 @@
     "Stored in the macOS Keychain" : {
 
     },
+    "Stream ended" : {
+
+    },
     "Subnet" : {
 
     },
@@ -1038,6 +1041,9 @@
           }
         }
       }
+    },
+    "The log stream ended unexpectedly — the daemon connection may have been lost." : {
+
     },
     "This action cannot be undone." : {
 

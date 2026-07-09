@@ -381,10 +381,16 @@ final class BerthlyUITests: XCTestCase {
 
     /// Return must submit the sheet from *any* field, not just the one with the first
     /// `.onSubmit`. A focused TextField's field editor swallows Return itself rather than
-    /// forwarding it to `.keyboardShortcut(.return)` on the Create button — the sheet needs a
-    /// container-level `.onSubmit` to catch it regardless of which field has focus. Covers just
-    /// VolumeCreateSheet; the same fix (and same risk of regressing) applies to every other
-    /// create/run/build/pull/add-registry/set-kernel/copy sheet.
+    /// forwarding it to `.keyboardShortcut(.return)` on the primary button — the sheet needs a
+    /// container-level `.onSubmit` (`View.submitsOnReturn`, shared by all of these sheets) to
+    /// catch it regardless of which field has focus.
+    ///
+    /// This and the four tests below cover every sheet wired to `submitsOnReturn` *except*
+    /// BuildImageSheet and CopyFilesSheet: both gate their submit action on a path that can only
+    /// be set via a native `NSOpenPanel` (`contextPath`, `hostPath`), which XCUITest can't drive
+    /// without flaky, slow Finder-window automation — there's no way to satisfy `canBuild`/
+    /// `canCopy` by typing alone, so there's nothing for a "fill a field, press Return" test to
+    /// exercise short of that.
     @MainActor
     func testReturnSubmitsVolumeCreateFromAnyField() throws {
         let app = XCUIApplication.berthly()
@@ -409,6 +415,152 @@ final class BerthlyUITests: XCTestCase {
         app.typeKey(.return, modifierFlags: [])
 
         XCTAssertTrue(app.windows.buttons["Create"].firstMatch.waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    @MainActor
+    func testReturnSubmitsNetworkCreateFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("create network")
+        app.typeKey(.return, modifierFlags: [])
+
+        let nameField = app.windows.textFields.firstMatch
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "NetworkCreateSheet name field should appear")
+        nameField.click()
+        nameField.typeText("probe-net")
+
+        // Move focus to the Subnet field (no field-specific .onSubmit) before pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.windows.buttons["Create"].firstMatch.waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    @MainActor
+    func testReturnSubmitsMachineCreateFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("create machine")
+        app.typeKey(.return, modifierFlags: [])
+
+        let referenceField = app.windows.textFields.firstMatch
+        XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "MachineCreateSheet image field should appear")
+        referenceField.click()
+        referenceField.typeText("ubuntu:24.04")
+
+        // Move focus to the Name field (no field-specific .onSubmit) before pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.windows.buttons["machineCreateSubmitButton"].waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    @MainActor
+    func testReturnSubmitsRunContainerFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("run container")
+        app.typeKey(.return, modifierFlags: [])
+
+        let referenceField = app.windows.textFields.firstMatch
+        XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "RunContainerSheet image field should appear")
+        referenceField.click()
+        referenceField.typeText("local/web:1.4")
+
+        // Move focus to the Name field (no field-specific .onSubmit) before pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.windows.buttons["runSubmitButton"].waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    /// Password is filled first (via `secureTextFields`, not `textFields` — `NoAutoFillSecureField`
+    /// is a raw `NSSecureTextField`) purely so `canSubmit` is already true by the time focus lands
+    /// on Username; the point of this test is the container-level bubbling from a plain `TextField`,
+    /// not the password field's own separate `onSubmit` wiring (see `submitsOnReturn`'s doc comment).
+    @MainActor
+    func testReturnSubmitsAddRegistryFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("add registry")
+        app.typeKey(.return, modifierFlags: [])
+
+        let passwordField = app.windows.secureTextFields.firstMatch
+        XCTAssertTrue(passwordField.waitForExistence(timeout: 5), "AddRegistrySheet password field should appear")
+        passwordField.click()
+        passwordField.typeText("probe-token")
+
+        let hostField = app.windows.textFields.firstMatch
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "AddRegistrySheet host field should appear")
+        hostField.click()
+        hostField.typeText("registry.example.com")
+
+        // Move focus to the Username field (no field-specific .onSubmit) before pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeText("probe-user")
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.windows.buttons["Add & sign in"].firstMatch.waitForNonExistence(timeout: 5),
+                       "Return from a field without its own .onSubmit should still submit the sheet")
+    }
+
+    @MainActor
+    func testReturnSubmitsSetKernelFromAnyField() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        app.staticTexts["System"].click()
+
+        let setKernelButton = app.buttons["Set Kernel…"]
+        XCTAssertTrue(setKernelButton.waitForExistence(timeout: 5))
+        setKernelButton.click()
+
+        let archiveField = app.windows.textFields.firstMatch
+        XCTAssertTrue(archiveField.waitForExistence(timeout: 5), "SetKernelSheet archive field should appear")
+        archiveField.click()
+        archiveField.typeText("https://example.com/kernel.tar.zst")
+
+        // Move focus to the "Path inside archive" field (no field-specific .onSubmit) before
+        // pressing Return.
+        app.typeKey(.tab, modifierFlags: [])
+        app.typeText("opt/kata/share/kata-containers/vmlinux")
+        app.typeKey(.return, modifierFlags: [])
+
+        XCTAssertTrue(app.buttons["Set Kernel"].waitForNonExistence(timeout: 5),
                        "Return from a field without its own .onSubmit should still submit the sheet")
     }
 

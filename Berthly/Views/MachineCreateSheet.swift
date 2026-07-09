@@ -84,10 +84,7 @@ struct MachineCreateSheet: View {
                     }
                 }
                 .padding(20)
-                // Catches Return from any text field above, not just the one it's typed in —
-                // `.keyboardShortcut(.return)` on the Create button below only fires when no
-                // field has focus, since a focused TextField's field editor swallows Return.
-                .onSubmit { if canCreate { startSubmit() } }
+                .submitsOnReturn(when: canCreate, action: startSubmit)
             }
             .frame(maxHeight: 420)
 
@@ -142,31 +139,7 @@ struct MachineCreateSheet: View {
             Text("Image")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            // Field with the suggestions menu inside its trailing edge, same pattern as
-            // RunContainerSheet's image field — local images as one-click suggestions so the
-            // user doesn't have to retype a reference that's already pulled or built.
-            HStack(spacing: 6) {
-                TextField("local/myapp:1.0", text: $reference)
-                    .textFieldStyle(.plain)
-                    .fontDesign(.monospaced)
-                if !service.images.isEmpty {
-                    Menu {
-                        ForEach(service.images) { image in
-                            Button(image.fullName) { reference = image.fullName }
-                        }
-                    } label: {
-                        Image(systemName: "chevron.up.chevron.down")
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
-                    .help("Choose a local image")
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(.background, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            LocalImageReferenceField(reference: $reference, images: service.images)
         }
 
         VStack(alignment: .leading, spacing: 6) {

@@ -116,10 +116,7 @@ struct SetKernelSheet: View {
             .disabled(state.isInstalling)
             .task { prefillFromRecommendedIfEmpty() }
             .onChange(of: service.systemConfigInfo) { prefillFromRecommendedIfEmpty() }
-            // Catches Return from any text field above — `.keyboardShortcut(.return)` on the Set
-            // Kernel button below only fires when no field has focus, since a focused TextField's
-            // field editor swallows Return itself rather than forwarding it to the default button.
-            .onSubmit { if isValid, !state.isInstalling { install() } }
+            .submitsOnReturn(when: isValid && !state.isInstalling, action: install)
 
             Divider()
             footer

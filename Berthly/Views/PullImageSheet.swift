@@ -29,7 +29,7 @@ private final class PullProgressState {
     func markFetchingComplete() {
         if totalItems > 0 {
             let blobWord = totalItems == 1 ? "blob" : "blobs"
-            let sizePart = totalBytes > 0 ? " · \(formatSize(totalBytes))" : ""
+            let sizePart = totalBytes > 0 ? " · \(formatDiskBytes(UInt64(totalBytes)))" : ""
             logLines.append(LogLine(tag: "PULL", text: "fetching complete · \(totalItems) \(blobWord)\(sizePart)"))
         } else {
             logLines.append(LogLine(tag: "PULL", text: "fetching complete · all layers cached"))
@@ -78,14 +78,6 @@ private final class PullProgressState {
     var percentText: String {
         guard let f = fraction else { return "" }
         return "\(Int(f * 100))%"
-    }
-
-    private func formatSize(_ bytes: Int64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1 { return String(format: "%.1f MB", mb) }
-        let kb = Double(bytes) / 1024
-        if kb >= 1 { return String(format: "%.0f KB", kb) }
-        return "\(bytes) B"
     }
 
     var handler: ProgressUpdateHandler {

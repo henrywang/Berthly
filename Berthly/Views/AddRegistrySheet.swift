@@ -151,9 +151,8 @@ struct AddRegistrySheet: View {
         }
         .frame(width: 560)
         // Catches Return from the Host/Username fields — the Password field is a raw
-        // NSViewRepresentable (see NoAutoFillSecureField) and is wired separately above since it
-        // doesn't participate in SwiftUI's .onSubmit bubbling.
-        .onSubmit { if canSubmit { submit() } }
+        // NSViewRepresentable (see NoAutoFillSecureField) and is wired separately above.
+        .submitsOnReturn(when: canSubmit, action: submit)
     }
 
     private func submit() {

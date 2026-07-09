@@ -55,22 +55,13 @@ nonisolated struct DownloadProgress {
 
     /// e.g. "Downloading builder image (ghcr.io/…/builder:0.12.0)… 45.0 MB / 380.0 MB". The total
     /// is dropped until it's known, since it isn't always reported until the download starts.
+    /// Formatting is shared with the rest of the app's byte displays via `formatDiskBytes`.
     var logLine: String {
-        let downloaded = Self.formatBytes(downloadedBytes)
+        let downloaded = formatDiskBytes(UInt64(downloadedBytes))
         if totalBytes > 0 {
-            return "\(label)… \(downloaded) / \(Self.formatBytes(totalBytes))"
+            return "\(label)… \(downloaded) / \(formatDiskBytes(UInt64(totalBytes)))"
         }
         return "\(label)… \(downloaded)"
-    }
-
-    /// MiB with one decimal (matching `PullImageSheet`'s size formatting), falling back to KB/B for
-    /// small amounts.
-    static func formatBytes(_ bytes: Int64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1 { return String(format: "%.1f MB", mb) }
-        let kb = Double(bytes) / 1024
-        if kb >= 1 { return String(format: "%.0f KB", kb) }
-        return "\(bytes) B"
     }
 }
 

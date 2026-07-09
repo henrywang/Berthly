@@ -40,6 +40,7 @@ struct LogStreamView: View {
     @State private var isFollowing       = true
     @State private var filterText        = ""
     @State private var wrapText          = false
+    @State private var streamEnded       = false
 
     private var filteredLines: [LogLine] {
         guard !filterText.isEmpty else { return lines }
@@ -58,14 +59,16 @@ struct LogStreamView: View {
                 Button { isFollowing.toggle() } label: {
                     HStack(spacing: 6) {
                         Circle()
-                            .fill(isFollowing ? Color.berthlyAccent : Color.secondary)
+                            .fill(streamEnded ? Color.statusError : (isFollowing ? Color.berthlyAccent : Color.secondary))
                             .frame(width: 8, height: 8)
-                        Text("Following")
+                        Text(streamEnded ? "Stream ended" : "Following")
                             .font(.callout)
-                            .foregroundStyle(isFollowing ? Color.berthlyAccent : Color.secondary)
+                            .foregroundStyle(streamEnded ? Color.statusError : (isFollowing ? Color.berthlyAccent : Color.secondary))
                     }
                 }
                 .buttonStyle(.plain)
+                .disabled(streamEnded)
+                .help(streamEnded ? "The log stream ended unexpectedly — the daemon connection may have been lost." : "")
 
                 TextField("Filter logs", text: $filterText)
                     .textFieldStyle(.roundedBorder)
@@ -122,8 +125,15 @@ struct LogStreamView: View {
         }
         .task(id: id) {
             lines = []
-            try? await stream { raw in
-                appendLine(Self.parseLine(raw))
+            streamEnded = false
+            do {
+                try await stream { raw in
+                    appendLine(Self.parseLine(raw))
+                }
+            } catch is CancellationError {
+                // Expected: the view disappeared or `id` changed, tearing down this task.
+            } catch {
+                streamEnded = true
             }
         }
     }

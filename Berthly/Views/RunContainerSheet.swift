@@ -198,12 +198,7 @@ struct RunContainerSheet: View {
             .padding(.vertical, 14)
         }
         .frame(width: 720)
-        // Catches Return from any text field in idleContent — including the many dynamic rows in
-        // StringListEditor/KeyValueEditor/PortRowsEditor/MountRowsEditor, none of which have their
-        // own .onSubmit. Without this, `.keyboardShortcut(.return)` on the Run/Create button below
-        // only fires when no field has focus, since a focused TextField's field editor swallows
-        // Return itself rather than forwarding it to the window's default button.
-        .onSubmit { if canRun { startSubmit() } }
+        .submitsOnReturn(when: canRun, action: startSubmit)
     }
 
     private var canRun: Bool {
@@ -227,33 +222,7 @@ struct RunContainerSheet: View {
                 Text("Image")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                // Field with the suggestions menu inside its trailing edge (same field-with-
-                // trailing-control container BuildImageSheet uses for Browse…) — a bare chevron
-                // floating outside the field is easy to miss and a tiny click target.
-                HStack(spacing: 6) {
-                    TextField("local/myapp:1.0", text: $reference)
-                        .textFieldStyle(.plain)
-                        .fontDesign(.monospaced)
-                    // Local images as one-click suggestions — most runs use an image that's
-                    // already pulled or built, so don't make the user retype the reference.
-                    if !service.images.isEmpty {
-                        Menu {
-                            ForEach(service.images) { image in
-                                Button(image.fullName) { reference = image.fullName }
-                            }
-                        } label: {
-                            Image(systemName: "chevron.up.chevron.down")
-                        }
-                        .menuStyle(.borderlessButton)
-                        .menuIndicator(.hidden)
-                        .fixedSize()
-                        .help("Choose a local image")
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(.background, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                LocalImageReferenceField(reference: $reference, images: service.images)
             }
 
             VStack(alignment: .leading, spacing: 6) {

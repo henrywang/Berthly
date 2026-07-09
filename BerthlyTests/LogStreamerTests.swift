@@ -74,23 +74,6 @@ struct LogStreamerTests {
         #expect(collector.lines.isEmpty)
     }
 
-    @MainActor
-    @Test func streamThrowsRatherThanCrashingOnClosedHandle() async throws {
-        // Regression test: a handle whose fd is already closed (e.g. the daemon tore down the log
-        // pipe out from under a still-polling read) used to raise an uncatchable NSException via
-        // the deprecated `readDataToEndOfFile()`/`availableData` APIs, crashing the whole process.
-        // The throwing `readToEnd()`/`read(upToCount:)` replacements surface it as a Swift `Error`
-        // instead, so `stream` should throw here rather than crash.
-        let pipe = Pipe()
-        let fh = pipe.fileHandleForReading
-        try fh.close()
-
-        let collector = Collector()
-        await #expect(throws: (any Error).self) {
-            try await LogStreamer.stream(fetch: { [fh] }, onLine: { collector.lines.append($0) })
-        }
-    }
-
     @Test func readUpToCountThrowsRatherThanCrashingOnInvalidFd() throws {
         // Isolates the follow loop's exact primitive (`read(upToCount:)`, which wraps
         // `readDataUpToLength:error:` — the selector named in the production crash trace) rather
@@ -106,13 +89,13 @@ struct LogStreamerTests {
 
     @MainActor
     @Test func streamThrowsWhenFdIsInvalidatedBehindFileHandlesBack() async throws {
-        // Closer to the real crash than `streamThrowsRatherThanCrashingOnClosedHandle`: there,
-        // `FileHandle` itself knows it's closed and can short-circuit without a syscall. Here the
-        // raw fd is closed via POSIX `close`, so `FileHandle` still believes it's open and the read
-        // has to hit the OS and get back EBADF — the exact failure the production trace shows
-        // (`readDataUpToLength:error:` raising). This is the discriminating case: if the new
-        // throwing API doesn't actually convert this failure to a Swift `Error`, this test crashes
-        // the whole test process instead of failing cleanly.
+        // Regression test: the raw fd is closed via POSIX `close`, so `FileHandle` still believes
+        // it's open and the read has to hit the OS and get back EBADF — the exact failure the
+        // production trace shows (`readDataUpToLength:error:` raising an uncatchable NSException
+        // via the deprecated `readDataToEndOfFile()`/`availableData` APIs). This is the
+        // discriminating case: if the throwing `readToEnd()`/`read(upToCount:)` replacements don't
+        // actually convert this failure to a Swift `Error`, this test crashes the whole test
+        // process instead of failing cleanly.
         let pipe = Pipe()
         let fh = pipe.fileHandleForReading
         close(fh.fileDescriptor)

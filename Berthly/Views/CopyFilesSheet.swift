@@ -44,11 +44,7 @@ struct CopyFilesSheet: View {
             Divider()
             fields
                 .padding(20)
-                // Catches Return from either path field — `.keyboardShortcut(.return)` on the
-                // Copy button below only fires when no field has focus, since a focused
-                // TextField's field editor swallows Return rather than forwarding it to the
-                // default button.
-                .onSubmit { if canCopy, !isCopying { startCopy() } }
+                .submitsOnReturn(when: canCopy && !isCopying, action: startCopy)
             Divider()
             footer
         }

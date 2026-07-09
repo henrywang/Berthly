@@ -47,10 +47,16 @@ import TerminalProgress
         #expect(p.apply([]) == nil)
     }
 
+    // MARK: - formatDiskBytes — shared with PullImageSheet and the System page's disk-usage displays
+
     @Test func formatsBytesInMiB() {
-        #expect(DownloadProgress.formatBytes(45 * 1_048_576) == "45.0 MB")
-        #expect(DownloadProgress.formatBytes(2048) == "2 KB")
-        #expect(DownloadProgress.formatBytes(512) == "512 B")
+        #expect(formatDiskBytes(45 * 1_048_576) == "45.0 MB")
+        #expect(formatDiskBytes(2048) == "2 KB")
+        #expect(formatDiskBytes(512) == "512 B")
+    }
+
+    @Test func formatsLargeDownloadsInGiB() {
+        #expect(formatDiskBytes(2 * 1_073_741_824) == "2.0 GB")
     }
 
     // MARK: - setSize (kernel-download) semantics

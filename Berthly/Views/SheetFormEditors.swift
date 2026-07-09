@@ -334,3 +334,59 @@ struct PlatformPicker: View {
         }
     }
 }
+
+// MARK: - Local-image reference field
+
+/// A "local/myapp:1.0" text field with a trailing chevron menu of local images as one-click
+/// suggestions, so the user doesn't have to retype a reference that's already pulled or built.
+/// Shared by MachineCreateSheet and RunContainerSheet, which both start a compute item from an
+/// image reference.
+struct LocalImageReferenceField: View {
+    @Binding var reference: String
+    let images: [ContainerImage]
+
+    var body: some View {
+        HStack(spacing: 6) {
+            TextField("local/myapp:1.0", text: $reference)
+                .textFieldStyle(.plain)
+                .fontDesign(.monospaced)
+            if !images.isEmpty {
+                Menu {
+                    ForEach(images) { image in
+                        Button(image.fullName) { reference = image.fullName }
+                    }
+                } label: {
+                    Image(systemName: "chevron.up.chevron.down")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Choose a local image")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.background, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+    }
+}
+
+// MARK: - Return-key sheet submission
+
+extension View {
+    /// Submits a sheet's primary action on Return from *any* field, not just the first one
+    /// focused. A focused TextField's field editor swallows Return itself rather than forwarding
+    /// it to the window's default button, so `.keyboardShortcut(.return)` on the primary button
+    /// alone only fires when no field has focus. Attaching `.onSubmit` to the sheet's outermost
+    /// content container instead catches Return bubbling up from every field inside it.
+    ///
+    /// `isEnabled` should mirror the primary button's own `.disabled` condition, and `action` its
+    /// `action`, so Return and a button click always agree on when submission is allowed.
+    ///
+    /// One field type doesn't participate in this bubbling: a raw `NSViewRepresentable` like
+    /// `NoAutoFillSecureField` needs its own bridge into `action` (see that type's `onSubmit`
+    /// parameter), since SwiftUI's `.onSubmit` only observes its own `TextField`/`SecureField`.
+    func submitsOnReturn(when isEnabled: Bool, action: @escaping () -> Void) -> some View {
+        onSubmit { if isEnabled { action() } }
+    }
+}

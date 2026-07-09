@@ -150,9 +150,9 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
                        action: .navigate(.volumes)),
         PaletteCommand(id: "nav.networks", title: "Go to Networks", systemImage: "arrow.triangle.branch",
                        action: .navigate(.networks)),
-        PaletteCommand(id: "nav.registries", title: "Go to Registries", systemImage: "person.crop.circle",
+        PaletteCommand(id: "nav.registries", title: "Go to Registries", systemImage: "building.columns",
                        action: .navigate(.registries)),
-        PaletteCommand(id: "nav.system", title: "Go to System", systemImage: "gearshape.2",
+        PaletteCommand(id: "nav.system", title: "Go to System", systemImage: "gearshape",
                        action: .navigate(.system)),
     ]
 

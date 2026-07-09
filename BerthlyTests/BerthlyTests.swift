@@ -679,6 +679,12 @@ struct PrivilegedCommandHelperTests {
         #expect(!LiveContainerService.userCancelledAdminPrompt(["curl: transfer failed (-128) while downloading"]))
     }
 
+    /// Some locales append trailing whitespace after the error code — the suffix check must
+    /// still recognize the cancellation rather than requiring an exact end-of-line match.
+    @Test func trailingWhitespaceAfterErrorCodeIsStillDetectedAsCancellation() {
+        #expect(LiveContainerService.userCancelledAdminPrompt(["execution error: User canceled. (-128) "]))
+    }
+
     @Test func shellQuotingWrapsAndSplicesSingleQuotes() {
         #expect(LiveContainerService.shellQuoted("/tmp/plain.pkg") == "'/tmp/plain.pkg'")
         #expect(LiveContainerService.shellQuoted("/tmp/it's here.pkg") == #"'/tmp/it'\''s here.pkg'"#)
@@ -724,6 +730,17 @@ struct PrivilegedCommandHelperTests {
         #expect(command.contains("grep -e 'Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)'"))
         #expect(command.contains("installer -pkg \"$staging/container.pkg\" -target /"))
         #expect(command.contains("/bin/rm -rf \"$staging\""))
+    }
+
+    /// `pkgutil`'s signature output must not be piped straight into `grep` — a pipeline's exit
+    /// status is its last command's (grep's), which would let a failing pkgutil silently pass if
+    /// its partial output still matched. Capturing into a variable first preserves pkgutil's own
+    /// exit status on the `&&` chain.
+    @Test func stagedInstallCommandDoesNotPipePkgutilDirectlyIntoGrep() {
+        let command = LiveContainerService.stagedInstallCommand(pkgPath: "/tmp/container.pkg")
+        #expect(!command.contains("pkgutil --check-signature \"$staging/container.pkg\" |"))
+        #expect(command.contains("sig=$(/usr/sbin/pkgutil --check-signature \"$staging/container.pkg\")"))
+        #expect(command.contains("&& echo \"$sig\" | /usr/bin/grep"))
     }
 
     @Test func failureMessageIncludesOutputTail() {
