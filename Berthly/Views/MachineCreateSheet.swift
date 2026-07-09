@@ -142,9 +142,31 @@ struct MachineCreateSheet: View {
             Text("Image")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            TextField("local/myapp:1.0", text: $reference)
-                .textFieldStyle(.roundedBorder)
-                .fontDesign(.monospaced)
+            // Field with the suggestions menu inside its trailing edge, same pattern as
+            // RunContainerSheet's image field — local images as one-click suggestions so the
+            // user doesn't have to retype a reference that's already pulled or built.
+            HStack(spacing: 6) {
+                TextField("local/myapp:1.0", text: $reference)
+                    .textFieldStyle(.plain)
+                    .fontDesign(.monospaced)
+                if !service.images.isEmpty {
+                    Menu {
+                        ForEach(service.images) { image in
+                            Button(image.fullName) { reference = image.fullName }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.up.chevron.down")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .help("Choose a local image")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(.background, in: RoundedRectangle(cornerRadius: 6))
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
         }
 
         VStack(alignment: .leading, spacing: 6) {
