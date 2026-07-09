@@ -469,7 +469,7 @@ struct RunContainerSheet: View {
                 Text("CPUs")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                TextField("e.g. 2", text: $cpus)
+                TextField("2", text: $cpus)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -477,7 +477,7 @@ struct RunContainerSheet: View {
                 Text("Memory")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                TextField("e.g. 1g", text: $memory)
+                TextField("1g", text: $memory)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -486,7 +486,7 @@ struct RunContainerSheet: View {
             Text("Shared memory size")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            TextField("e.g. 64m", text: $shmSize)
+            TextField("64m", text: $shmSize)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
                 .frame(width: 100)

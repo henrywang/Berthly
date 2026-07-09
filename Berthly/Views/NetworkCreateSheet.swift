@@ -69,7 +69,7 @@ struct NetworkCreateSheet: View {
                     Text("Subnet")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
-                    TextField("e.g. 192.168.70.0/24", text: $subnet)
+                    TextField("192.168.70.0/24", text: $subnet)
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                         .frame(width: 220)

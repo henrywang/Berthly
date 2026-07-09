@@ -48,7 +48,7 @@ struct VolumeCreateSheet: View {
                     Text("Size")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
-                    TextField("e.g. 10G", text: $size)
+                    TextField("10G", text: $size)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
                     Text("Optional — leave blank for no size limit. Accepts K, M, G, T, P suffixes.")

@@ -248,7 +248,7 @@ struct BuildImageSheet: View {
                         Text("CPUs")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
-                        TextField("e.g. 4", text: $cpus)
+                        TextField("4", text: $cpus)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 100)
                     }
@@ -256,7 +256,7 @@ struct BuildImageSheet: View {
                         Text("Memory")
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
-                        TextField("e.g. 2g", text: $memory)
+                        TextField("2g", text: $memory)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 100)
                     }
