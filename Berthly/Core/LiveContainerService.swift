@@ -642,14 +642,22 @@ final class LiveContainerService: ContainerServiceBase {
            (try? await existing.getSnapshot(platform: .current)) != nil {
             return
         }
+        // Emit a static line up front — unlike the builder pull, this download can land on a path
+        // that reports no size events at all (a resolved-but-not-unpacked layer set, or a mid-pull
+        // failure before a size event fires), and the user should still see something happened
+        // rather than silence until "installed"/an error. The reporter's own throttled
+        // "Downloading… N MB" lines follow once real bytes move.
         onLog?("Downloading base container filesystem (\(reference))…")
+        let reporter = onLog.map { onLog in
+            DownloadReporter(label: "Downloading base container filesystem (\(reference))", onLog: onLog)
+        }
         do {
             let image = try await ClientImage.pull(
                 reference: reference,
                 platform: nil,
                 scheme: .auto,
                 containerSystemConfig: containerSystemConfig,
-                progressUpdate: nil
+                progressUpdate: reporter?.handler
             )
             try await image.unpack(platform: nil)
             onLog?("Base container filesystem installed")
@@ -668,13 +676,19 @@ final class LiveContainerService: ContainerServiceBase {
         onLog: (@MainActor (String) -> Void)? = nil
     ) async {
         guard (try? await ClientKernel.getDefaultKernel(for: .current)) == nil else { return }
+        // Static line up front (see installVminitImageIfNeeded's comment) — a local tar path
+        // skips the HTTP download entirely and emits no size events, so the reporter alone would
+        // go silent until "installed" on that path.
         onLog?("Downloading default kernel from \(containerSystemConfig.kernel.url.absoluteString)…")
+        let reporter = onLog.map { onLog in
+            DownloadReporter(label: "Downloading default kernel from \(containerSystemConfig.kernel.url.absoluteString)", onLog: onLog)
+        }
         do {
             try await ClientKernel.installKernelFromTar(
                 tarFile: containerSystemConfig.kernel.url.absoluteString,
                 kernelFilePath: containerSystemConfig.kernel.binaryPath,
                 platform: .current,
-                progressUpdate: nil,
+                progressUpdate: reporter?.handler,
                 force: true
             )
             onLog?("Default kernel installed")
@@ -1698,7 +1712,7 @@ final class LiveContainerService: ContainerServiceBase {
         // a cached image resolves via `get` with no events — so the reporter emits its throttled
         // "Downloading builder image… N MB" progress lines exactly when a real download happens,
         // and stays silent otherwise (no misleading line on the cached path).
-        let pullReporter = BuilderPullReporter(imageReference: builderImage, onLog: onLog)
+        let pullReporter = DownloadReporter(label: "Downloading builder image (\(builderImage))", onLog: onLog)
         let image = try await ClientImage.fetch(
             reference: builderImage,
             platform: builderPlatform,
