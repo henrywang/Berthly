@@ -25,7 +25,9 @@ enum ANSIEscape {
         "|\u{1B}[@-_]"
 
     // Constant pattern with a unit test guarding it, so `try!` can never fire at runtime.
-    private static let regex = try! NSRegularExpression(pattern: pattern)
+    // `nonisolated` so the `nonisolated` `strip` can read it: `NSRegularExpression` is `Sendable`
+    // and its matching methods are thread-safe, so it's safe from any isolation domain.
+    private nonisolated static let regex = try! NSRegularExpression(pattern: pattern)
 
     /// Returns `line` with escape sequences and stray C0/DEL control bytes removed. Tabs are
     /// kept — they carry real column layout in tool output. A line that was *only* control
