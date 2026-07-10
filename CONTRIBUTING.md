@@ -94,6 +94,34 @@ mock mode when the test's whole point is real daemon integration.
 4. Describe **what** changed and **why**; include a screenshot for UI changes.
 5. CI must pass before review.
 
+## For maintainers: reviewing PRs
+
+CI runs the unit tests (required) and the mock-mode UI tests (advisory), but
+it **cannot run the real-daemon integration tests** — hosted runners have no
+nested virtualization, so those tests `XCTSkip` themselves on CI. Review is
+therefore risk-based:
+
+**A green CI is enough when** the PR only touches `Views/`, docs, or `Core/`
+logic that ships with its own unit test. The required **Unit tests** check
+plus the advisory mock UI job cover these.
+
+**Check out and run locally when** the PR touches the real-daemon paths CI
+can't reach — `LiveContainerService`, XPC/daemon lifecycle, the terminal/PTY
+bridge (`TerminalSession`), or build/log streaming:
+
+```sh
+gh pr checkout <number>
+xcodebuild test -project Berthly.xcodeproj -scheme Berthly -destination 'platform=macOS'
+```
+
+Run this on a Mac with the `container` daemon installed and running, so the
+real-daemon tests that skip on CI actually execute. For UI-heavy changes,
+also launch the app (⌘R) and click through the affected flow.
+
+The rule of thumb is *does the change live in code CI can't run?* — not *is
+the change big?* The PR template asks the author whether they exercised these
+paths locally; use that as your starting signal.
+
 ## Reporting bugs & requesting features
 
 Please use the issue templates — they ask for the environment details
