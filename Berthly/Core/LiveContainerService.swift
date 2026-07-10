@@ -2086,18 +2086,35 @@ final class LiveContainerService: ContainerServiceBase {
                 return ""
             }
 
-            let pipe = Pipe()
-            let process = try await client.bootstrap(id: id, stdio: [nil, pipe.fileHandleForWriting, pipe.fileHandleForWriting])
+            // `bootstrap` (like `createProcess`) closes every stdio fd it receives — `XPCMessage`'s
+            // fd setter takes ownership. So hand it write ends wrapped non-owning
+            // (`closeOnDealloc: false`) and never retain a `Pipe` that would close the same fd a
+            // second time: a stale double-close lands on a since-reused descriptor (in the field, a
+            // freshly-fetched container-log fd → EBADF). See `TerminalSession.makeExecPipe`.
+            // stdout and stderr merge into one pipe, but each slot needs its OWN fd (the library
+            // closes each), so `dup` a second write end rather than passing one handle twice.
+            var fds = [Int32](repeating: -1, count: 2)
+            guard pipe(&fds) == 0 else {
+                throw ContainerizationError(.internalError, message: "pipe() failed (errno \(errno))")
+            }
+            let stderrFd = dup(fds[1])
+            guard stderrFd >= 0 else {
+                close(fds[0]); close(fds[1])
+                throw ContainerizationError(.internalError, message: "dup() failed (errno \(errno))")
+            }
+            let readEnd = FileHandle(fileDescriptor: fds[0], closeOnDealloc: true)
+            let stdoutEnd = FileHandle(fileDescriptor: fds[1], closeOnDealloc: false)
+            let stderrEnd = FileHandle(fileDescriptor: stderrFd, closeOnDealloc: false)
+            let process = try await client.bootstrap(id: id, stdio: [nil, stdoutEnd, stderrEnd])
             try await process.start()
-            // Close our copy of the write end now that the daemon holds its own duped fd —
-            // otherwise our read end never sees EOF, since we're still holding it open too.
-            try pipe.fileHandleForWriting.close()
+            // No manual close needed: the daemon closed both write ends, so our `readEnd` sees EOF
+            // once the process exits. `readEnd` owns its fd and is closed when this scope releases it.
 
             let (exitCode, output) = try await withTaskCancellationHandler {
                 async let waitResult = process.wait()
                 let capturedOutput: String = await withCheckedContinuation { (cont: CheckedContinuation<String, Never>) in
                     DispatchQueue.global(qos: .userInitiated).async {
-                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                        let data = readEnd.readDataToEndOfFile()
                         cont.resume(returning: String(data: data, encoding: .utf8) ?? "")
                     }
                 }

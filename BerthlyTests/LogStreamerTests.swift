@@ -5,6 +5,11 @@ import Foundation
 import Testing
 @testable import Berthly
 
+// Serialized: several tests below do raw fd surgery (`close(fh.fileDescriptor)`) and now
+// `LogStreamer` also closes the handles it's given (fixing a per-view fd leak). A double-close is
+// harmless only if no *other* test reuses that fd number in between — which Swift Testing's default
+// parallel execution can't guarantee. Serializing this suite removes the intra-suite fd-reuse race.
+@Suite(.serialized)
 struct LogStreamerTests {
 
     // MARK: - lines(from:) — pure splitting
@@ -104,5 +109,34 @@ struct LogStreamerTests {
         await #expect(throws: (any Error).self) {
             try await LogStreamer.stream(fetch: { [fh] }, onLine: { collector.lines.append($0) })
         }
+    }
+
+    @MainActor
+    @Test func streamClosesReceivedHandlesOnCompletion() async throws {
+        // The daemon's log fds arrive `closeOnDealloc: false` (`XPCMessage.fileHandles(key:)`), so
+        // `stream` must close them itself or leak two descriptors per Logs view. Use a non-owning
+        // handle over a raw pipe — no `Pipe` to also close it — so the fd being closed afterwards can
+        // only be `stream`'s doing.
+        var fds = [Int32](repeating: -1, count: 2)
+        #expect(pipe(&fds) == 0)
+        let readFd = fds[0], writeFd = fds[1]
+        FileHandle(fileDescriptor: writeFd, closeOnDealloc: false).write(Data("boot: ok\n".utf8))
+        close(writeFd) // finite buffer + EOF so the drain returns
+        let readHandle = FileHandle(fileDescriptor: readFd, closeOnDealloc: false)
+
+        let collector = Collector()
+        let task = Task { @MainActor in
+            try await LogStreamer.stream(fetch: { [readHandle] }, onLine: { collector.lines.append($0) })
+        }
+        var waited = 0
+        while collector.lines.isEmpty, waited < 200 {
+            try await Task.sleep(for: .milliseconds(5))
+            waited += 1
+        }
+        task.cancel()
+        _ = try? await task.value
+
+        #expect(collector.lines == ["boot: ok"])
+        #expect(fcntl(readFd, F_GETFD) == -1) // stream closed the handle it was handed
     }
 }

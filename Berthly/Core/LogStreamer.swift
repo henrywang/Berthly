@@ -19,6 +19,11 @@ enum LogStreamer {
         onLine: @escaping (String) -> Void
     ) async throws {
         let fhs = try await fetch()
+        // The daemon's log fds arrive `closeOnDealloc: false` (`XPCMessage.fileHandles(key:)`), so
+        // nothing closes them on our behalf — leaking two descriptors per Logs view unless we do it
+        // ourselves. By the time this function returns or throws, every detached read below has
+        // already completed (we `await` each), so closing here never races an in-flight read.
+        defer { for fh in fhs { try? fh.close() } }
         guard let fh = fhs.first else { return }
 
         // Drain whatever's already buffered off the main actor. `readToEnd()` (not the deprecated
