@@ -48,10 +48,16 @@ enum LogStreamer {
         }
     }
 
-    /// Splits a UTF-8 chunk into non-empty newline-delimited lines. Pure and deterministic —
-    /// invalid UTF-8 yields no lines, matching the previous per-view behaviour.
+    /// Splits a UTF-8 chunk into non-empty newline-delimited lines, stripping ANSI/VT escape
+    /// sequences from each (see `ANSIEscape`) so container stdout — `systemd`'s colorized
+    /// `[  OK  ]` banners, a shell's OSC title / bracketed-paste noise — reads as clean text in
+    /// the Log tab rather than literal `ESC[0m` garbage. Pure and deterministic; invalid UTF-8
+    /// yields no lines, matching the previous per-view behaviour. The empty filter runs *after*
+    /// stripping, so a line that was only control sequences is dropped instead of shown blank.
     nonisolated static func lines(from data: Data) -> [String] {
         guard let text = String(data: data, encoding: .utf8) else { return [] }
-        return text.components(separatedBy: "\n").filter { !$0.isEmpty }
+        return text.components(separatedBy: "\n")
+            .map(ANSIEscape.strip)
+            .filter { !$0.isEmpty }
     }
 }
