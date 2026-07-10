@@ -108,7 +108,7 @@ final class BerthlyUITests: XCTestCase {
         let app = XCUIApplication.berthly()
         app.launch()
 
-        let runButton = app.buttons["Run"]
+        let runButton = app.buttons["runToolbarButton"]
         guard runButton.waitForExistence(timeout: 10), runButton.isEnabled else {
             throw XCTSkip("No connected container daemon in this environment; skipping sheet interaction")
         }
@@ -222,7 +222,7 @@ final class BerthlyUITests: XCTestCase {
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
-        let runButton = app.buttons["Run"]
+        let runButton = app.buttons["runToolbarButton"]
         XCTAssertTrue(runButton.waitForExistence(timeout: 10))
         runButton.click()
 
@@ -868,7 +868,11 @@ final class BerthlyUITests: XCTestCase {
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launch()
 
-        let runButton = app.buttons["Run"]
+        // Query by identifier, not label: RunContainerSheet's submit button is also labelled
+        // "Run" (see submitLabel), so buttons["Run"] matches two elements while the sheet is
+        // dismissing between churn iterations and .click() throws "multiple matching elements".
+        // The toolbar button's identifier is unique. This is exactly what flaked CI.
+        let runButton = app.buttons["runToolbarButton"]
         XCTAssertTrue(runButton.waitForExistence(timeout: 10))
 
         let options = XCTMeasureOptions()

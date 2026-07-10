@@ -326,6 +326,11 @@ struct MainWindowView: View {
             .tint(.berthlyAccent)
             .disabled(!service.isConnected)
             .help("Run a container or create a machine")
+            // Stable identifier so UI tests query this button unambiguously: RunContainerSheet's
+            // submit button carries the *label* "Run" (see submitLabel), and XCUITest matches
+            // buttons["Run"] on identifier-or-label, so a label-based query hits both while the
+            // sheet is on screen.
+            .accessibilityIdentifier("runToolbarButton")
             // Shortcuts live on the Container menu items (ContainerCommands), not here — the
             // menu is the canonical owner, and registering the same key twice is ambiguous.
             .background(
