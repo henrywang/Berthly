@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3F82EC"/>
+      <stop offset="1" stop-color="#2361C7"/>
+    </linearGradient>
+    <clipPath id="body"><rect width="512" height="512"/></clipPath>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <g clip-path="url(#body)">
+  <rect x="-40" y="384" width="592" height="180" fill="#B9D4FB"/>
+      <rect x="-40" y="384" width="592" height="12" fill="#8FB6F0"/>
+      <path d="M-40 65 Q110 140 176 232" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+      <path d="M176 232 Q256 196 336 232" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+      <path d="M176 266 Q256 230 336 266" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+      <rect x="166" y="120" width="180" height="64" rx="32" fill="#FFFFFF"/>
+      <rect x="198" y="166" width="116" height="228" fill="#FFFFFF"/>
+      <rect x="154" y="352" width="204" height="52" rx="14" fill="#FFFFFF"/>
+      <path d="M176 232 Q256 278 336 232" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+      <path d="M176 266 Q256 312 336 266" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+      <path d="M336 266 Q384 326 378 392" stroke="#8FB6F0" stroke-width="30" stroke-linecap="round" fill="none"/>
+  </g>
+</svg>
