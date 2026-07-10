@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in Berthly doesn't work as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! If this is a **security
+        vulnerability**, please don't file it here — see
+        [SECURITY.md](../blob/main/SECURITY.md) instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: The container logs view stays blank when…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a container from image …
+        2. Open the Logs tab
+        3. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: input
+    id: berthly-version
+    attributes:
+      label: Berthly version
+      description: From Berthly → About Berthly, or the commit hash if built from source.
+      placeholder: "1.0 (or commit abc1234)"
+    validations:
+      required: true
+  - type: input
+    id: container-version
+    attributes:
+      label: container version
+      description: Output of `container --version`.
+      placeholder: container CLI version 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version and hardware
+      description: From  → About This Mac.
+      placeholder: macOS 26.5, MacBook Pro (M3 Pro)
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: |
+        Anything from `container system logs`, Console.app, or a screenshot
+        of the problem.

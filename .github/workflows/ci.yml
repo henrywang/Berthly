@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.name }}
+    # Berthly's deployment target is macOS 26.5, so the runner image must be
+    # at least that. If this job fails on runner provisioning, check
+    # https://github.com/actions/runner-images for the current macOS 26 label.
+    runs-on: macos-26
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The merge gate. Mark only this job as a required check in branch
+          # protection.
+          - name: Unit tests
+            only-testing: BerthlyTests
+          # Advisory: mock-mode UI tests (UITEST_USE_MOCK_SERVICE) run fine
+          # on hosted runners, but XCUITest on shared macOS runners can flake
+          # on timing/focus. Real-daemon integration tests XCTSkip themselves
+          # here — hosted Apple Silicon runners have no nested virtualization,
+          # so the container daemon can't boot VMs. Leave this job out of the
+          # required checks until it proves stable, then promote it.
+          - name: UI tests (mock mode)
+            only-testing: BerthlyUITests
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Select latest Xcode 26
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
+
+      - name: Show toolchain versions
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      # SwiftTerm compiles Metal shaders; the Metal toolchain is a separate
+      # download in Xcode 26 and is not preinstalled on runner images.
+      - name: Download Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Resolve package dependencies
+        run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
+
+      - name: Build and run ${{ matrix.name }}
+        run: |
+          set -o pipefail
+          xcodebuild test \
+            -project Berthly.xcodeproj \
+            -scheme Berthly \
+            -destination 'platform=macOS' \
+            -only-testing:${{ matrix.only-testing }} \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM=
