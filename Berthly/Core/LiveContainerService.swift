@@ -1007,6 +1007,14 @@ final class LiveContainerService: ContainerServiceBase {
 
     // MARK: - Lifecycle actions
 
+    // Call convention for `bootstrap`/`createProcess` `stdio:`: the XPC layer *closes every fd it
+    // receives* (`XPCMessage.set(key:value:FileHandle)`), taking ownership. So pass `nil` for any
+    // stream you don't need to capture (the common case here), and NEVER hand it a retained
+    // `Pipe`'s `fileHandleForReading/Writing` — the `Pipe` (`closeOnDealloc: true`) would then close
+    // that fd a second time on deinit, and once the number is reused the stale close clobbers an
+    // unrelated descriptor (this is what broke container logs, fixed in 94df4fb). When you *do* need
+    // to capture output, wrap the handed-off end `closeOnDealloc: false` and keep the opposite end
+    // yourself — see the attach branch of `runContainer` below and `TerminalSession.makeExecPipe`.
     override func startContainer(_ id: String) async throws {
         let client = ContainerClient()
         let process = try await client.bootstrap(id: id, stdio: [nil, nil, nil])
