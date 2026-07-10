@@ -13,8 +13,8 @@ concurrency:
 jobs:
   test:
     name: ${{ matrix.name }}
-    # Berthly's deployment target is macOS 26.5, so the runner image must be
-    # at least that. If this job fails on runner provisioning, check
+    # Berthly's deployment target is macOS 26.0, so any macOS 26.x runner can
+    # run the tests. If this job fails on runner provisioning, check
     # https://github.com/actions/runner-images for the current macOS 26 label.
     runs-on: macos-26
     timeout-minutes: 60

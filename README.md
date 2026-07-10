@@ -20,7 +20,7 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 ## Requirements
 
 - **Apple Silicon Mac** — `container` runs Linux containers in lightweight VMs and requires Apple Silicon.
-- **macOS 26.5 or later.**
+- **macOS 26 or later.**
 - **[Apple's `container`](https://github.com/apple/container) installed and running.** Berthly is a GUI on top of it; it can help you install and start the daemon, but it drives the same underlying tooling.
 
 ## Building

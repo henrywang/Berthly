@@ -7,8 +7,8 @@ you need to build the app, run the tests, and get a pull request merged.
 
 - **An Apple Silicon Mac.** Apple's `container` runs Linux containers in
   lightweight VMs and requires Apple Silicon — there is no Intel path.
-- **macOS 26.5 or later** (the app's deployment target).
-- **Xcode 26.5 or later**, including the **Metal toolchain** component —
+- **macOS 26 or later** (the app's deployment target).
+- **Xcode 26 or later**, including the **Metal toolchain** component —
   SwiftTerm compiles Metal shaders. Install it via
   Xcode → Settings → Components, or:
   ```sh
