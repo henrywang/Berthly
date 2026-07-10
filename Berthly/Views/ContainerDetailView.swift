@@ -148,7 +148,7 @@ private struct ContainerDetailContent: View {
                 Button(role: .destructive) {
                     run { try await service.stopContainer(container.id) }
                 } label: {
-                    Label("Stop", systemImage: "stop.fill")
+                    LifecycleActionLabel(title: "Stop", systemImage: "stop.fill", isWorking: isWorking)
                 }
                 .buttonStyle(.bordered)
                 .tint(.statusError)
@@ -162,7 +162,7 @@ private struct ContainerDetailContent: View {
                         tab = .terminal
                     }
                 } label: {
-                    Label("Start", systemImage: "play.fill")
+                    LifecycleActionLabel(title: "Start", systemImage: "play.fill", isWorking: isWorking)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.berthlyAccent)
