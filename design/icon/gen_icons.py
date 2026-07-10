@@ -70,17 +70,27 @@ def margined_icon(canvas, art, shadow_dy, shadow_blur):
 </svg>
 """
 
-def fullbleed_squircle(art):
-    """Favicon: squircle fills the whole 512 canvas, no margin/shadow."""
-    sq = superellipse_path(256, 256, 256)
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+def fullbleed_squircle(art, canvas=512):
+    """Squircle fills the whole canvas, no margin/shadow.
+
+    Used for favicons AND the app-icon catalog: Berthly targets macOS 26+,
+    and Tahoe puts any icon artwork smaller than its canvas on a white
+    system backdrop ("icon jail"). Full-bleed art is displayed as-is;
+    the system supplies masking and shadow.
+    """
+    half = canvas / 2
+    scale = canvas / 512
+    sq = superellipse_path(half, half, half)
+    return f"""<svg xmlns="http://www.w3.org/2000/svg" width="{canvas}" height="{canvas}" viewBox="0 0 {canvas} {canvas}">
   <defs>
     {GRADIENT}
     <clipPath id="body"><path d="{sq}"/></clipPath>
   </defs>
   <path d="{sq}" fill="url(#bg)"/>
   <g clip-path="url(#body)">
-  {art}
+    <g transform="scale({scale:.6f})">
+    {art}
+    </g>
   </g>
 </svg>
 """
@@ -113,6 +123,9 @@ MENUBAR = """<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" vi
 """
 
 files = {
+    # app icon (macOS 26+): full-bleed, system applies mask + shadow
+    "berthly-dock-1024.svg":   fullbleed_squircle(FULL_ART, 1024),
+    # margined Big Sur-style masters, kept ONLY for the dmg volume icon
     "berthly-master-1024.svg": margined_icon(1024, FULL_ART, 10, 10),
     "berthly-small-512.svg":   margined_icon(512, SMALL_ART, 5, 5),
     "berthly-favicon-512.svg": fullbleed_squircle(SMALL_ART),
