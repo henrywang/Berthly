@@ -1071,6 +1071,9 @@
         }
       }
     },
+    "This stops every running container on this Mac, not just ones Berthly manages — including containers started from the terminal." : {
+
+    },
     "This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password." : {
 
     },

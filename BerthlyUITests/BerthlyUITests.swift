@@ -795,19 +795,39 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(mainWindows.count, 1, "Open Berthly should focus the existing window, not open a duplicate")
     }
 
-    /// The daemon stop button acts immediately, same as every container/machine row's own
-    /// stop button — no confirmation step, matching `MockContainerService.stopDaemon()`'s
-    /// connected → stopping → installedButStopped sequence.
+    /// The daemon stop button expands an inline confirmation (not a system `.alert`, which is
+    /// unreliable inside a `menuBarExtraStyle(.window)` panel) — stopping the daemon kills every
+    /// running container on the Mac, so it must not happen on a single stray click. One launch
+    /// covers both paths: Cancel backs out without stopping, then Stop actually stops.
     @MainActor
-    func testMenuBarExtraDaemonStopButtonStopsImmediately() throws {
+    func testMenuBarExtraDaemonStopButtonConfirmsBeforeStopping() throws {
         let app = try launchAndOpenMenuBarExtra()
 
         let daemonStopButton = app.buttons["menuBarDaemonStopButton"]
         XCTAssertTrue(daemonStopButton.waitForExistence(timeout: 5))
         daemonStopButton.click()
 
+        // Plain "Stop"/"Cancel" would be ambiguous — every running row has its own "Stop" button,
+        // so the confirmation's buttons carry their own identifiers.
+        let confirmStop = app.buttons["menuBarStopConfirmStop"]
+        XCTAssertTrue(confirmStop.waitForExistence(timeout: 5), "Inline stop confirmation should appear")
+        XCTAssertTrue(daemonStopButton.exists, "Daemon should still be running while the confirmation is open")
+
+        app.buttons["menuBarStopConfirmCancel"].click()
+
+        // A plain `.exists` check here would race the app's own UI update after the click —
+        // wait for the condition instead of asserting on it immediately.
+        let disappeared = NSPredicate(format: "exists == false")
+        expectation(for: disappeared, evaluatedWith: confirmStop)
+        waitForExpectations(timeout: 5)
+        XCTAssertTrue(daemonStopButton.exists, "Cancel should leave the daemon running")
+
+        daemonStopButton.click()
+        XCTAssertTrue(confirmStop.waitForExistence(timeout: 5))
+        confirmStop.click()
+
         let daemonStartButton = app.buttons["menuBarDaemonStartButton"]
-        XCTAssertTrue(daemonStartButton.waitForExistence(timeout: 5), "Daemon should stop without a confirmation step")
+        XCTAssertTrue(daemonStartButton.waitForExistence(timeout: 5), "Confirming should stop the daemon")
         XCTAssertTrue(app.staticTexts["Container Daemon"].exists, "Popover should stay open after stopping")
     }
 

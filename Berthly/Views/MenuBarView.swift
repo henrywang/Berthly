@@ -114,9 +114,11 @@ struct MenuBarView: View {
                             }
                         }
                         if hiddenCount > 0 {
-                            Text("+\(hiddenCount) more — open Berthly to see all")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            // A button, not plain text — it tells the user to open Berthly, so
+                            // it should do that itself rather than sending them to the Dock.
+                            MenuBarMoreButton(hiddenCount: hiddenCount) {
+                                openOrFocusMainWindow(bridge: bridge, openWindow: openWindow)
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -221,7 +223,10 @@ private struct MenuBarSummaryRow: View {
             Text(label)
                 .font(.callout.weight(.medium))
             Spacer()
-            MenuBarPill(text: "\(runningCount) running", color: .statusRunning)
+            // Neutral at zero so green always means something is actually running — two green
+            // "0 running" pills otherwise read as an affirmative signal about nothing.
+            MenuBarPill(text: "\(runningCount) running",
+                        color: runningCount > 0 ? .statusRunning : .secondary)
             if errorCount > 0 {
                 MenuBarPill(text: "\(errorCount) error", color: .statusError)
             }
@@ -248,17 +253,19 @@ private struct MenuBarPill: View {
     }
 }
 
-/// Both directions act immediately on click, same as every container/machine row's play/stop
-/// button below. The stop button is tinted red (unlike the rows' plain `.secondary` icons) since
-/// this one has a much bigger blast radius — it kills every running container on the machine, not
-/// just ones Berthly manages — and that difference needs to read at a glance even though the
-/// interaction itself is a single click either way.
+/// Stopped → running calls `startDaemon()` directly, no confirm — starting is harmless. Running →
+/// stopped expands an inline confirmation first: a real daemon stop kills every running container
+/// on this Mac, not just ones Berthly manages, and a tooltip nobody hovers isn't enough guard for
+/// that blast radius — a stray click must not be able to do it silently. The button itself stays
+/// the same plain `stop.fill` as every row's stop button; the extra danger is communicated by the
+/// confirm step, not by tinting the icon.
 private struct MenuBarDaemonRow: View {
     let isRunning: Bool
     let isBusy: Bool
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
     @Environment(\.openWindow) private var openWindow
+    @State private var showStopConfirm = false
 
     private var isVersionMismatch: Bool {
         if case .versionMismatch = service.daemonState { return true }
@@ -266,6 +273,57 @@ private struct MenuBarDaemonRow: View {
     }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            headerRow
+
+            // Inline rather than `.alert` — a system alert presented from inside a
+            // `menuBarExtraStyle(.window)` panel (a borderless auxiliary NSPanel, not a real
+            // window) has been unreliable in practice: the confirmation could disappear without
+            // ever running its action. An inline expand/collapse can't have that failure mode.
+            // Gated on `isRunning` too so the panel can't linger if the daemon stops out from
+            // under it (e.g. stopped from the terminal while the confirm is open).
+            if showStopConfirm && isRunning {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(Color.statusError)
+                        // `.fixedSize(vertical:)` forces this to wrap to the panel's actual width
+                        // instead of reporting its single-line ideal width and getting clipped
+                        // with an ellipsis — the default failure mode for Text sized this way
+                        // inside a `menuBarExtraStyle(.window)` popover.
+                        Text("This stops every running container on this Mac, not just ones Berthly manages — including containers started from the terminal.")
+                            .font(.caption)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    HStack(spacing: 8) {
+                        Button("Cancel") { showStopConfirm = false }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .accessibilityIdentifier("menuBarStopConfirmCancel")
+                        Button("Stop") {
+                            showStopConfirm = false
+                            Task { await service.stopDaemon() }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.statusError)
+                        .controlSize(.small)
+                        // "Stop" alone collides with every running row's own stop button — an
+                        // explicit identifier is the only way to query this one unambiguously.
+                        .accessibilityIdentifier("menuBarStopConfirmStop")
+                    }
+                }
+                .padding(10)
+                .background(Color.statusError.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.statusError.opacity(0.4), lineWidth: 1)
+                )
+            }
+        }
+    }
+
+    private var headerRow: some View {
         HStack(spacing: 8) {
             // Shape-coded, not just color-coded (filled vs outline circle), matching
             // `ContainerStatus.systemImage`'s convention — a colorblind user can still tell
@@ -299,16 +357,16 @@ private struct MenuBarDaemonRow: View {
             if isBusy {
                 ProgressView().controlSize(.small)
             } else if isRunning {
-                // Neutral, not red — the leading dot now owns the "is it running" status read,
-                // so the button is free to read as plain action, matching every other stop
-                // button in this panel. The blast-radius warning still lives in the tooltip.
+                // Toggles the inline confirmation below rather than stopping outright — see the
+                // struct doc comment. Toggle (not just show) so a second click backs out.
                 Button {
-                    Task { await service.stopDaemon() }
+                    showStopConfirm.toggle()
                 } label: {
                     Image(systemName: "stop.fill")
                 }
                 .buttonStyle(.hoverIcon)
                 .help("Stop container daemon — this stops every running container on this Mac, not just ones Berthly manages")
+                .accessibilityLabel("Stop")
                 .accessibilityIdentifier("menuBarDaemonStopButton")
             } else {
                 Button {
@@ -398,6 +456,7 @@ private struct MenuBarContainerRow: View {
                 .buttonStyle(.hoverIcon)
                 .disabled(isWorking)
                 .help("Stop")
+                .accessibilityLabel("Stop")
             } else {
                 Button {
                     run { try await service.startContainer(container.id) }
@@ -460,6 +519,7 @@ private struct MenuBarMachineRow: View {
                 .buttonStyle(.hoverIcon)
                 .disabled(isWorking)
                 .help("Stop")
+                .accessibilityLabel("Stop")
             } else {
                 Button {
                     run { try await service.startMachine(machine.id) }
@@ -505,6 +565,27 @@ private struct MenuBarSectionHeader: View {
     }
 }
 
+/// The "+N more" overflow line under the capped RUNNING section. Hover brightens the text (no
+/// background wash — the row is caption-sized and full-width, so the footer buttons' rounded
+/// highlight would read as a heavier control than this is) to show it's clickable.
+private struct MenuBarMoreButton: View {
+    let hiddenCount: Int
+    let action: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            Text("+\(hiddenCount) more — open Berthly to see all")
+                .font(.caption)
+                .foregroundStyle(isHovered ? .primary : .secondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .accessibilityIdentifier("menuBarShowAllButton")
+    }
+}
+
 /// "Run…" as a submenu (Run Container / Create Machine) rather than opening the main window's
 /// chooser popover — the user already tells us which one they want here, so there's no need for
 /// a second "which kind?" step once the window is open.
@@ -519,7 +600,7 @@ private struct MenuBarSectionHeader: View {
 /// anything positioned outside that computed frame (an overlay offset to the side, escaping the
 /// popover's bounds like a native submenu would) has nowhere to render — windows clip to their own
 /// frame regardless of what SwiftUI's layout system reports. Same expand-in-place approach already
-/// used for the daemon stop confirmation below, which is proven to work reliably in this exact
+/// used for the daemon stop confirmation above, which is proven to work reliably in this exact
 /// panel.
 private struct MenuBarRunSubmenu: View {
     let disabled: Bool
