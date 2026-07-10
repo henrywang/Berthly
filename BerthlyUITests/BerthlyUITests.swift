@@ -882,11 +882,20 @@ final class BerthlyUITests: XCTestCase {
             for _ in 0..<5 {
                 runButton.click()
                 let containerOption = app.buttons["Run Container"]
-                _ = containerOption.waitForExistence(timeout: 5)
+                // Assert the waits rather than discarding them: a discarded timeout falls
+                // through to a .click() that then fails at the *click* line with a confusing
+                // "no matches" — masking that the previous transition hadn't settled.
+                XCTAssertTrue(containerOption.waitForExistence(timeout: 5))
                 containerOption.click()
                 let cancelButton = app.buttons["Cancel"]
-                _ = cancelButton.waitForExistence(timeout: 5)
+                XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
                 cancelButton.click()
+                // Wait for the sheet to fully dismiss before looping. "Cancel" is unique to the
+                // sheet (the popover has none), so its disappearance marks a settled window. This
+                // must be the last line: it also gates the measure closure's re-invocation, so
+                // measure never re-enters mid-dismiss with the toolbar button not yet hittable —
+                // the race that left only the window's zoom button in the tree on CI.
+                XCTAssertTrue(cancelButton.waitForNonExistence(timeout: 10))
             }
         }
     }
