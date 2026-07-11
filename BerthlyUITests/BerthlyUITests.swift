@@ -418,6 +418,35 @@ final class BerthlyUITests: XCTestCase {
                        "Return from a field without its own .onSubmit should still submit the sheet")
     }
 
+    /// Selecting a volume opens its detail pane, and selecting another swaps the content —
+    /// the list→detail wiring added for Volumes (mirrors the image/compute detail panes).
+    /// Asserts on detail-only text ("Capacity", the not-mounted hint) rather than tagging the
+    /// pane, since a container accessibilityIdentifier would flatten those child texts away.
+    @MainActor
+    func testVolumeSelectionOpensAndSwapsDetailPane() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.staticTexts["Volumes"].click()
+        // `pgdata` is a mounted named volume in the mock; its row confirms we're on the page.
+        XCTAssertTrue(app.staticTexts["pgdata"].waitForExistence(timeout: 5))
+
+        // No detail pane until something is selected — "Capacity" is a detail-only section title.
+        XCTAssertFalse(app.staticTexts["Capacity"].exists)
+
+        app.staticTexts["pgdata"].click()
+        XCTAssertTrue(app.staticTexts["Capacity"].waitForExistence(timeout: 5))
+        // pgdata is mounted by the `datastore` container — the Mounted Into diagram names it.
+        XCTAssertTrue(app.staticTexts["datastore"].waitForExistence(timeout: 5))
+
+        // Selecting an unmounted, reclaimable volume swaps the pane to the not-mounted branch.
+        app.staticTexts["model-cache"].click()
+        XCTAssertTrue(app.staticTexts["Not mounted into any container"].waitForExistence(timeout: 5))
+    }
+
     @MainActor
     func testReturnSubmitsNetworkCreateFromAnyField() throws {
         let app = XCUIApplication.berthly()
