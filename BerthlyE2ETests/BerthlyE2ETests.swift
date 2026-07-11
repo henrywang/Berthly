@@ -101,6 +101,145 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
                       "The new container should surface in the app's own UI")
     }
 
+    /// Tier-1 options journey (PLAN/E2E-TEST.md §1.2): one run with every assertable option
+    /// class set through the sheet, verified field-by-field via `container inspect` JSON.
+    /// Non-default values throughout, so a silently-dropped flag can't hide behind a default.
+    @MainActor
+    func testRunOptionsReachDaemon() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        let labelValue = UUID().uuidString.lowercased()
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+
+        let runButton = app.buttons["runToolbarButton"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: runButton)
+        waitForExpectations(timeout: 30)
+        runButton.click()
+        let containerOption = app.buttons["Run Container"]
+        XCTAssertTrue(containerOption.waitForExistence(timeout: 5))
+        containerOption.click()
+
+        func type(_ text: String, into identifier: String) {
+            let field = app.windows.textFields[identifier]
+            XCTAssertTrue(field.waitForExistence(timeout: 5), "field \(identifier) should exist")
+            field.click()
+            field.typeText(text)
+        }
+
+        // Header
+        type(Self.fixtureImage, into: "runImageField")
+        type(containerName, into: "runNameField")
+
+        // General: sleep keeps it running so state/inspect assertions are stable.
+        type("sleep 300", into: "runCommandField")
+
+        // Environment: one env var + one label.
+        app.buttons["runCategory-Environment"].click()
+        app.buttons["runEnvAddButton"].click()
+        type("BERTHLY_E2E", into: "runEnvKeyField")
+        type("1", into: "runEnvValueField")
+        app.buttons["runLabelAddButton"].click()
+        type("berthly.e2e", into: "runLabelKeyField")
+        type(labelValue, into: "runLabelValueField")
+
+        // Resources: non-default cpu/memory.
+        app.buttons["runCategory-Resources"].click()
+        type("3", into: "runCpusField")
+        type("512m", into: "runMemoryField")
+
+        // Security: exactly one boring boolean inspect can confirm.
+        app.buttons["runCategory-Security"].click()
+        let readOnlyToggle = app.checkBoxes["runReadOnlyToggle"]
+        XCTAssertTrue(readOnlyToggle.waitForExistence(timeout: 5))
+        readOnlyToggle.click()
+
+        let submitButton = app.buttons["runSubmitButton"]
+        XCTAssertTrue(submitButton.waitForExistence(timeout: 5))
+        submitButton.click()
+        XCTAssertTrue(app.buttons["Show Container"].waitForExistence(timeout: 120),
+                      "Run should reach the success state")
+
+        // ── Field-by-field oracle ──
+        let json = try ContainerCLI.inspectJSON(containerName)
+        let imageRef = ContainerCLI.value(at: "configuration.image.reference", in: json) as? String
+        XCTAssertTrue(imageRef?.contains("alpine") == true, "image: \(imageRef ?? "nil")")
+
+        let env = ContainerCLI.value(at: "configuration.initProcess.environment", in: json) as? [String]
+        XCTAssertTrue(env?.contains("BERTHLY_E2E=1") == true, "env: \(env ?? [])")
+
+        let labels = ContainerCLI.value(at: "configuration.labels", in: json) as? [String: Any]
+        XCTAssertEqual(labels?["berthly.e2e"] as? String, labelValue, "labels: \(labels ?? [:])")
+
+        XCTAssertEqual(ContainerCLI.value(at: "configuration.resources.cpus", in: json) as? Int, 3)
+        XCTAssertEqual(ContainerCLI.value(at: "configuration.resources.memoryInBytes", in: json) as? Int,
+                       512 * 1024 * 1024)
+        XCTAssertEqual(ContainerCLI.value(at: "configuration.readOnly", in: json) as? Bool, true)
+        XCTAssertEqual(ContainerCLI.value(at: "status.state", in: json) as? String, "running")
+    }
+
+    /// Tier-1 lifecycle journey (PLAN/E2E-TEST.md §1.3): stop/start/delete buttons' real
+    /// effect, verified through the CLI after each transition. The container is created via
+    /// CLI — this journey tests the lifecycle actions, not the Run sheet.
+    @MainActor
+    func testContainerLifecycleFromUI() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        let create = try ContainerCLI.run(
+            ["run", "-d", "--name", containerName, Self.fixtureImage, "sleep", "300"],
+            timeout: 120
+        )
+        XCTAssertEqual(create.status, 0, "container run failed:\n\(create.output)")
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+
+        // Select the container in the sidebar to open its detail view. The row has its own
+        // identifier because the detail view shows the same name once open — an app-wide
+        // staticTexts[name] then matches twice ("multiple matching elements" on rightClick),
+        // and firstMatch can resolve to the detail title instead of the row. (app.outlines
+        // scoping also failed — the SwiftUI sidebar List doesn't surface as an outline here.)
+        let row = app.staticTexts["computeRow-\(containerName)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.click()
+
+        // Stop from the UI; the Start button replacing Stop marks the observed transition.
+        let stopButton = app.buttons["containerStopButton"]
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 10))
+        stopButton.click()
+        let startButton = app.buttons["containerStartButton"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 60), "UI should show Start after stopping")
+        let stopped = try ContainerCLI.run(["ls"], timeout: 30) // running-only listing
+        XCTAssertFalse(stopped.output.contains(containerName), "daemon should report it stopped")
+
+        // Start again; boot can take a while on a cold VM.
+        startButton.click()
+        XCTAssertTrue(stopButton.waitForExistence(timeout: 120), "UI should show Stop after starting")
+        let running = try ContainerCLI.run(["ls"], timeout: 30)
+        XCTAssertTrue(running.output.contains(containerName), "daemon should report it running")
+
+        // Stop once more — delete is only offered for stopped containers.
+        stopButton.click()
+        XCTAssertTrue(startButton.waitForExistence(timeout: 60))
+
+        // Delete via the row's context menu + confirmation alert. Query the menu item by
+        // label: .accessibilityIdentifier on a contextMenu Button does NOT survive the
+        // SwiftUI→NSMenu bridge (confirmed here — the id query timed out with the menu open).
+        // "Delete…" (U+2026) is unique within the menu, and menuItems is already scoped.
+        row.rightClick()
+        let deleteItem = app.menuItems["Delete…"]
+        XCTAssertTrue(deleteItem.waitForExistence(timeout: 5))
+        deleteItem.click()
+        // Scope to the window — bare buttons[…] can also match a Touch Bar phantom.
+        let confirm = app.windows.buttons["containerDeleteConfirmButton"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation alert should appear")
+        confirm.click()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 30), "row should leave the sidebar")
+        let gone = try ContainerCLI.run(["ls", "-a"], timeout: 30)
+        XCTAssertFalse(gone.output.contains(containerName), "daemon should no longer know it")
+    }
+
     /// Reverse direction: create via CLI, assert the UI notices. Covers the refresh /
     /// observation path that the UI-driven journey can't isolate.
     @MainActor

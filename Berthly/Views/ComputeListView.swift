@@ -193,6 +193,9 @@ private struct ContainerComputeRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(container.name)
                     .font(.system(.body, design: .default, weight: .medium))
+                    // Unambiguous handle for the sidebar row (E2E lifecycle journey): the
+                    // detail view shows the same name, so tests can't query by text alone.
+                    .accessibilityIdentifier("computeRow-\(container.name)")
                 Text(container.image)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -234,10 +237,14 @@ private struct ContainerComputeRow: View {
             Button("Copy Container ID") { copyToPasteboard(container.id) }
             Button("Copy Image Reference") { copyToPasteboard(container.image) }
             Divider()
+            // No accessibilityIdentifier: it doesn't survive the SwiftUI→NSMenu bridge for
+            // context-menu items — tests query menuItems["Delete…"] by label instead.
             Button("Delete…", role: .destructive) { showDeleteConfirm = true }
                 .disabled(container.status == .running)
         }
         .alert("Delete \(container.name)?", isPresented: $showDeleteConfirm) {
+            // Identifier because a bare buttons["Delete"] would also match the context-menu
+            // item (identifier-OR-label matching) — the E2E lifecycle journey drives this.
             Button("Delete", role: .destructive) {
                 isDeleting = true
                 Task {
@@ -246,6 +253,7 @@ private struct ContainerComputeRow: View {
                     isDeleting = false
                 }
             }
+            .accessibilityIdentifier("containerDeleteConfirmButton")
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This action cannot be undone.")

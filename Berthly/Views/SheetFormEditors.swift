@@ -12,6 +12,11 @@ struct KeyValueEditor: View {
     let title: LocalizedStringKey
     let keyPlaceholder: String
     let valuePlaceholder: String
+    /// Stable accessibility-identifier prefix for UI/E2E tests, e.g. "runEnv" yields
+    /// "runEnvKeyField"/"runEnvValueField"/"runEnvAddButton". Applied to leaf controls only —
+    /// an identifier on a container would override every child's own id. Rows share ids, so
+    /// tests that add multiple rows must scope queries; E2E journeys add one row per editor.
+    var identifierPrefix: String? = nil
     @Binding var pairs: [KeyValuePair]
 
     var body: some View {
@@ -25,10 +30,12 @@ struct KeyValueEditor: View {
                         TextField(keyPlaceholder, text: $pair.key)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)KeyField" } ?? "")
                         Text("=").foregroundStyle(.tertiary)
                         TextField(valuePlaceholder, text: $pair.value)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)ValueField" } ?? "")
                         Button {
                             pairs.removeAll { $0.id == pair.id }
                         } label: {
@@ -47,6 +54,7 @@ struct KeyValueEditor: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier(identifierPrefix.map { "\($0)AddButton" } ?? "")
             }
         }
     }
@@ -63,6 +71,8 @@ struct StringListEditor: View {
     let title: LocalizedStringKey
     let placeholder: String
     var helpText: String? = nil
+    /// Test-identifier prefix (see KeyValueEditor): "runVolume" → "runVolumeField"/"runVolumeAddButton".
+    var identifierPrefix: String? = nil
     @Binding var entries: [StringEntry]
 
     var body: some View {
@@ -76,6 +86,7 @@ struct StringListEditor: View {
                         TextField(placeholder, text: $entry.value)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)Field" } ?? "")
                         Button {
                             entries.removeAll { $0.id == entry.id }
                         } label: {
@@ -94,6 +105,7 @@ struct StringListEditor: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier(identifierPrefix.map { "\($0)AddButton" } ?? "")
             }
             if let helpText {
                 Text(helpText)
@@ -178,6 +190,8 @@ struct PortEntry: Identifiable {
 
 struct PortRowsEditor: View {
     let title: LocalizedStringKey
+    /// Test-identifier prefix (see KeyValueEditor): "runPort" → "runPortHostField"/"runPortContainerField"/"runPortAddButton".
+    var identifierPrefix: String? = nil
     @Binding var entries: [PortEntry]
 
     var body: some View {
@@ -192,11 +206,13 @@ struct PortRowsEditor: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
                             .frame(width: 70)
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)HostField" } ?? "")
                         Text(":").foregroundStyle(.tertiary)
                         TextField("container", text: $entry.containerPort)
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.callout, design: .monospaced))
                             .frame(width: 70)
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)ContainerField" } ?? "")
                         Picker("", selection: $entry.proto) {
                             ForEach(PortProtocolChoice.allCases, id: \.self) {
                                 Text($0.rawValue).tag($0)
@@ -224,6 +240,7 @@ struct PortRowsEditor: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier(identifierPrefix.map { "\($0)AddButton" } ?? "")
             }
         }
     }
@@ -344,12 +361,16 @@ struct PlatformPicker: View {
 struct LocalImageReferenceField: View {
     @Binding var reference: String
     let images: [ContainerImage]
+    /// Test identifier for the inner TextField (on the leaf, not this container — a container
+    /// id would override the field's). Distinct per host sheet: "runImageField" vs machine's.
+    var fieldIdentifier: String? = nil
 
     var body: some View {
         HStack(spacing: 6) {
             TextField("local/myapp:1.0", text: $reference)
                 .textFieldStyle(.plain)
                 .fontDesign(.monospaced)
+                .accessibilityIdentifier(fieldIdentifier ?? "")
             if !images.isEmpty {
                 Menu {
                     ForEach(images) { image in

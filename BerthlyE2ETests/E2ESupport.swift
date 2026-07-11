@@ -99,6 +99,42 @@ enum ContainerCLI {
         }
     }
 
+    /// Parsed `container inspect` for one container. apple/container returns a JSON array;
+    /// this unwraps the first element. Schema reference (verified against a live daemon,
+    /// 2026-07-10 — apple/container 1.1.0):
+    ///   .configuration.image.reference            "docker.io/library/alpine:latest"
+    ///   .configuration.initProcess.environment    ["PATH=…", "BERTHLY_E2E=1"]
+    ///   .configuration.labels                     {"berthly.e2e": "abc123"}
+    ///   .configuration.resources.cpus             3
+    ///   .configuration.resources.memoryInBytes    536870912
+    ///   .configuration.readOnly                   false
+    ///   .status.state                             "running"
+    static func inspectJSON(_ name: String) throws -> [String: Any] {
+        let result = try run(["inspect", name], timeout: 30)
+        guard result.status == 0 else {
+            throw NSError(domain: "ContainerCLI", code: 3, userInfo: [
+                NSLocalizedDescriptionKey: "inspect \(name) failed: \(result.output)",
+            ])
+        }
+        let data = Data(result.output.utf8)
+        let parsed = try JSONSerialization.jsonObject(with: data)
+        if let array = parsed as? [[String: Any]], let first = array.first { return first }
+        if let object = parsed as? [String: Any] { return object }
+        throw NSError(domain: "ContainerCLI", code: 4, userInfo: [
+            NSLocalizedDescriptionKey: "unexpected inspect JSON shape: \(result.output.prefix(200))",
+        ])
+    }
+
+    /// Digs a dot path through nested dictionaries ("configuration.resources.cpus").
+    /// Only for keys without dots of their own — read dotted keys (labels) directly.
+    static func value(at path: String, in json: [String: Any]) -> Any? {
+        var current: Any? = json
+        for component in path.split(separator: ".") {
+            current = (current as? [String: Any])?[String(component)]
+        }
+        return current
+    }
+
     /// Force-removes every container whose name starts with `prefix`. Called from both
     /// setUp (leftovers from a previous *crashed* run — without this, debris causes
     /// name-collision "flakes") and tearDown (this run's resources).

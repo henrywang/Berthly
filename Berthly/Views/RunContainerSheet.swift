@@ -222,7 +222,7 @@ struct RunContainerSheet: View {
                 Text("Image")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
-                LocalImageReferenceField(reference: $reference, images: service.images)
+                LocalImageReferenceField(reference: $reference, images: service.images, fieldIdentifier: "runImageField")
             }
 
             VStack(alignment: .leading, spacing: 6) {
@@ -230,6 +230,7 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("Optional — auto-generated if left blank", text: $name)
+                    .accessibilityIdentifier("runNameField")
                     .textFieldStyle(.plain)
                     .fontDesign(.monospaced)
                     .padding(.horizontal, 8)
@@ -280,6 +281,9 @@ struct RunContainerSheet: View {
                         .foregroundStyle(selectedCategory == category ? Color.berthlyAccent : .primary)
                     }
                     .buttonStyle(.plain)
+                    // Stable per-category id for UI/E2E tests ("runCategory-Resources" etc.);
+                    // the visible label alone would collide with same-named sidebar pages.
+                    .accessibilityIdentifier("runCategory-\(category.rawValue)")
                 }
                 Spacer()
             }
@@ -360,6 +364,7 @@ struct RunContainerSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("Optional override, e.g. npm start", text: $command)
+                .accessibilityIdentifier("runCommandField")
                 .textFieldStyle(.roundedBorder)
                 .fontDesign(.monospaced)
         }
@@ -368,6 +373,7 @@ struct RunContainerSheet: View {
 
         Toggle("Start immediately", isOn: $startImmediately)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runStartImmediatelyToggle")
         if startImmediately {
             Toggle(isOn: $attachAndShowOutput) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -381,6 +387,7 @@ struct RunContainerSheet: View {
         }
         Toggle("Remove when stopped", isOn: $removeWhenStopped)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runRemoveWhenStoppedToggle")
     }
 
     @ViewBuilder
@@ -388,6 +395,7 @@ struct RunContainerSheet: View {
         StringListEditor(
             title: "Volumes",
             placeholder: "myvolume:/var/lib/data or /host/path:/container/path",
+            identifierPrefix: "runVolume",
             entries: $volumes
         )
         MountRowsEditor(title: "Mounts", entries: $mounts)
@@ -403,7 +411,7 @@ struct RunContainerSheet: View {
 
     @ViewBuilder
     private var networkFields: some View {
-        PortRowsEditor(title: "Ports", entries: $ports)
+        PortRowsEditor(title: "Ports", identifierPrefix: "runPort", entries: $ports)
         NetworkListEditor(
             title: "Networks",
             helpText: defaultNetworkHelpText,
@@ -439,6 +447,7 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("2", text: $cpus)
+                    .accessibilityIdentifier("runCpusField")
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -447,6 +456,7 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("1g", text: $memory)
+                    .accessibilityIdentifier("runMemoryField")
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -469,9 +479,9 @@ struct RunContainerSheet: View {
 
     @ViewBuilder
     private var environmentFields: some View {
-        KeyValueEditor(title: "Environment variables", keyPlaceholder: "KEY", valuePlaceholder: "value", pairs: $env)
+        KeyValueEditor(title: "Environment variables", keyPlaceholder: "KEY", valuePlaceholder: "value", identifierPrefix: "runEnv", pairs: $env)
         StringListEditor(title: "Env files", placeholder: "/host/path/.env", entries: $envFile)
-        KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", pairs: $labels)
+        KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", identifierPrefix: "runLabel", pairs: $labels)
     }
 
     @ViewBuilder
@@ -482,6 +492,7 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("/app", text: $workdir)
+                    .accessibilityIdentifier("runWorkdirField")
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.callout, design: .monospaced))
             }
@@ -505,6 +516,7 @@ struct RunContainerSheet: View {
 
         Toggle("Read-only root filesystem", isOn: $readOnly)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runReadOnlyToggle")
         Toggle("Run an init process", isOn: $initProcess)
             .toggleStyle(.checkbox)
         Toggle("Enable Rosetta", isOn: $rosetta)

@@ -153,6 +153,7 @@ private struct ContainerDetailContent: View {
                 .buttonStyle(.bordered)
                 .tint(.statusError)
                 .disabled(isWorking)
+                .accessibilityIdentifier("containerStopButton")
                 .help("Stop")
                 .hoverScale()
             } else {
@@ -167,6 +168,7 @@ private struct ContainerDetailContent: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.berthlyAccent)
                 .disabled(isWorking)
+                .accessibilityIdentifier("containerStartButton")
                 .help("Start")
                 .hoverScale()
             }
