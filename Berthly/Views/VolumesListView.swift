@@ -31,27 +31,7 @@ struct VolumesListView: View {
     private var reclaimableMB: Int { service.volumes.filter(\.reclaimable).reduce(0) { $0 + $1.usedMB } }
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 8) {
-                if !service.volumes.isEmpty {
-                    Label(formatVolumeMB(totalUsedMB) + " used", systemImage: "cylinder")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    if reclaimableMB > 0 {
-                        Text(formatVolumeMB(reclaimableMB) + " reclaimable")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(Color.statusPaused)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.statusPaused.opacity(0.12), in: Capsule())
-                    }
-                }
-                Spacer()
-                LibrarySortMenu(selectionRaw: $sortOrderRaw)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-
+        Group {
             if service.volumes.isEmpty {
                 ContentUnavailableView {
                     Label("No Volumes", systemImage: "cylinder")
@@ -82,6 +62,29 @@ struct VolumesListView: View {
                 }
                 // ⌫ on the selected volume — same confirm-then-delete as the hover trash button.
                 .onDeleteCommand { deleteTargetID = selectedID }
+                // Attached as a safe-area inset (not a sibling above the List) so List stays the
+                // flush top-level view under the toolbar — otherwise macOS shows a stray hairline
+                // divider under the toolbar that Compute/Networks (List with no header) don't have.
+                .safeAreaInset(edge: .top) {
+                    HStack(spacing: 8) {
+                        Label(formatVolumeMB(totalUsedMB) + " used", systemImage: "cylinder")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if reclaimableMB > 0 {
+                            Text(formatVolumeMB(reclaimableMB) + " reclaimable")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.statusPaused)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.statusPaused.opacity(0.12), in: Capsule())
+                        }
+                        Spacer()
+                        LibrarySortMenu(selectionRaw: $sortOrderRaw)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(.background)
+                }
             }
         }
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name")

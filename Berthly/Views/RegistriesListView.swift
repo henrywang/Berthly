@@ -17,37 +17,56 @@ struct RegistriesListView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            header
-            infoBanner
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-
+        Group {
             if service.registries.isEmpty {
-                ContentUnavailableView {
-                    Label("No Registries", systemImage: "building.columns")
-                } description: {
-                    Text("Add a registry to sign in — or run `container registry login`.")
-                } actions: {
-                    // Same intent path the toolbar's Add button uses — MainWindowView owns the
-                    // sheet, so the empty state can't present it directly.
-                    Button("Add Registry…") { bridge.pendingIntent = .openAddRegistrySheet }
-                        .buttonStyle(.borderedProminent)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if filtered.isEmpty {
-                ContentUnavailableView.search(text: filterText)
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    infoBanner
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                    ContentUnavailableView {
+                        Label("No Registries", systemImage: "building.columns")
+                    } description: {
+                        Text("Add a registry to sign in — or run `container registry login`.")
+                    } actions: {
+                        // Same intent path the toolbar's Add button uses — MainWindowView owns the
+                        // sheet, so the empty state can't present it directly.
+                        Button("Add Registry…") { bridge.pendingIntent = .openAddRegistrySheet }
+                            .buttonStyle(.borderedProminent)
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else if filtered.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    infoBanner
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                    ContentUnavailableView.search(text: filterText)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
             } else {
-                columnHeader
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
                 List {
                     ForEach(filtered) { registry in
                         RegistryRow(registryID: registry.id, errorMessage: $errorMessage)
                     }
                 }
                 .listStyle(.plain)
+                // Attached as a safe-area inset (not a sibling above the List) so List stays the
+                // flush top-level view under the toolbar — otherwise macOS shows a stray hairline
+                // divider under the toolbar that Compute/Networks (List with no header) don't have.
+                .safeAreaInset(edge: .top) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        header
+                        infoBanner
+                            .padding(.horizontal, 20)
+                            .padding(.top, 12)
+                        columnHeader
+                            .padding(.horizontal, 20)
+                            .padding(.top, 16)
+                    }
+                    .background(.background)
+                }
             }
         }
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by host or user")

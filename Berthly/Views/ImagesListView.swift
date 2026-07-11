@@ -51,28 +51,31 @@ struct ImagesListView: View {
             } else if filtered.isEmpty {
                 ContentUnavailableView.search(text: filterText)
             } else {
-                VStack(spacing: 0) {
+                List(selection: $selectedID) {
+                    if !local.isEmpty {
+                        Section {
+                            ForEach(local)  { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
+                        } header: { LibrarySectionHeader("LOCAL \(local.count)") }
+                    }
+                    if !pulled.isEmpty {
+                        Section {
+                            ForEach(pulled) { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
+                        } header: { LibrarySectionHeader("PULLED \(pulled.count)") }
+                    }
+                }
+                // ⌫ on the selected image — same confirm-then-delete as the hover trash button.
+                .onDeleteCommand { deleteTargetID = selectedID }
+                // Attached as a safe-area inset (not a sibling above the List) so List stays the
+                // flush top-level view under the toolbar — otherwise macOS shows a stray hairline
+                // divider under the toolbar that Compute/Networks (List with no header) don't have.
+                .safeAreaInset(edge: .top) {
                     HStack {
                         Spacer()
                         LibrarySortMenu(selectionRaw: $sortOrderRaw)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 6)
-
-                    List(selection: $selectedID) {
-                        if !local.isEmpty {
-                            Section {
-                                ForEach(local)  { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
-                            } header: { LibrarySectionHeader("LOCAL \(local.count)") }
-                        }
-                        if !pulled.isEmpty {
-                            Section {
-                                ForEach(pulled) { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
-                            } header: { LibrarySectionHeader("PULLED \(pulled.count)") }
-                        }
-                    }
-                    // ⌫ on the selected image — same confirm-then-delete as the hover trash button.
-                    .onDeleteCommand { deleteTargetID = selectedID }
+                    .background(.background)
                 }
             }
         }
