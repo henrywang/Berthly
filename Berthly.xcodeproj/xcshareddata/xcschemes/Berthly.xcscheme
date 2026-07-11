@@ -51,6 +51,16 @@
                ReferencedContainer = "container:Berthly.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "E2E0000000000000000000A6"
+               BuildableName = "BerthlyE2ETests.xctest"
+               BlueprintName = "BerthlyE2ETests"
+               ReferencedContainer = "container:Berthly.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

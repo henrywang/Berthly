@@ -40,12 +40,20 @@
 			remoteGlobalIDString = F80E29432FF1647500094CE8;
 			remoteInfo = Berthly;
 		};
+		E2E0000000000000000000A7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F80E293C2FF1647500094CE8 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = F80E29432FF1647500094CE8;
+			remoteInfo = Berthly;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		F80E29442FF1647500094CE8 /* Berthly.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Berthly.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F80E29512FF1647500094CE8 /* BerthlyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BerthlyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BerthlyUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E2E0000000000000000000A1 /* BerthlyE2ETests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BerthlyE2ETests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -62,6 +70,11 @@
 		F80E295E2FF1647500094CE8 /* BerthlyUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = BerthlyUITests;
+			sourceTree = "<group>";
+		};
+		E2E0000000000000000000A2 /* BerthlyE2ETests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = BerthlyE2ETests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -104,6 +117,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2E0000000000000000000A3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -113,6 +133,7 @@
 				F80E29462FF1647500094CE8 /* Berthly */,
 				F80E29542FF1647500094CE8 /* BerthlyTests */,
 				F80E295E2FF1647500094CE8 /* BerthlyUITests */,
+				E2E0000000000000000000A2 /* BerthlyE2ETests */,
 				F80E29452FF1647500094CE8 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -123,6 +144,7 @@
 				F80E29442FF1647500094CE8 /* Berthly.app */,
 				F80E29512FF1647500094CE8 /* BerthlyTests.xctest */,
 				F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */,
+				E2E0000000000000000000A1 /* BerthlyE2ETests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -214,6 +236,29 @@
 			productReference = F80E295B2FF1647500094CE8 /* BerthlyUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		E2E0000000000000000000A6 /* BerthlyE2ETests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2E0000000000000000000AB /* Build configuration list for PBXNativeTarget "BerthlyE2ETests" */;
+			buildPhases = (
+				E2E0000000000000000000A4 /* Sources */,
+				E2E0000000000000000000A3 /* Frameworks */,
+				E2E0000000000000000000A5 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E2E0000000000000000000A8 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E2E0000000000000000000A2 /* BerthlyE2ETests */,
+			);
+			name = BerthlyE2ETests;
+			packageProductDependencies = (
+			);
+			productName = BerthlyE2ETests;
+			productReference = E2E0000000000000000000A1 /* BerthlyE2ETests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -232,6 +277,10 @@
 						TestTargetID = F80E29432FF1647500094CE8;
 					};
 					F80E295A2FF1647500094CE8 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = F80E29432FF1647500094CE8;
+					};
+					E2E0000000000000000000A6 = {
 						CreatedOnToolsVersion = 26.6;
 						TestTargetID = F80E29432FF1647500094CE8;
 					};
@@ -259,6 +308,7 @@
 				F80E29432FF1647500094CE8 /* Berthly */,
 				F80E29502FF1647500094CE8 /* BerthlyTests */,
 				F80E295A2FF1647500094CE8 /* BerthlyUITests */,
+				E2E0000000000000000000A6 /* BerthlyE2ETests */,
 			);
 		};
 /* End PBXProject section */
@@ -279,6 +329,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		F80E29592FF1647500094CE8 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2E0000000000000000000A5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -309,6 +366,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2E0000000000000000000A4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -321,6 +385,11 @@
 			isa = PBXTargetDependency;
 			target = F80E29432FF1647500094CE8 /* Berthly */;
 			targetProxy = F80E295C2FF1647500094CE8 /* PBXContainerItemProxy */;
+		};
+		E2E0000000000000000000A8 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = F80E29432FF1647500094CE8 /* Berthly */;
+			targetProxy = E2E0000000000000000000A7 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -579,6 +648,42 @@
 			};
 			name = Release;
 		};
+		E2E0000000000000000000A9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyE2ETests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Berthly;
+			};
+			name = Debug;
+		};
+		E2E0000000000000000000AA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyE2ETests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = Berthly;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -614,6 +719,15 @@
 			buildConfigurations = (
 				F80E296C2FF1647500094CE8 /* Debug */,
 				F80E296D2FF1647500094CE8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E2E0000000000000000000AB /* Build configuration list for PBXNativeTarget "BerthlyE2ETests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2E0000000000000000000A9 /* Debug */,
+				E2E0000000000000000000AA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
