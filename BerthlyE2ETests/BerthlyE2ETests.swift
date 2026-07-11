@@ -342,6 +342,71 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 30),
                       "A container created behind the app's back should appear in the sidebar")
     }
+
+    /// Behavioral counterpart to `testRunOptionsReachDaemon`: instead of asserting the daemon
+    /// *recorded* the options, this boots a container with a bootable subset set through the
+    /// sheet and `container exec`s in to prove each option actually took *effect* — env visible
+    /// to a process, working directory applied, running as the given uid, root filesystem truly
+    /// read-only. This is the "function checking" the inspect-based test can't do.
+    @MainActor
+    func testRunOptionsTakeEffectViaExec() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+
+        let runButton = app.buttons["runToolbarButton"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: runButton)
+        waitForExpectations(timeout: 30)
+        runButton.click()
+        app.buttons["Run Container"].click()
+
+        func type(_ text: String, into id: String) {
+            let field = app.windows.textFields[id]
+            XCTAssertTrue(field.waitForExistence(timeout: 5), "field \(id)")
+            field.click(); field.typeText(text)
+        }
+
+        // Boot ON (default). A bootable set: /tmp and uid 405 don't need a passwd entry, and
+        // sleep writes nothing so read-only is fine. (testRunOptionsReachDaemon covers the
+        // exhaustive/unbootable option surface via Create.)
+        type(Self.fixtureImage, into: "runImageField")
+        type(containerName, into: "runNameField")
+        type("sleep 300", into: "runCommandField")
+
+        app.buttons["runCategory-Environment"].click()
+        app.buttons["runEnvAddButton"].click()
+        type("BERTHLY_E2E", into: "runEnvKeyField")
+        type("marker-value", into: "runEnvValueField")
+
+        app.buttons["runCategory-Security"].click()
+        type("/tmp", into: "runWorkdirField")
+        type("405", into: "runUserField")
+        app.checkBoxes["runReadOnlyToggle"].click()
+
+        app.buttons["runSubmitButton"].click()
+        XCTAssertTrue(app.buttons["Show Container"].waitForExistence(timeout: 120),
+                      "container should boot")
+
+        // ── Behavioral oracle: exec into the running container ──
+        let env = try ContainerCLI.exec(containerName, ["env"])
+        XCTAssertTrue(env.output.contains("BERTHLY_E2E=marker-value"),
+                      "env var should be visible to a process:\n\(env.output)")
+
+        let pwd = try ContainerCLI.exec(containerName, ["pwd"])
+        XCTAssertEqual(pwd.output.trimmingCharacters(in: .whitespacesAndNewlines), "/tmp",
+                       "working directory should be applied")
+
+        let uid = try ContainerCLI.exec(containerName, ["id", "-u"])
+        XCTAssertEqual(uid.output.trimmingCharacters(in: .whitespacesAndNewlines), "405",
+                       "process should run as the configured uid")
+
+        let write = try ContainerCLI.exec(containerName, ["touch", "/should-fail"])
+        XCTAssertNotEqual(write.status, 0, "read-only root filesystem should reject writes")
+        XCTAssertTrue(write.output.lowercased().contains("read-only"),
+                      "write should fail with a read-only error:\n\(write.output)")
+    }
 }
 
 /// Machine create + delete through the UI (PLAN/E2E-TEST.md — promoted from the Tier-3
@@ -411,5 +476,128 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(row.waitForNonExistence(timeout: 30), "machine row should leave the sidebar")
         let gone = try ContainerCLI.run(["machine", "ls"], timeout: 30)
         XCTAssertFalse(gone.output.contains(machineName), "daemon should no longer know the machine")
+    }
+}
+
+/// Resource journeys (PLAN/E2E-TEST.md Tier 2): create a real resource through its sheet,
+/// confirm via the CLI, then *use* it to prove it actually works — the create-then-use
+/// pattern. Each opens its sheet through the ⌘K command palette for a uniform entry point.
+final class ResourceJourneyTests: BerthlyE2ETestCase {
+    private static let fixtureImage = "alpine:latest"
+
+    /// Pull an image through the Pull sheet, then run a container from it — proving the pulled
+    /// image is not just listed but functional.
+    @MainActor
+    func testPullImageFromSheetThenRun() throws {
+        // A small, pinned, unlikely-to-be-in-active-use tag. Force a real registry pull by
+        // removing it first; restore the machine's prior state in cleanup.
+        let ref = "busybox:1.36"
+        let hadItBefore = (try? ContainerCLI.run(["image", "inspect", ref]))?.status == 0
+        _ = try? ContainerCLI.run(["image", "delete", ref])
+        defer { if !hadItBefore { _ = try? ContainerCLI.run(["image", "delete", ref]) } }
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Pull Image"), "command palette should open")
+        let field = app.windows.textFields["pullImageField"]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "Pull sheet should appear")
+        field.click(); field.typeText(ref)
+        app.buttons["pullSubmitButton"].click()
+
+        // Registry pull → generous timeout; success shows a Done button.
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 300),
+                      "pull should complete; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        done.click()
+
+        // Oracle: the daemon has the image.
+        XCTAssertEqual(try ContainerCLI.run(["image", "inspect", ref]).status, 0,
+                       "pulled image should be present")
+
+        // Behavioral: the pulled image actually runs.
+        let out = try ContainerCLI.run(
+            ["run", "--rm", "--name", containerName, ref, "echo", "pulled-and-running"],
+            timeout: 120
+        )
+        XCTAssertTrue(out.output.contains("pulled-and-running"),
+                      "a container from the pulled image should run:\n\(out.output)")
+    }
+
+    /// Create a volume through the sheet, then prove it's a real shared volume: write into it
+    /// from one container, read the same bytes back from another.
+    @MainActor
+    func testVolumeCreatedInUIIsShareable() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Create Volume"))
+        let nameField = app.windows.textFields["volumeNameField"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Volume sheet should appear")
+        nameField.click(); nameField.typeText(volumeName)
+        let submit = app.buttons["volumeCreateSubmitButton"]
+        submit.click()
+        // The sheet dismisses itself on success (no Done button) — its disappearance is the signal.
+        XCTAssertTrue(submit.waitForNonExistence(timeout: 15), "sheet should close on successful create")
+
+        // Oracle.
+        XCTAssertTrue(try ContainerCLI.run(["volume", "ls"]).output.contains(volumeName),
+                      "volume should be listed")
+
+        // Behavioral: write from one container, read from another.
+        let write = try ContainerCLI.run(
+            ["run", "--rm", "--name", "\(containerName)-w", "-v", "\(volumeName):/data",
+             Self.fixtureImage, "sh", "-c", "echo shared-payload > /data/f"], timeout: 120)
+        XCTAssertEqual(write.status, 0, "write container failed:\n\(write.output)")
+        let read = try ContainerCLI.run(
+            ["run", "--rm", "--name", "\(containerName)-r", "-v", "\(volumeName):/data",
+             Self.fixtureImage, "cat", "/data/f"], timeout: 120)
+        XCTAssertTrue(read.output.contains("shared-payload"),
+                      "second container should read what the first wrote:\n\(read.output)")
+        // volume + any leftover containers are swept by prefix in tearDown.
+    }
+
+    /// Create a network through the sheet, then attach a running container to it and prove the
+    /// container actually provisioned an interface on that network.
+    @MainActor
+    func testNetworkCreatedInUIIsUsable() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Create Network"))
+        let nameField = app.windows.textFields["networkNameField"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Network sheet should appear")
+        nameField.click(); nameField.typeText(networkName)
+        let submit = app.buttons["networkCreateSubmitButton"]
+        submit.click()
+        XCTAssertTrue(submit.waitForNonExistence(timeout: 15), "sheet should close on successful create")
+
+        // Oracle.
+        XCTAssertTrue(try ContainerCLI.run(["network", "ls"]).output.contains(networkName),
+                      "network should be listed")
+
+        // Behavioral: a container attached to the network boots and gets a non-loopback IP,
+        // and inspect confirms the attachment. A broken/invalid network would fail to boot.
+        let run = try ContainerCLI.run(
+            ["run", "-d", "--name", containerName, "--network", networkName,
+             Self.fixtureImage, "sleep", "120"], timeout: 120)
+        XCTAssertEqual(run.status, 0, "container failed to start on the network:\n\(run.output)")
+
+        let json = try ContainerCLI.inspectJSON(containerName)
+        let nets = (ContainerCLI.value(at: "configuration.networks", in: json) as? [[String: Any]])?
+            .compactMap { $0["network"] as? String }
+        XCTAssertTrue(nets?.contains(networkName) == true, "inspect should show the network: \(nets ?? [])")
+
+        let addr = try ContainerCLI.exec(containerName, ["ip", "-o", "-4", "addr", "show"])
+        XCTAssertTrue(addr.output.contains("inet ") && addr.output.contains("eth0"),
+                      "container should have an IPv4 address on the network interface:\n\(addr.output)")
+        // container + network swept by prefix in tearDown.
     }
 }

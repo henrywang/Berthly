@@ -43,6 +43,7 @@ struct NetworkCreateSheet: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                     TextField("my-network", text: $name)
+                        .accessibilityIdentifier("networkNameField")
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                 }
@@ -104,6 +105,7 @@ struct NetworkCreateSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!canSubmit)
                         .keyboardShortcut(.return)
+                        .accessibilityIdentifier("networkCreateSubmitButton")
                 }
             }
             .padding(.horizontal, 20)

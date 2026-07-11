@@ -40,6 +40,7 @@ struct VolumeCreateSheet: View {
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                     TextField("my-volume", text: $name)
+                        .accessibilityIdentifier("volumeNameField")
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                 }
@@ -82,6 +83,7 @@ struct VolumeCreateSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!canSubmit)
                         .keyboardShortcut(.return)
+                        .accessibilityIdentifier("volumeCreateSubmitButton")
                 }
             }
             .padding(.horizontal, 20)

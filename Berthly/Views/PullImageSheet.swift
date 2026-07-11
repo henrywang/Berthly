@@ -164,6 +164,7 @@ struct PullImageSheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(reference.trimmingCharacters(in: .whitespaces).isEmpty)
                         .keyboardShortcut(.return)
+                        .accessibilityIdentifier("pullSubmitButton")
                 }
             }
             .padding(.horizontal, 20)
@@ -179,6 +180,7 @@ struct PullImageSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("ubuntu:24.04", text: $reference)
+                .accessibilityIdentifier("pullImageField")
                 .textFieldStyle(.roundedBorder)
                 .fontDesign(.monospaced)
                 .onSubmit { startPull() }

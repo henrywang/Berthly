@@ -19,6 +19,20 @@ extension XCUIApplication {
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         return app
     }
+
+    /// Opens a sheet/page through the ⌘K command palette by its title (e.g. "Create Volume").
+    /// Uniform, unambiguous entry point — avoids per-sheet toolbar/popover wiring. Returns
+    /// false (via the caller's assert) if the palette or field never appears.
+    @discardableResult
+    func openViaPalette(_ commandTitle: String) -> Bool {
+        typeKey("k", modifierFlags: .command)
+        let search = textFields["commandPaletteSearchField"]
+        guard search.waitForExistence(timeout: 5) else { return false }
+        search.click()
+        search.typeText(commandTitle)
+        typeKey(.return, modifierFlags: [])
+        return true
+    }
 }
 
 /// Thin wrapper around the `container` CLI. The XCUITest runner is unsandboxed, so it can
@@ -148,6 +162,42 @@ enum ContainerCLI {
         _ = try? run(["rm", "-f"] + stale, timeout: 60)
     }
 
+    /// `container exec <name> <arguments…>` — the behavioral oracle. Runs a command *inside*
+    /// a running container so tests can observe an option actually taking effect (env visible,
+    /// filesystem read-only, workdir/user applied) rather than just its recorded configuration.
+    @discardableResult
+    static func exec(_ name: String, _ arguments: [String], timeout: TimeInterval = 30) throws -> Result {
+        try run(["exec", name] + arguments, timeout: timeout)
+    }
+
+    /// Removes named volumes/networks whose name starts with `prefix`. `volume ls`/`network ls`
+    /// have no -q, so take the first whitespace-delimited column of each row after the header.
+    static func sweepVolumes(prefix: String) { sweepNamed(kind: "volume", prefix: prefix) }
+    static func sweepNetworks(prefix: String) { sweepNamed(kind: "network", prefix: prefix) }
+
+    private static func sweepNamed(kind: String, prefix: String) {
+        guard let list = try? run([kind, "ls"], timeout: 30), list.status == 0 else { return }
+        let stale = list.output
+            .split(separator: "\n")
+            .dropFirst() // header row
+            .compactMap { $0.split(separator: " ", maxSplits: 1).first.map(String.init) }
+            .filter { $0.hasPrefix(prefix) }
+        for name in stale { _ = try? run([kind, "delete", name], timeout: 30) }
+    }
+
+    /// Removes images whose reference contains `prefix` (e.g. the build journey's
+    /// `berthly-e2e/...` tags). Public registry images pulled by the pull journey aren't
+    /// prefixable, so that test removes its own target explicitly.
+    static func sweepImages(prefix: String) {
+        guard let list = try? run(["image", "ls"], timeout: 30), list.status == 0 else { return }
+        let stale = list.output
+            .split(separator: "\n")
+            .dropFirst()
+            .compactMap { $0.split(separator: " ", maxSplits: 1).first.map(String.init) }
+            .filter { $0.contains(prefix) }
+        for ref in stale { _ = try? run(["image", "delete", ref], timeout: 30) }
+    }
+
     /// Machine counterpart of `sweepContainers`. `machine ls` has no -q, so parse the
     /// NAME column out of the header table; prefix-scoping is what keeps this away from
     /// the developer's real machines. Running machines must be stopped before delete.
@@ -179,6 +229,10 @@ class BerthlyE2ETestCase: XCTestCase {
     /// Run-unique name for a machine a test creates. Separate prefix segment ("-m-") so the
     /// container and machine sweeps never trip over each other's names.
     private(set) var machineName = ""
+
+    /// Run-unique names for volumes/networks a test creates (kept within the sweep prefix).
+    private(set) var volumeName = ""
+    private(set) var networkName = ""
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -227,16 +281,24 @@ class BerthlyE2ETestCase: XCTestCase {
         if (try? killer.run()) != nil { killer.waitUntilExit() }
 
         ContainerCLI.sweepContainers(prefix: Self.resourcePrefix)
+        ContainerCLI.sweepVolumes(prefix: Self.resourcePrefix)
+        ContainerCLI.sweepNetworks(prefix: Self.resourcePrefix)
+        ContainerCLI.sweepImages(prefix: Self.resourcePrefix)
         ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
         let uid = UUID().uuidString.prefix(8).lowercased()
         containerName = "\(Self.resourcePrefix)-\(uid)"
         machineName = "\(Self.resourcePrefix)-m-\(uid)"
+        volumeName = "\(Self.resourcePrefix)-v-\(uid)"
+        networkName = "\(Self.resourcePrefix)-n-\(uid)"
     }
 
     override func tearDownWithError() throws {
         // Guards above may have skipped before the daemon check; sweeping is safe either way.
         if ContainerCLI.isInstalled && ContainerCLI.daemonIsRunning {
             ContainerCLI.sweepContainers(prefix: Self.resourcePrefix)
+            ContainerCLI.sweepVolumes(prefix: Self.resourcePrefix)
+            ContainerCLI.sweepNetworks(prefix: Self.resourcePrefix)
+            ContainerCLI.sweepImages(prefix: Self.resourcePrefix)
             ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
         }
     }
