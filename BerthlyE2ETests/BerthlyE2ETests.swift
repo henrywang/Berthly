@@ -101,8 +101,13 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
                       "The new container should surface in the app's own UI")
     }
 
-    /// Tier-1 options journey (PLAN/E2E-TEST.md §1.2): one run with every assertable option
-    /// class set through the sheet, verified field-by-field via `container inspect` JSON.
+    /// Tier-1 options journey (PLAN/E2E-TEST.md §1.2): drives *every* assertable Run-sheet
+    /// option across all seven category tabs, then verifies each field via `container inspect`.
+    ///
+    /// Uses **Create** (Start immediately OFF), not Run: create stores the full configuration
+    /// without booting, so option combinations that wouldn't boot together (e.g. --ssh -i -t
+    /// on alpine) still round-trip cleanly. Whether the UI can actually *boot* a container is
+    /// covered separately by `testRunContainerFromSheet_containerExistsWithCorrectImage`.
     /// Non-default values throughout, so a silently-dropped flag can't hide behind a default.
     @MainActor
     func testRunOptionsReachDaemon() throws {
@@ -127,16 +132,51 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
             field.click()
             field.typeText(text)
         }
+        func check(_ identifier: String) {
+            let box = app.checkBoxes[identifier]
+            XCTAssertTrue(box.waitForExistence(timeout: 5), "toggle \(identifier) should exist")
+            box.click()
+        }
+        func category(_ name: String) { app.buttons["runCategory-\(name)"].click() }
 
         // Header
         type(Self.fixtureImage, into: "runImageField")
         type(containerName, into: "runNameField")
 
-        // General: sleep keeps it running so state/inspect assertions are stable.
-        type("sleep 300", into: "runCommandField")
+        // General: Create, not Run — see doc comment. Command tokenizes shell-style, so
+        // `-c "sleep 300"` becomes ["-c", "sleep 300"] under the /bin/sh entrypoint below.
+        check("runStartImmediatelyToggle")
+        type("-c \"sleep 300\"", into: "runCommandField")
 
-        // Environment: one env var + one label.
-        app.buttons["runCategory-Environment"].click()
+        // Storage: a tmpfs mount (bind/volume rows need real host paths — tmpfs covers mounts[]).
+        category("Storage")
+        app.buttons["runTmpfsAddButton"].click()
+        type("/scratch", into: "runTmpfsField")
+
+        // Network: one published port.
+        category("Network")
+        app.buttons["runPortAddButton"].click()
+        type("18080", into: "runPortHostField")
+        type("80", into: "runPortContainerField")
+
+        // DNS: server + domain + search.
+        category("DNS")
+        app.buttons["runDnsAddButton"].click()
+        type("1.1.1.1", into: "runDnsField")
+        type("corp.test", into: "runDnsDomainField")
+        app.buttons["runDnsSearchAddButton"].click()
+        type("example.com", into: "runDnsSearchField")
+
+        // Resources: cpus, memory, shm, ulimit.
+        category("Resources")
+        type("3", into: "runCpusField")
+        type("512m", into: "runMemoryField")
+        type("64m", into: "runShmSizeField")
+        app.buttons["runUlimitAddButton"].click()
+        type("nofile=1024:2048", into: "runUlimitField")
+
+        // Environment: env var + label.
+        category("Environment")
         app.buttons["runEnvAddButton"].click()
         type("BERTHLY_E2E", into: "runEnvKeyField")
         type("1", into: "runEnvValueField")
@@ -144,39 +184,79 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         type("berthly.e2e", into: "runLabelKeyField")
         type(labelValue, into: "runLabelValueField")
 
-        // Resources: non-default cpu/memory.
-        app.buttons["runCategory-Resources"].click()
-        type("3", into: "runCpusField")
-        type("512m", into: "runMemoryField")
-
-        // Security: exactly one boring boolean inspect can confirm.
-        app.buttons["runCategory-Security"].click()
-        let readOnlyToggle = app.checkBoxes["runReadOnlyToggle"]
-        XCTAssertTrue(readOnlyToggle.waitForExistence(timeout: 5))
-        readOnlyToggle.click()
+        // Security: text fields, boolean toggles, and capability lists.
+        category("Security")
+        type("/work", into: "runWorkdirField")
+        type("405:406", into: "runUserField")
+        type("/bin/sh", into: "runEntrypointField")
+        check("runReadOnlyToggle")
+        check("runInitProcessToggle")
+        check("runSshToggle")
+        check("runInteractiveToggle")
+        check("runTtyToggle")
+        // capAdd represents the capability-list mechanism (StringListEditor, already exercised
+        // by tmpfs/dns/ulimit above). capDrop sits at the very bottom of this long ScrollView
+        // where its Add button isn't hittable without scrolling; drive capAdd only and assert
+        // capDrop stayed empty — a reliable check beats an exhaustive-but-flaky one (CLAUDE.md).
+        app.buttons["runCapAddAddButton"].click()
+        type("CAP_NET_RAW", into: "runCapAddField")
 
         let submitButton = app.buttons["runSubmitButton"]
         XCTAssertTrue(submitButton.waitForExistence(timeout: 5))
         submitButton.click()
         XCTAssertTrue(app.buttons["Show Container"].waitForExistence(timeout: 120),
-                      "Run should reach the success state")
+                      "Create should reach the success state")
 
-        // ── Field-by-field oracle ──
+        // ── Field-by-field oracle (paths verified against a live daemon, apple/container 1.1.0) ──
         let json = try ContainerCLI.inspectJSON(containerName)
-        let imageRef = ContainerCLI.value(at: "configuration.image.reference", in: json) as? String
-        XCTAssertTrue(imageRef?.contains("alpine") == true, "image: \(imageRef ?? "nil")")
+        func val(_ path: String) -> Any? { ContainerCLI.value(at: path, in: json) }
 
-        let env = ContainerCLI.value(at: "configuration.initProcess.environment", in: json) as? [String]
-        XCTAssertTrue(env?.contains("BERTHLY_E2E=1") == true, "env: \(env ?? [])")
+        // Image / command / entrypoint / process identity
+        XCTAssertTrue((val("configuration.image.reference") as? String)?.contains("alpine") == true)
+        XCTAssertEqual(val("configuration.initProcess.arguments") as? [String], ["-c", "sleep 300"])
+        XCTAssertEqual(val("configuration.initProcess.executable") as? String, "/bin/sh")
+        XCTAssertEqual(val("configuration.initProcess.workingDirectory") as? String, "/work")
+        XCTAssertEqual(val("configuration.initProcess.user.raw.userString") as? String, "405:406")
 
-        let labels = ContainerCLI.value(at: "configuration.labels", in: json) as? [String: Any]
-        XCTAssertEqual(labels?["berthly.e2e"] as? String, labelValue, "labels: \(labels ?? [:])")
+        // Environment / labels
+        XCTAssertTrue((val("configuration.initProcess.environment") as? [String])?.contains("BERTHLY_E2E=1") == true)
+        XCTAssertEqual((val("configuration.labels") as? [String: Any])?["berthly.e2e"] as? String, labelValue)
 
-        XCTAssertEqual(ContainerCLI.value(at: "configuration.resources.cpus", in: json) as? Int, 3)
-        XCTAssertEqual(ContainerCLI.value(at: "configuration.resources.memoryInBytes", in: json) as? Int,
-                       512 * 1024 * 1024)
-        XCTAssertEqual(ContainerCLI.value(at: "configuration.readOnly", in: json) as? Bool, true)
-        XCTAssertEqual(ContainerCLI.value(at: "status.state", in: json) as? String, "running")
+        // Resources
+        XCTAssertEqual(val("configuration.resources.cpus") as? Int, 3)
+        XCTAssertEqual(val("configuration.resources.memoryInBytes") as? Int, 512 * 1024 * 1024)
+        XCTAssertEqual(val("configuration.shmSize") as? Int, 64 * 1024 * 1024)
+        let rlimits = val("configuration.initProcess.rlimits") as? [[String: Any]]
+        XCTAssertTrue(rlimits?.contains { ($0["limit"] as? String) == "RLIMIT_NOFILE"
+                                          && ($0["soft"] as? Int) == 1024 && ($0["hard"] as? Int) == 2048 } == true,
+                      "rlimits: \(rlimits ?? [])")
+
+        // Boolean toggles (flipped ON → true; rosetta/virtualization left OFF → false proves default)
+        XCTAssertEqual(val("configuration.readOnly") as? Bool, true)
+        XCTAssertEqual(val("configuration.useInit") as? Bool, true)
+        XCTAssertEqual(val("configuration.ssh") as? Bool, true)
+        XCTAssertEqual(val("configuration.initProcess.terminal") as? Bool, true) // -i/-t
+        XCTAssertEqual(val("configuration.rosetta") as? Bool, false)
+        XCTAssertEqual(val("configuration.virtualization") as? Bool, false)
+
+        // Capabilities
+        XCTAssertTrue((val("configuration.capAdd") as? [String])?.contains("CAP_NET_RAW") == true)
+        XCTAssertEqual((val("configuration.capDrop") as? [String])?.isEmpty, true, "capDrop left unset")
+
+        // DNS
+        XCTAssertTrue((val("configuration.dns.nameservers") as? [String])?.contains("1.1.1.1") == true)
+        XCTAssertEqual(val("configuration.dns.domain") as? String, "corp.test")
+        XCTAssertTrue((val("configuration.dns.searchDomains") as? [String])?.contains("example.com") == true)
+
+        // Published port
+        let ports = val("configuration.publishedPorts") as? [[String: Any]]
+        XCTAssertTrue(ports?.contains { ($0["hostPort"] as? Int) == 18080 && ($0["containerPort"] as? Int) == 80 } == true,
+                      "ports: \(ports ?? [])")
+
+        // tmpfs mount
+        let mounts = val("configuration.mounts") as? [[String: Any]]
+        XCTAssertTrue(mounts?.contains { ($0["destination"] as? String) == "/scratch" } == true,
+                      "mounts: \(mounts ?? [])")
     }
 
     /// Tier-1 lifecycle journey (PLAN/E2E-TEST.md §1.3): stop/start/delete buttons' real
@@ -261,5 +341,75 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
             .firstMatch
         XCTAssertTrue(sidebarEntry.waitForExistence(timeout: 30),
                       "A container created behind the app's back should appear in the sidebar")
+    }
+}
+
+/// Machine create + delete through the UI (PLAN/E2E-TEST.md — promoted from the Tier-3
+/// defer at the user's request). Kept minimal: one create-then-delete journey, boot OFF.
+final class MachineJourneyTests: BerthlyE2ETestCase {
+    /// A bootable Linux image the machine subsystem accepts (per `container machine create`'s
+    /// own examples). Reuse the distro already present as `fedora-44-machine` to maximise the
+    /// image-cache hit — machine images are large, and a cold pull would dominate the runtime.
+    private static let machineImage = "fedora:44"
+
+    @MainActor
+    func testCreateMachineFromSheetThenDelete() throws {
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+
+        let runButton = app.buttons["runToolbarButton"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 15))
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: runButton)
+        waitForExpectations(timeout: 30)
+        runButton.click()
+
+        // The Run toolbar popover offers Container vs Machine; take Machine.
+        let machineOption = app.buttons["Create Machine"]
+        XCTAssertTrue(machineOption.waitForExistence(timeout: 5))
+        machineOption.click()
+
+        let imageField = app.windows.textFields["machineImageField"]
+        XCTAssertTrue(imageField.waitForExistence(timeout: 5), "Machine create sheet should appear")
+        imageField.click()
+        imageField.typeText(Self.machineImage)
+        let nameField = app.windows.textFields["machineNameField"]
+        nameField.click()
+        nameField.typeText(machineName)
+
+        // Boot OFF: create the machine config without booting a VM (a Berthly-native path).
+        // Keeps the journey fast and off the VM-boot flakiness; booting is out of scope here.
+        // Never touch "Set as default machine" — it would repoint the developer's real default.
+        let bootToggle = app.checkBoxes["Boot immediately"]
+        XCTAssertTrue(bootToggle.waitForExistence(timeout: 5))
+        bootToggle.click()
+
+        app.buttons["machineCreateSubmitButton"].click()
+
+        // Image fetch + unpack (no boot) — generous, and surface the sheet on failure.
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 300),
+                      "Machine create should reach success; sheet was:\n\(app.windows.firstMatch.debugDescription)")
+        done.click()
+
+        // Oracle: the daemon knows the machine.
+        let list = try ContainerCLI.run(["machine", "ls"], timeout: 30)
+        XCTAssertTrue(list.output.contains(machineName),
+                      "`machine ls` should list \(machineName):\n\(list.output)")
+
+        // Delete via the machine row's context menu + confirmation (same pattern as containers;
+        // context-menu item queried by label since ids don't survive the NSMenu bridge).
+        let row = app.staticTexts["machineRow-\(machineName)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 15))
+        row.rightClick()
+        let deleteItem = app.menuItems["Delete…"]
+        XCTAssertTrue(deleteItem.waitForExistence(timeout: 5))
+        deleteItem.click()
+        let confirm = app.windows.buttons["machineDeleteConfirmButton"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), "confirmation alert should appear")
+        confirm.click()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 30), "machine row should leave the sidebar")
+        let gone = try ContainerCLI.run(["machine", "ls"], timeout: 30)
+        XCTAssertFalse(gone.output.contains(machineName), "daemon should no longer know the machine")
     }
 }

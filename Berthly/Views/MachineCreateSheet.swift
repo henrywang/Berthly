@@ -139,7 +139,7 @@ struct MachineCreateSheet: View {
             Text("Image")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
-            LocalImageReferenceField(reference: $reference, images: service.images)
+            LocalImageReferenceField(reference: $reference, images: service.images, fieldIdentifier: "machineImageField")
         }
 
         VStack(alignment: .leading, spacing: 6) {
@@ -147,6 +147,7 @@ struct MachineCreateSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("Optional — auto-generated if left blank", text: $name)
+                .accessibilityIdentifier("machineNameField")
                 .textFieldStyle(.roundedBorder)
                 .fontDesign(.monospaced)
         }

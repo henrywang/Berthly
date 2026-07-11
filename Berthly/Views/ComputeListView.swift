@@ -293,6 +293,8 @@ private struct MachineComputeRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(machine.name)
                     .font(.system(.body, design: .default, weight: .medium))
+                    // Same rationale as computeRow-: the detail view repeats the name.
+                    .accessibilityIdentifier("machineRow-\(machine.name)")
                 Text(machine.image)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -341,6 +343,7 @@ private struct MachineComputeRow: View {
                     isDeleting = false
                 }
             }
+            .accessibilityIdentifier("machineDeleteConfirmButton")
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This action cannot be undone.")

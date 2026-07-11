@@ -399,7 +399,7 @@ struct RunContainerSheet: View {
             entries: $volumes
         )
         MountRowsEditor(title: "Mounts", entries: $mounts)
-        StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", entries: $tmpfs)
+        StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", identifierPrefix: "runTmpfs", entries: $tmpfs)
     }
 
     private var defaultNetworkHelpText: String {
@@ -425,17 +425,18 @@ struct RunContainerSheet: View {
         Toggle("Disable DNS configuration", isOn: $noDns)
             .toggleStyle(.checkbox)
         if !noDns {
-            StringListEditor(title: "DNS servers", placeholder: "1.1.1.1", entries: $dns)
+            StringListEditor(title: "DNS servers", placeholder: "1.1.1.1", identifierPrefix: "runDns", entries: $dns)
             VStack(alignment: .leading, spacing: 6) {
                 Text("DNS domain")
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("Optional", text: $dnsDomain)
+                    .accessibilityIdentifier("runDnsDomainField")
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.callout, design: .monospaced))
             }
-            StringListEditor(title: "DNS options", placeholder: "ndots:5", entries: $dnsOptions)
-            StringListEditor(title: "DNS search domains", placeholder: "corp.example.com", entries: $dnsSearch)
+            StringListEditor(title: "DNS options", placeholder: "ndots:5", identifierPrefix: "runDnsOption", entries: $dnsOptions)
+            StringListEditor(title: "DNS search domains", placeholder: "corp.example.com", identifierPrefix: "runDnsSearch", entries: $dnsSearch)
         }
     }
 
@@ -466,6 +467,7 @@ struct RunContainerSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("64m", text: $shmSize)
+                .accessibilityIdentifier("runShmSizeField")
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
                 .frame(width: 100)
@@ -473,6 +475,7 @@ struct RunContainerSheet: View {
         StringListEditor(
             title: "Resource limits (ulimit)",
             placeholder: "nofile=1024:2048",
+            identifierPrefix: "runUlimit",
             entries: $ulimits
         )
     }
@@ -501,6 +504,7 @@ struct RunContainerSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("name|uid[:gid]", text: $user)
+                    .accessibilityIdentifier("runUserField")
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.callout, design: .monospaced))
             }
@@ -510,6 +514,7 @@ struct RunContainerSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("Optional", text: $entrypoint)
+                .accessibilityIdentifier("runEntrypointField")
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
         }
@@ -519,25 +524,32 @@ struct RunContainerSheet: View {
             .accessibilityIdentifier("runReadOnlyToggle")
         Toggle("Run an init process", isOn: $initProcess)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runInitProcessToggle")
         Toggle("Enable Rosetta", isOn: $rosetta)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runRosettaToggle")
         Toggle("Forward SSH agent", isOn: $ssh)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runSshToggle")
         Toggle("Keep stdin open (-i)", isOn: $interactive)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runInteractiveToggle")
         Toggle("Allocate a TTY (-t)", isOn: $tty)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runTtyToggle")
         Toggle("Expose virtualization capabilities", isOn: $virtualization)
             .toggleStyle(.checkbox)
+            .accessibilityIdentifier("runVirtualizationToggle")
 
-        StringListEditor(title: "Add capabilities", placeholder: "CAP_NET_RAW, or ALL", entries: $capAdd)
-        StringListEditor(title: "Drop capabilities", placeholder: "CAP_SYS_ADMIN, or ALL", entries: $capDrop)
+        StringListEditor(title: "Add capabilities", placeholder: "CAP_NET_RAW, or ALL", identifierPrefix: "runCapAdd", entries: $capAdd)
+        StringListEditor(title: "Drop capabilities", placeholder: "CAP_SYS_ADMIN, or ALL", identifierPrefix: "runCapDrop", entries: $capDrop)
 
         VStack(alignment: .leading, spacing: 6) {
             Text("Container ID file")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField("Optional — path to write the container ID to", text: $cidFile)
+                .accessibilityIdentifier("runCidFileField")
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
         }

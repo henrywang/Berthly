@@ -147,6 +147,22 @@ enum ContainerCLI {
         guard !stale.isEmpty else { return }
         _ = try? run(["rm", "-f"] + stale, timeout: 60)
     }
+
+    /// Machine counterpart of `sweepContainers`. `machine ls` has no -q, so parse the
+    /// NAME column out of the header table; prefix-scoping is what keeps this away from
+    /// the developer's real machines. Running machines must be stopped before delete.
+    static func sweepMachines(prefix: String) {
+        guard let list = try? run(["machine", "ls"], timeout: 30), list.status == 0 else { return }
+        let stale = list.output
+            .split(separator: "\n")
+            .dropFirst() // header row
+            .compactMap { $0.split(separator: " ", maxSplits: 1).first.map(String.init) }
+            .filter { $0.hasPrefix(prefix) }
+        for name in stale {
+            _ = try? run(["machine", "stop", name], timeout: 60)
+            _ = try? run(["machine", "delete", name], timeout: 60)
+        }
+    }
 }
 
 /// Base class every E2E test inherits: opt-in gate, environment preflight, stray-instance
@@ -159,6 +175,10 @@ class BerthlyE2ETestCase: XCTestCase {
 
     /// Run-unique name for the container a test creates, e.g. `berthly-e2e-1a2b3c4d`.
     private(set) var containerName = ""
+
+    /// Run-unique name for a machine a test creates. Separate prefix segment ("-m-") so the
+    /// container and machine sweeps never trip over each other's names.
+    private(set) var machineName = ""
 
     override func setUpWithError() throws {
         continueAfterFailure = false
@@ -207,13 +227,17 @@ class BerthlyE2ETestCase: XCTestCase {
         if (try? killer.run()) != nil { killer.waitUntilExit() }
 
         ContainerCLI.sweepContainers(prefix: Self.resourcePrefix)
-        containerName = "\(Self.resourcePrefix)-\(UUID().uuidString.prefix(8).lowercased())"
+        ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
+        let uid = UUID().uuidString.prefix(8).lowercased()
+        containerName = "\(Self.resourcePrefix)-\(uid)"
+        machineName = "\(Self.resourcePrefix)-m-\(uid)"
     }
 
     override func tearDownWithError() throws {
         // Guards above may have skipped before the daemon check; sweeping is safe either way.
         if ContainerCLI.isInstalled && ContainerCLI.daemonIsRunning {
             ContainerCLI.sweepContainers(prefix: Self.resourcePrefix)
+            ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
         }
     }
 }
