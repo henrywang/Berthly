@@ -16,8 +16,21 @@
     "@%@" : {
 
     },
+    "/ %@" : {
+
+    },
     "/app" : {
 
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
     },
     "%@ · %lld%%" : {
       "localizations" : {
@@ -30,6 +43,19 @@
       }
     },
     "%lld" : {
+
+    },
+    "%lld mount%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld mount%2$@"
+          }
+        }
+      }
+    },
+    "%lld%%" : {
 
     },
     "+%lld more — open Berthly to see all" : {
@@ -128,6 +154,9 @@
     "Attach and show output" : {
 
     },
+    "Attach with --volume %@:/path" : {
+
+    },
     "Berthly" : {
 
     },
@@ -182,6 +211,9 @@
     "Cancel Build" : {
 
     },
+    "Capacity" : {
+
+    },
     "Choose a folder…" : {
 
     },
@@ -224,6 +256,9 @@
     "Config" : {
 
     },
+    "Configuration" : {
+
+    },
     "Connection Error" : {
 
     },
@@ -231,6 +266,9 @@
 
     },
     "Container" : {
+
+    },
+    "CONTAINER" : {
 
     },
     "Container Daemon" : {
@@ -297,6 +335,9 @@
 
     },
     "Copy Reference" : {
+
+    },
+    "Copy source path" : {
 
     },
     "Copy Source Path" : {
@@ -372,6 +413,9 @@
 
     },
     "Delete…" : {
+
+    },
+    "DESTINATION" : {
 
     },
     "Details unavailable" : {
@@ -612,13 +656,22 @@
     "Mode" : {
 
     },
+    "MODE" : {
+
+    },
     "Mount type" : {
+
+    },
+    "Mounted Into" : {
 
     },
     "Mounts" : {
 
     },
     "MOUNTS · VIRTIOFS" : {
+
+    },
+    "Mounts %lld" : {
 
     },
     "Move a file or folder between your Mac and %@" : {
@@ -681,6 +734,9 @@
     "Not configured" : {
 
     },
+    "Not mounted into any container" : {
+
+    },
     "OK" : {
 
     },
@@ -703,6 +759,9 @@
 
     },
     "Optional override, e.g. npm start" : {
+
+    },
+    "Options" : {
 
     },
     "Out of Container" : {
@@ -772,9 +831,6 @@
 
     },
     "Rebuild" : {
-
-    },
-    "reclaimable" : {
 
     },
     "Refresh" : {
@@ -886,6 +942,9 @@
 
     },
     "Shared memory size" : {
+
+    },
+    "Show %@" : {
 
     },
     "Show Container" : {
@@ -1124,6 +1183,9 @@
     "Unpin" : {
 
     },
+    "Unused" : {
+
+    },
     "Update" : {
 
     },
@@ -1167,6 +1229,9 @@
 
     },
     "VM Init Image" : {
+
+    },
+    "Volume not found" : {
 
     },
     "Volumes" : {

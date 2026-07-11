@@ -744,7 +744,7 @@ final class LiveContainerService: ContainerServiceBase {
             containers = []
         }
         images    = (try? await fetchImages())   ?? []
-        volumes   = (try? await fetchVolumes())  ?? []
+        volumes   = Volume.resolvingMounts((try? await fetchVolumes()) ?? [], containers: containers)
         networks  = (try? await fetchNetworks()) ?? []
         let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
         machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName) }
@@ -824,8 +824,14 @@ final class LiveContainerService: ContainerServiceBase {
             networkIOString: "–",
             uptime: uptimeString(from: snap.startedDate),
             command: cmd,
-            mounts: snap.configuration.mounts.map {
-                ContainerMount(source: $0.source, destination: $0.destination)
+            mounts: snap.configuration.mounts.map { fs in
+                let volumeName: String? = {
+                    if case .volume(let name, _, _, _) = fs.type { return name }
+                    return nil
+                }()
+                return ContainerMount(source: fs.source, destination: fs.destination,
+                                      volumeName: volumeName,
+                                      isReadOnly: fs.options.contains("ro"))
             },
             networks: snap.networks.map { $0.network },
             environment: proc.environment,
@@ -903,22 +909,37 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func mapVolume(_ cfg: VolumeConfiguration) -> Volume {
-        let usedMB = cfg.sizeInBytes.map { Int($0 / 1_048_576) } ?? 0
+        // `source` is the sparse backing image (volume.img): its logical size is the
+        // allocation, its on-disk blocks are the data actually written. `sizeInBytes` is the
+        // *requested* size, which the driver rounds up (a 1M request becomes a 128MB image),
+        // so the file is the honest source; fall back to the config when it can't be read.
+        let disk = Self.volumeDiskUsage(imagePath: cfg.source)
         let created = cfg.creationDate.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
         return Volume(
             id: cfg.name,
             name: cfg.name,
             type: cfg.isAnonymous ? .anonymous : .named,
-            usedMB: usedMB,
-            allocatedMB: 0,
+            usedMB: disk?.usedMB ?? 0,
+            allocatedMB: disk?.allocatedMB ?? cfg.sizeInBytes.map { Int($0 / 1_048_576) } ?? 0,
             driver: cfg.driver,
             source: cfg.source,
             created: created,
-            labels: cfg.labels.map { "\($0.key)=\($0.value)" },
-            mounts: [],
+            labels: cfg.labels.map { "\($0.key)=\($0.value)" }.sorted(),
+            options: cfg.options.map { "\($0.key)=\($0.value)" }.sorted(),
+            mounts: [],  // filled by Volume.resolvingMounts in refreshAll
             fs: cfg.format,
             reclaimable: true
         )
+    }
+
+    /// Used/allocated sizes of a volume's sparse backing image: logical file size = allocated,
+    /// on-disk allocated bytes = actually written. `nil` when the file can't be read.
+    nonisolated static func volumeDiskUsage(imagePath: String) -> (usedMB: Int, allocatedMB: Int)? {
+        let url = URL(fileURLWithPath: imagePath)
+        guard let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileSizeKey]),
+              let logical = values.fileSize else { return nil }
+        return (usedMB: (values.totalFileAllocatedSize ?? 0) / 1_048_576,
+                allocatedMB: logical / 1_048_576)
     }
 
     nonisolated static func mapNetwork(_ r: NetworkResource) -> Network {

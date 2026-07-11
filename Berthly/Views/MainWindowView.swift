@@ -8,6 +8,7 @@ struct MainWindowView: View {
     @State private var sidebarSelection: SidebarSelection? = .compute
     @State private var selectedCompute: ComputeItem?
     @State private var selectedImageID: String?
+    @State private var selectedVolumeID: String?
     @State private var isRefreshing = false
     @State private var refreshRotation = 0.0
     @State private var showPullSheet = false
@@ -64,15 +65,26 @@ struct MainWindowView: View {
                             removal: .move(edge: .leading)
                         ))
                 }
+                if let id = selectedVolumeID, sidebarSelection == .volumes {
+                    Divider()
+                    VolumeDetailView(volumeID: id, onDelete: { selectedVolumeID = nil })
+                        .frame(minWidth: 320, idealWidth: 480)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing),
+                            removal: .move(edge: .leading)
+                        ))
+                }
             }
             .animation(.easeInOut(duration: 0.25), value: selectedCompute)
             .animation(.easeInOut(duration: 0.25), value: selectedImageID)
+            .animation(.easeInOut(duration: 0.25), value: selectedVolumeID)
             .onChange(of: service.isConnected) { _, connected in
-                if !connected { selectedCompute = nil; selectedImageID = nil }
+                if !connected { selectedCompute = nil; selectedImageID = nil; selectedVolumeID = nil }
             }
             .onChange(of: sidebarSelection) { _, _ in
                 selectedCompute = nil
                 selectedImageID = nil
+                selectedVolumeID = nil
             }
             // `.onChange` only fires on a value change *after* this view is already observing it —
             // if the menu bar sets `pendingIntent` in the same beat it creates a fresh window (the
@@ -174,6 +186,7 @@ struct MainWindowView: View {
         case .navigate(let section):
             selectedCompute = nil
             selectedImageID = nil
+            selectedVolumeID = nil
             sidebarSelection = sidebarSelection(for: section)
         case .runContainer:    showRunSheet = true
         case .createMachine:   showMachineCreateSheet = true
@@ -278,7 +291,11 @@ struct MainWindowView: View {
         bridge.pendingIntent = nil
     }
 
-    private var detailVisible: Bool { selectedCompute != nil || (selectedImageID != nil && sidebarSelection == .images) }
+    private var detailVisible: Bool {
+        selectedCompute != nil
+            || (selectedImageID != nil && sidebarSelection == .images)
+            || (selectedVolumeID != nil && sidebarSelection == .volumes)
+    }
 
     /// The create action for the selected sidebar section, if it has one.
     private var contextualAddAction: (title: String, action: () -> Void)? {
@@ -298,7 +315,7 @@ struct MainWindowView: View {
         case .compute:
             ComputeListView(selection: $selectedCompute)
         case .volumes:
-            VolumesListView()
+            VolumesListView(selectedID: $selectedVolumeID)
         case .networks:
             NetworksListView()
         case .images:

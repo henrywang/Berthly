@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct VolumesListView: View {
+    @Binding var selectedID: String?
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
     @State private var filterText = ""
     @State private var isSearchPresented = false
+    @State private var deleteTargetID: String?
+    @State private var deleteErrorMessage: String?
     @AppStorage("volumesSortOrder") private var sortOrderRaw = LibrarySortOrder.default.rawValue
 
     private var sortOrder: LibrarySortOrder { LibrarySortOrder(rawValue: sortOrderRaw) ?? .default }
@@ -24,9 +27,25 @@ struct VolumesListView: View {
     private var named:     [Volume] { filtered.filter { $0.type == .named     } }
     private var anonymous: [Volume] { filtered.filter { $0.type == .anonymous } }
 
+    private var totalUsedMB: Int { service.volumes.reduce(0) { $0 + $1.usedMB } }
+    private var reclaimableMB: Int { service.volumes.filter(\.reclaimable).reduce(0) { $0 + $1.usedMB } }
+
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 8) {
+                if !service.volumes.isEmpty {
+                    Label(formatVolumeMB(totalUsedMB) + " used", systemImage: "cylinder")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if reclaimableMB > 0 {
+                        Text(formatVolumeMB(reclaimableMB) + " reclaimable")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.statusPaused)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.statusPaused.opacity(0.12), in: Capsule())
+                    }
+                }
                 Spacer()
                 LibrarySortMenu(selectionRaw: $sortOrderRaw)
             }
@@ -49,23 +68,68 @@ struct VolumesListView: View {
                 ContentUnavailableView.search(text: filterText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
+                List(selection: $selectedID) {
                     if !named.isEmpty {
                         Section {
-                            ForEach(named)     { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
+                            ForEach(named)     { v in VolumeRow(volumeID: v.id).tag(v.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("NAMED \(named.count)") }
                     }
                     if !anonymous.isEmpty {
                         Section {
-                            ForEach(anonymous) { v in VolumeRow(volumeID: v.id).listRowSeparator(.hidden) }
+                            ForEach(anonymous) { v in VolumeRow(volumeID: v.id).tag(v.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("ANONYMOUS \(anonymous.count)") }
                     }
                 }
+                // ⌫ on the selected volume — same confirm-then-delete as the hover trash button.
+                .onDeleteCommand { deleteTargetID = selectedID }
             }
         }
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Volumes")
+        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
+            get: { deleteTargetID != nil },
+            set: { if !$0 { deleteTargetID = nil } }
+        )) {
+            Button("Delete", role: .destructive) { performDelete() }
+            Button("Cancel", role: .cancel) { deleteTargetID = nil }
+        } message: {
+            Text(deleteConfirmMessage)
+        }
+        .alert("Error", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK") { deleteErrorMessage = nil }
+        } message: {
+            Text(deleteErrorMessage ?? "")
+        }
+    }
+
+    private var deleteTarget: Volume? {
+        service.volumes.first(where: { $0.id == deleteTargetID })
+    }
+
+    private var deleteConfirmTitle: String {
+        deleteTarget.map { "Delete \($0.name)?" } ?? ""
+    }
+
+    private var deleteConfirmMessage: String {
+        guard let volume = deleteTarget else { return "" }
+        if !volume.mounts.isEmpty {
+            return "This volume is mounted by \(volume.mounts.count) container\(volume.mounts.count == 1 ? "" : "s"). Deleting it may cause data loss."
+        }
+        return "This will permanently delete the volume and all its data."
+    }
+
+    private func performDelete() {
+        guard let volume = deleteTarget else { return }
+        deleteTargetID = nil
+        if selectedID == volume.id { selectedID = nil }
+        Task {
+            do { try await service.deleteVolume(volume.name) }
+            catch { deleteErrorMessage = error.localizedDescription }
+        }
     }
 }
 
@@ -95,9 +159,11 @@ private struct VolumeRow: View {
                     Text(volume.name)
                         .font(.system(.body, design: .monospaced, weight: .medium))
                         .lineLimit(1)
+                        .truncationMode(.tail)
                     Text(mountSummary(volume))
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -114,15 +180,7 @@ private struct VolumeRow: View {
                         Text(usageString(volume))
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.primary)
-                        if volume.reclaimable {
-                            Text("reclaimable")
-                                .font(.caption)
-                                .foregroundStyle(Color.statusPaused)
-                        } else {
-                            Text(volume.driver)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        mountStatus(volume)
                     }
                 }
             }
@@ -165,21 +223,49 @@ private struct VolumeRow: View {
         }
     }
 
-    private func usageString(_ v: Volume) -> String {
-        "\(formatMB(v.usedMB)) / \(formatMB(v.allocatedMB))"
-    }
-
-    private func mountSummary(_ v: Volume) -> String {
-        switch v.mounts.count {
-        case 0:  return "not mounted"
-        case 1:  return "1 mount · \(v.mounts[0].containerName)"
-        default: return "\(v.mounts.count) mounts"
+    /// Trailing second line: mount count with a status dot — green when a mounting container
+    /// is running, gray when all are stopped, orange "Unused" when nothing mounts it.
+    @ViewBuilder
+    private func mountStatus(_ v: Volume) -> some View {
+        if v.mounts.isEmpty {
+            HStack(spacing: 4) {
+                Circle().fill(Color.statusPaused).frame(width: 5, height: 5)
+                Text("Unused")
+            }
+            .font(.caption)
+            .foregroundStyle(Color.statusPaused)
+        } else {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(anyMounterRunning(v) ? Color.statusRunning : Color(NSColor.tertiaryLabelColor))
+                    .frame(width: 5, height: 5)
+                Text("\(v.mounts.count) mount\(v.mounts.count == 1 ? "" : "s")")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 
-    private func formatMB(_ mb: Int) -> String {
-        mb < 1024 ? "\(mb) MB" : String(format: "%.1f GB", Double(mb) / 1024)
+    private func anyMounterRunning(_ v: Volume) -> Bool {
+        let names = Set(v.mounts.map(\.containerName))
+        return service.containers.contains { names.contains($0.name) && $0.status == .running }
     }
+
+    private func usageString(_ v: Volume) -> String {
+        "\(formatVolumeMB(v.usedMB)) / \(formatVolumeMB(v.allocatedMB))"
+    }
+
+    private func mountSummary(_ v: Volume) -> String {
+        v.mounts.isEmpty
+            ? "Not mounted"
+            : v.mounts.map(\.containerName).joined(separator: " · ")
+    }
+}
+
+// MARK: - Shared formatting
+
+func formatVolumeMB(_ mb: Int) -> String {
+    mb < 1024 ? "\(mb) MB" : String(format: "%.1f GB", Double(mb) / 1024)
 }
 
 // MARK: - Section Header
@@ -197,7 +283,8 @@ private struct LibrarySectionHeader: View {
 }
 
 #Preview {
-    VolumesListView()
+    @Previewable @State var selectedID: String? = nil
+    VolumesListView(selectedID: $selectedID)
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())
         .frame(width: 360, height: 500)

@@ -48,6 +48,10 @@ struct PortMapping: Hashable {
 struct ContainerMount: Hashable {
     let source: String
     let destination: String
+    /// Name of the named/anonymous volume backing this mount; `nil` for bind/virtiofs/tmpfs
+    /// mounts. Lets `Volume.resolvingMounts` reconstruct volume→container attachments.
+    var volumeName: String? = nil
+    var isReadOnly: Bool = false
 
     var displayString: String { "\(source) → \(destination)" }
 }
@@ -135,6 +139,8 @@ struct Volume: Identifiable, Hashable {
     let source: String
     let created: String
     let labels: [String]
+    /// Driver options the volume was created with, as `key=value` strings (e.g. `size=512M`).
+    var options: [String] = []
     let mounts: [VolumeMount]
     let fs: String
     let reclaimable: Bool
@@ -146,6 +152,31 @@ struct Volume: Identifiable, Hashable {
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+extension Volume {
+    /// Fills each volume's `mounts` (and derives `reclaimable`) by cross-referencing the
+    /// containers that mount it — the daemon's volume list carries no attachment info, so
+    /// it's reconstructed from container mounts whose `volumeName` matches. A volume is
+    /// reclaimable exactly when nothing mounts it.
+    nonisolated static func resolvingMounts(_ volumes: [Volume], containers: [Container]) -> [Volume] {
+        volumes.map { volume in
+            let mounts = containers.flatMap { container in
+                container.mounts
+                    .filter { $0.volumeName == volume.name }
+                    .map { VolumeMount(containerName: container.name,
+                                       mountPath: $0.destination,
+                                       mode: $0.isReadOnly ? "RO" : "RW") }
+            }
+            return Volume(
+                id: volume.id, name: volume.name, type: volume.type,
+                usedMB: volume.usedMB, allocatedMB: volume.allocatedMB,
+                driver: volume.driver, source: volume.source, created: volume.created,
+                labels: volume.labels, options: volume.options,
+                mounts: mounts, fs: volume.fs, reclaimable: mounts.isEmpty
+            )
+        }
+    }
 }
 
 // MARK: - Network
