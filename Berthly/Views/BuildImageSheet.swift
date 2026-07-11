@@ -113,6 +113,7 @@ struct BuildImageSheet: View {
                 case nil:
                     Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                     Button("Build") { startBuild() }
+                        .accessibilityIdentifier("buildSubmitButton")
                         .buttonStyle(.borderedProminent)
                         .disabled(!canBuild)
                         .keyboardShortcut(.return)
@@ -155,6 +156,7 @@ struct BuildImageSheet: View {
                 TextField("local/myapp:1.0", text: $tag)
                     .textFieldStyle(.plain)
                     .fontDesign(.monospaced)
+                    .accessibilityIdentifier("buildTagField")
                 // Existing local tags as one-click suggestions — rebuilding an image you
                 // already have is the common case, so don't make the user retype the tag.
                 if !service.images.isEmpty {
@@ -182,12 +184,14 @@ struct BuildImageSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
-                Text(contextPath.isEmpty ? "Choose a folder…" : contextPath)
-                    .font(contextPath.isEmpty ? .callout : .system(.callout, design: .monospaced))
-                    .foregroundStyle(contextPath.isEmpty ? .tertiary : .primary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                // A typeable path field beside Browse: paste a path instead of hunting through
+                // a panel, and it gives UI tests a way to set the context without driving the
+                // system open panel. Mirrors the Dockerfile field below.
+                TextField("Choose a folder…", text: $contextPath)
+                    .font(.system(.callout, design: .monospaced))
+                    .textFieldStyle(.plain)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("buildContextField")
                 Button("Browse…") { pickContextDir() }
                     .fixedSize()
             }
@@ -206,6 +210,7 @@ struct BuildImageSheet: View {
                     .font(.system(.callout, design: .monospaced))
                     .textFieldStyle(.plain)
                     .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("buildDockerfileField")
                 Button("Browse…") { pickDockerfile() }
                     .fixedSize()
             }

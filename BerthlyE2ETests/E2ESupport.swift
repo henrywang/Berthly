@@ -190,11 +190,16 @@ enum ContainerCLI {
     /// prefixable, so that test removes its own target explicitly.
     static func sweepImages(prefix: String) {
         guard let list = try? run(["image", "ls"], timeout: 30), list.status == 0 else { return }
-        let stale = list.output
+        // `image ls` columns are NAME TAG DIGEST; `image delete` needs NAME:TAG (a bare NAME
+        // fails), so rejoin the first two columns.
+        let stale: [String] = list.output
             .split(separator: "\n")
             .dropFirst()
-            .compactMap { $0.split(separator: " ", maxSplits: 1).first.map(String.init) }
-            .filter { $0.contains(prefix) }
+            .compactMap { row in
+                let cols = row.split(separator: " ", omittingEmptySubsequences: true)
+                guard cols.count >= 2, cols[0].contains(prefix) else { return nil }
+                return "\(cols[0]):\(cols[1])"
+            }
         for ref in stale { _ = try? run(["image", "delete", ref], timeout: 30) }
     }
 

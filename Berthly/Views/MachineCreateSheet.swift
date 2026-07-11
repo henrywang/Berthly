@@ -158,6 +158,7 @@ struct MachineCreateSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("4", text: $cpus)
+                    .accessibilityIdentifier("machineCpusField")
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }
@@ -166,6 +167,7 @@ struct MachineCreateSheet: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.secondary)
                 TextField("8G", text: $memory)
+                    .accessibilityIdentifier("machineMemoryField")
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 100)
             }

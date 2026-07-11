@@ -477,6 +477,91 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
         let gone = try ContainerCLI.run(["machine", "ls"], timeout: 30)
         XCTAssertFalse(gone.output.contains(machineName), "daemon should no longer know the machine")
     }
+
+    /// The full "build a machine image, then actually boot a machine from it" journey the
+    /// simpler boot-off test can't do. A machine needs an init-enabled rootfs (a plain distro
+    /// image lacks one and won't boot), so this builds a systemd-enabled Fedora image through
+    /// the Build sheet, then creates a machine from it through the Create Machine sheet with
+    /// **boot ON** and non-default cpus/memory, and proves the machine reached the *running*
+    /// state — a plain image would fail to boot.
+    ///
+    /// Heavy: the image build is minutes on a cold cache (dnf update + install systemd) and the
+    /// boot adds more. Fine for a local opt-in suite; the build layers cache across runs.
+    @MainActor
+    func testBuildMachineImageThenBootMachine() throws {
+        // systemd-enabled Fedora — a bootable machine image (per apple/container's own machine
+        // image recipe). The trimming RUN is one line to avoid Swift multiline `\`-continuation.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-mctx-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dockerfile = """
+        FROM quay.io/fedora/fedora:44
+        RUN dnf update -y && dnf install -y systemd
+        RUN (cd /lib/systemd/system/sysinit.target.wants/; for i in *; do [ $i == systemd-tmpfiles-setup.service ] || rm -f $i; done); rm -f /lib/systemd/system/multi-user.target.wants/*; rm -f /etc/systemd/system/*.wants/*; rm -f /lib/systemd/system/local-fs.target.wants/*; rm -f /lib/systemd/system/sockets.target.wants/*udev*; rm -f /lib/systemd/system/sockets.target.wants/*initctl*; rm -f /lib/systemd/system/basic.target.wants/*; rm -f /lib/systemd/system/anaconda.target.wants/*;
+        VOLUME [ "/sys/fs/cgroup" ]
+        CMD ["/usr/sbin/init"]
+        """
+        try dockerfile.write(to: dir.appendingPathComponent("Dockerfile"),
+                             atomically: true, encoding: .utf8)
+        let tag = "\(Self.resourcePrefix)/machine-\(UUID().uuidString.prefix(8).lowercased()):1"
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        // ── 1. Build the machine image through the Build sheet. ──
+        XCTAssertTrue(app.openViaPalette("Build Image"))
+        let tagField = app.windows.textFields["buildTagField"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 5), "Build sheet should appear")
+        tagField.click(); tagField.typeText(tag)
+        let ctxField = app.windows.textFields["buildContextField"]
+        ctxField.click(); ctxField.typeText(dir.path)
+        app.buttons["buildSubmitButton"].click()
+        // Cold: dnf update + install systemd. Generous.
+        let buildDone = app.buttons["Done"]
+        XCTAssertTrue(buildDone.waitForExistence(timeout: 900),
+                      "machine image build should succeed; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        buildDone.click()
+        XCTAssertEqual(try ContainerCLI.run(["image", "inspect", tag]).status, 0,
+                       "built machine image should be present")
+
+        // ── 2. Create + boot a machine from the built image, with non-default resources. ──
+        XCTAssertTrue(app.openViaPalette("Create Machine"))
+        let imageField = app.windows.textFields["machineImageField"]
+        XCTAssertTrue(imageField.waitForExistence(timeout: 5), "Machine sheet should appear")
+        imageField.click(); imageField.typeText(tag)
+        let nameField = app.windows.textFields["machineNameField"]
+        nameField.click(); nameField.typeText(machineName)
+        // "More options": override the default cpus/memory. Boot immediately stays ON.
+        let cpusField = app.windows.textFields["machineCpusField"]
+        cpusField.click(); cpusField.typeText("2")
+        let memoryField = app.windows.textFields["machineMemoryField"]
+        memoryField.click(); memoryField.typeText("4G")
+        app.buttons["machineCreateSubmitButton"].click()
+
+        // Boot ON → success only after the VM boots. Very generous.
+        let createDone = app.buttons["Done"]
+        XCTAssertTrue(createDone.waitForExistence(timeout: 600),
+                      "machine should create and boot; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        createDone.click()
+
+        // ── Oracle: the daemon shows the machine RUNNING with the resources we set. A plain
+        // (non-init) image would never reach running — that's the function check. Poll: under
+        // full-suite load the daemon's `machine ls` can lag a beat behind the sheet's "Done". ──
+        var rowLine: Substring?
+        let deadline = Date(timeIntervalSinceNow: 60)
+        repeat {
+            let list = try ContainerCLI.run(["machine", "ls"], timeout: 30)
+            rowLine = list.output.split(separator: "\n").first { $0.contains(machineName) }
+            if rowLine?.contains("running") == true { break }
+            Thread.sleep(forTimeInterval: 2)
+        } while Date() < deadline
+        XCTAssertNotNil(rowLine, "machine should be listed")
+        XCTAssertTrue(rowLine?.contains("running") == true, "machine should be running: \(rowLine ?? "")")
+        XCTAssertTrue(rowLine?.contains("4G") == true, "memory override should apply: \(rowLine ?? "")")
+        // machine (stop+delete) and image swept by prefix in tearDown.
+    }
 }
 
 /// Resource journeys (PLAN/E2E-TEST.md Tier 2): create a real resource through its sheet,
@@ -599,5 +684,56 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(addr.output.contains("inet ") && addr.output.contains("eth0"),
                       "container should have an IPv4 address on the network interface:\n\(addr.output)")
         // container + network swept by prefix in tearDown.
+    }
+
+    /// Build an image through the Build sheet from a runtime-written Dockerfile, then run it and
+    /// exec to read a file the build baked in — proving the built image is real and functional.
+    /// The build context is typed into the field added for this (no NSOpenPanel to drive).
+    @MainActor
+    func testBuildImageFromDockerfileThenRun() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+
+        // Runtime fixture: a temp dir with a trivial Dockerfile (avoids bundling questions).
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-ctx-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dockerfile = """
+        FROM alpine:latest
+        RUN echo built-by-e2e > /berthly-e2e-marker
+        LABEL berthly.e2e=build
+        """
+        try dockerfile.write(to: dir.appendingPathComponent("Dockerfile"),
+                             atomically: true, encoding: .utf8)
+        let tag = "\(Self.resourcePrefix)/img-\(UUID().uuidString.prefix(8).lowercased()):1"
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Build Image"))
+        let tagField = app.windows.textFields["buildTagField"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 5), "Build sheet should appear")
+        tagField.click(); tagField.typeText(tag)
+        let ctxField = app.windows.textFields["buildContextField"]
+        ctxField.click(); ctxField.typeText(dir.path)
+
+        app.buttons["buildSubmitButton"].click()
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 300),
+                      "build should succeed; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        done.click()
+
+        // Oracle: the image exists.
+        XCTAssertEqual(try ContainerCLI.run(["image", "inspect", tag]).status, 0,
+                       "built image should be present")
+
+        // Behavioral: run it and read the file the build wrote.
+        let out = try ContainerCLI.run(
+            ["run", "--rm", "--name", containerName, tag, "cat", "/berthly-e2e-marker"],
+            timeout: 120)
+        XCTAssertTrue(out.output.contains("built-by-e2e"),
+                      "the built image should carry what the Dockerfile baked in:\n\(out.output)")
+        // image (berthly-e2e/…) swept by prefix in tearDown.
     }
 }
