@@ -320,47 +320,6 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         XCTAssertFalse(gone.output.contains(containerName), "daemon should no longer know it")
     }
 
-    /// Terminal journey (PLAN/E2E-TEST.md §2.4): open the Terminal tab on a running container,
-    /// type a command into SwiftTerm's TerminalView, and prove it ran *inside the container* by
-    /// exec-checking for the file it creates. The spike confirmed XCUITest keystrokes reach the
-    /// view (unlike AppleScript System Events, which don't — see swiftterm-integration notes).
-    @MainActor
-    func testTerminalTabExecutesTypedCommand() throws {
-        try ContainerCLI.ensureImage(Self.fixtureImage)
-        let create = try ContainerCLI.run(
-            ["run", "-d", "--name", containerName, Self.fixtureImage, "sleep", "300"], timeout: 120)
-        XCTAssertEqual(create.status, 0, create.output)
-
-        let app = XCUIApplication.berthlyE2E()
-        app.launch()
-        let row = app.staticTexts["computeRow-\(containerName)"]
-        XCTAssertTrue(row.waitForExistence(timeout: 30))
-        row.click()
-
-        // Terminal tab: segmented Picker segments are radioButtons in XCUITest on macOS.
-        let terminalTab = app.radioButtons["Terminal"]
-        XCTAssertTrue(terminalTab.waitForExistence(timeout: 10))
-        terminalTab.click()
-
-        // The exec'd shell connects asynchronously; there's no queryable "prompt ready" signal
-        // in SwiftTerm's view. So retry the whole focus-type-check: `touch` is idempotent, and
-        // re-typing costs nothing until the shell is live enough to run it. Focus the terminal
-        // area (right of the split) each iteration in case the click didn't land first time.
-        let marker = "/berthly-e2e-typed"
-        var created = false
-        let deadline = Date(timeIntervalSinceNow: 30)
-        repeat {
-            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)).click()
-            app.typeText("touch \(marker)\r")
-            Thread.sleep(forTimeInterval: 2)
-            if (try? ContainerCLI.exec(containerName, ["ls", marker]))?.status == 0 {
-                created = true; break
-            }
-        } while Date() < deadline
-        XCTAssertTrue(created,
-                      "typed command should run in the container; tree:\n\(app.windows.firstMatch.debugDescription)")
-    }
-
     /// Reverse direction: create via CLI, assert the UI notices. Covers the refresh /
     /// observation path that the UI-driven journey can't isolate.
     @MainActor
@@ -653,78 +612,120 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
 
     /// Create a volume through the sheet, then prove it's a real shared volume: write into it
     /// from one container, read the same bytes back from another.
+    /// Create a volume through its sheet, attach it to a container through the Run sheet's
+    /// Storage editor (UI, not `-v`), then use the *Terminal* to write into the mount — and
+    /// prove it's the real shared named volume by reading the same bytes from a second
+    /// container. Exercises: volume-create sheet, Run-sheet volume attach, and the terminal.
     @MainActor
-    func testVolumeCreatedInUIIsShareable() throws {
+    func testVolumeAttachedViaUIVerifiedInTerminal() throws {
         try ContainerCLI.ensureImage(Self.fixtureImage)
 
         let app = XCUIApplication.berthlyE2E()
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
 
+        // 1. Create the volume through its sheet.
         XCTAssertTrue(app.openViaPalette("Create Volume"))
-        let nameField = app.windows.textFields["volumeNameField"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Volume sheet should appear")
-        nameField.click(); nameField.typeText(volumeName)
-        let submit = app.buttons["volumeCreateSubmitButton"]
-        submit.click()
-        // The sheet dismisses itself on success (no Done button) — its disappearance is the signal.
-        XCTAssertTrue(submit.waitForNonExistence(timeout: 15), "sheet should close on successful create")
+        let volNameField = app.windows.textFields["volumeNameField"]
+        XCTAssertTrue(volNameField.waitForExistence(timeout: 5), "Volume sheet should appear")
+        volNameField.click(); volNameField.typeText(volumeName)
+        let volSubmit = app.buttons["volumeCreateSubmitButton"]
+        volSubmit.click()
+        XCTAssertTrue(volSubmit.waitForNonExistence(timeout: 15), "volume sheet should close on success")
+        XCTAssertTrue(try ContainerCLI.run(["volume", "ls"]).output.contains(volumeName), "volume listed")
 
-        // Oracle.
-        XCTAssertTrue(try ContainerCLI.run(["volume", "ls"]).output.contains(volumeName),
-                      "volume should be listed")
+        // 2. Run a container attaching the volume through the Run sheet's Storage editor.
+        openRunSheet(app)
+        typeField(app, Self.fixtureImage, into: "runImageField")
+        typeField(app, containerName, into: "runNameField")
+        typeField(app, "sleep 300", into: "runCommandField")
+        app.buttons["runCategory-Storage"].click()
+        app.buttons["runVolumeAddButton"].click()
+        typeField(app, "\(volumeName):/data", into: "runVolumeField")
+        app.buttons["runSubmitButton"].click()
+        let show = app.buttons["Show Container"]
+        XCTAssertTrue(show.waitForExistence(timeout: 120), "container should boot with the volume attached")
 
-        // Behavioral: write from one container, read from another.
-        let write = try ContainerCLI.run(
-            ["run", "--rm", "--name", "\(containerName)-w", "-v", "\(volumeName):/data",
-             Self.fixtureImage, "sh", "-c", "echo shared-payload > /data/f"], timeout: 120)
-        XCTAssertEqual(write.status, 0, "write container failed:\n\(write.output)")
+        // Inspect confirms the UI attached the named volume at /data (source is the volume's image).
+        let json = try ContainerCLI.inspectJSON(containerName)
+        let mounts = ContainerCLI.value(at: "configuration.mounts", in: json) as? [[String: Any]]
+        XCTAssertTrue(mounts?.contains { ($0["destination"] as? String) == "/data"
+                                         && (($0["source"] as? String)?.contains(volumeName) ?? false) } == true,
+                      "the named volume should be mounted at /data: \(mounts ?? [])")
+        show.click() // navigate to the container's detail view
+
+        // 3. Write into the mount via the Terminal.
+        XCTAssertTrue(runInTerminal(app, container: containerName,
+                                    command: "echo shared-payload > /data/f", awaitFile: "/data/f"),
+                      "terminal write into the mounted volume should land")
+
+        // 4. Prove the bytes persisted in the named volume itself: stop this container (a volume
+        // image can only attach to one running VM at a time — a *concurrent* second mount fails
+        // with "storage device attachment is invalid"), then read it back from a fresh container.
+        _ = try ContainerCLI.run(["stop", containerName], timeout: 60)
         let read = try ContainerCLI.run(
             ["run", "--rm", "--name", "\(containerName)-r", "-v", "\(volumeName):/data",
              Self.fixtureImage, "cat", "/data/f"], timeout: 120)
         XCTAssertTrue(read.output.contains("shared-payload"),
-                      "second container should read what the first wrote:\n\(read.output)")
-        // volume + any leftover containers are swept by prefix in tearDown.
+                      "a fresh container mounting the volume should read what the terminal wrote:\n\(read.output)")
     }
 
-    /// Create a network through the sheet, then attach a running container to it and prove the
-    /// container actually provisioned an interface on that network.
+    /// Create a network through its sheet, attach it to a container through the Run sheet's
+    /// Network *select menu* (the Picker — new coverage), confirm via inspect, then use the
+    /// Terminal to capture the interface and read it back. Exercises: network-create sheet,
+    /// the Run-sheet network Picker, and the terminal.
     @MainActor
-    func testNetworkCreatedInUIIsUsable() throws {
+    func testNetworkAttachedViaUIVerifiedInTerminal() throws {
         try ContainerCLI.ensureImage(Self.fixtureImage)
 
         let app = XCUIApplication.berthlyE2E()
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
 
+        // 1. Create the network through its sheet.
         XCTAssertTrue(app.openViaPalette("Create Network"))
-        let nameField = app.windows.textFields["networkNameField"]
-        XCTAssertTrue(nameField.waitForExistence(timeout: 5), "Network sheet should appear")
-        nameField.click(); nameField.typeText(networkName)
-        let submit = app.buttons["networkCreateSubmitButton"]
-        submit.click()
-        XCTAssertTrue(submit.waitForNonExistence(timeout: 15), "sheet should close on successful create")
+        let netNameField = app.windows.textFields["networkNameField"]
+        XCTAssertTrue(netNameField.waitForExistence(timeout: 5), "Network sheet should appear")
+        netNameField.click(); netNameField.typeText(networkName)
+        let netSubmit = app.buttons["networkCreateSubmitButton"]
+        netSubmit.click()
+        XCTAssertTrue(netSubmit.waitForNonExistence(timeout: 15), "network sheet should close on success")
+        XCTAssertTrue(try ContainerCLI.run(["network", "ls"]).output.contains(networkName), "network listed")
 
-        // Oracle.
-        XCTAssertTrue(try ContainerCLI.run(["network", "ls"]).output.contains(networkName),
-                      "network should be listed")
+        // 2. Run a container attaching the network through the Run sheet's Network select menu.
+        openRunSheet(app)
+        typeField(app, Self.fixtureImage, into: "runImageField")
+        typeField(app, containerName, into: "runNameField")
+        typeField(app, "sleep 300", into: "runCommandField")
+        app.buttons["runCategory-Network"].click()
+        app.buttons["runNetworkAddButton"].click()
+        // The Picker is an NSPopUpButton on macOS: click it, then pick our network by name
+        // (the just-created network appears because the create refreshed service.networks).
+        let picker = app.windows.popUpButtons["runNetworkPicker"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "network picker should appear")
+        picker.click()
+        let item = app.menuItems[networkName]
+        XCTAssertTrue(item.waitForExistence(timeout: 5), "created network should be selectable in the menu")
+        item.click()
+        app.buttons["runSubmitButton"].click()
+        let show = app.buttons["Show Container"]
+        XCTAssertTrue(show.waitForExistence(timeout: 120), "container should boot on the network")
 
-        // Behavioral: a container attached to the network boots and gets a non-loopback IP,
-        // and inspect confirms the attachment. A broken/invalid network would fail to boot.
-        let run = try ContainerCLI.run(
-            ["run", "-d", "--name", containerName, "--network", networkName,
-             Self.fixtureImage, "sleep", "120"], timeout: 120)
-        XCTAssertEqual(run.status, 0, "container failed to start on the network:\n\(run.output)")
-
+        // Inspect confirms the UI select attached the right network.
         let json = try ContainerCLI.inspectJSON(containerName)
         let nets = (ContainerCLI.value(at: "configuration.networks", in: json) as? [[String: Any]])?
             .compactMap { $0["network"] as? String }
-        XCTAssertTrue(nets?.contains(networkName) == true, "inspect should show the network: \(nets ?? [])")
+        XCTAssertTrue(nets?.contains(networkName) == true, "inspect should show the selected network: \(nets ?? [])")
+        show.click()
 
-        let addr = try ContainerCLI.exec(containerName, ["ip", "-o", "-4", "addr", "show"])
-        XCTAssertTrue(addr.output.contains("inet ") && addr.output.contains("eth0"),
-                      "container should have an IPv4 address on the network interface:\n\(addr.output)")
-        // container + network swept by prefix in tearDown.
+        // 3. Capture the interface via the Terminal, then read the captured file back.
+        XCTAssertTrue(runInTerminal(app, container: containerName,
+                                    command: "ip -o -4 addr show eth0 > /berthly-e2e-net",
+                                    awaitFile: "/berthly-e2e-net"),
+                      "terminal command capturing the interface should run")
+        let addr = try ContainerCLI.exec(containerName, ["cat", "/berthly-e2e-net"])
+        XCTAssertTrue(addr.output.contains("inet "),
+                      "the container should have an IPv4 address on the attached network:\n\(addr.output)")
     }
 
     /// Build an image through the Build sheet from a runtime-written Dockerfile, then run it and

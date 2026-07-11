@@ -416,6 +416,7 @@ struct RunContainerSheet: View {
             title: "Networks",
             helpText: defaultNetworkHelpText,
             availableNetworks: service.networks,
+            identifierPrefix: "runNetwork",
             entries: $networks
         )
     }

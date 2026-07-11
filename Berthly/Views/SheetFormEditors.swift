@@ -122,6 +122,8 @@ struct NetworkListEditor: View {
     let title: LocalizedStringKey
     var helpText: String? = nil
     let availableNetworks: [Network]
+    /// Test-identifier prefix (see KeyValueEditor): "runNetwork" → "runNetworkPicker"/"runNetworkAddButton".
+    var identifierPrefix: String? = nil
     @Binding var entries: [StringEntry]
 
     /// New rows start on the standard network rather than blank, since that's what an empty
@@ -146,6 +148,7 @@ struct NetworkListEditor: View {
                         }
                         .labelsHidden()
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier(identifierPrefix.map { "\($0)Picker" } ?? "")
                         Button {
                             entries.removeAll { $0.id == entry.id }
                         } label: {
@@ -165,6 +168,7 @@ struct NetworkListEditor: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .disabled(availableNetworks.isEmpty)
+                .accessibilityIdentifier(identifierPrefix.map { "\($0)AddButton" } ?? "")
             }
             if let helpText {
                 Text(helpText)

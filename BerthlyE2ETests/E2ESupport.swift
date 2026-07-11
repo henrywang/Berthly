@@ -307,4 +307,47 @@ class BerthlyE2ETestCase: XCTestCase {
             ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
         }
     }
+
+    /// Opens the Run Container sheet: click the (daemon-gated) toolbar button once enabled,
+    /// then the "Run Container" popover option.
+    @MainActor
+    func openRunSheet(_ app: XCUIApplication) {
+        let runButton = app.buttons["runToolbarButton"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 15), "run toolbar button")
+        expectation(for: NSPredicate(format: "isEnabled == true"), evaluatedWith: runButton)
+        waitForExpectations(timeout: 30)
+        runButton.click()
+        let option = app.buttons["Run Container"]
+        XCTAssertTrue(option.waitForExistence(timeout: 5), "Run Container option")
+        option.click()
+    }
+
+    /// Types `text` into the sheet text field with `identifier` (waits, clicks to focus first).
+    @MainActor
+    func typeField(_ app: XCUIApplication, _ text: String, into identifier: String) {
+        let field = app.windows.textFields[identifier]
+        XCTAssertTrue(field.waitForExistence(timeout: 5), "field \(identifier) should exist")
+        field.click(); field.typeText(text)
+    }
+
+    /// Opens the Terminal tab on the currently-selected container and types `command` into
+    /// SwiftTerm's view, retrying focus-type until `file` appears inside `container` (the
+    /// exec'd shell connects async with no queryable ready signal; the command must be
+    /// idempotent). Confirmed: XCUITest keystrokes reach SwiftTerm where System Events don't.
+    /// Returns whether the file appeared. Assumes the container's detail view is showing.
+    @MainActor
+    func runInTerminal(_ app: XCUIApplication, container: String, command: String,
+                       awaitFile file: String, timeout: TimeInterval = 30) -> Bool {
+        let terminalTab = app.radioButtons["Terminal"]
+        guard terminalTab.waitForExistence(timeout: 10) else { return false }
+        terminalTab.click()
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        repeat {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)).click()
+            app.typeText("\(command)\r")
+            Thread.sleep(forTimeInterval: 2)
+            if (try? ContainerCLI.exec(container, ["ls", file]))?.status == 0 { return true }
+        } while Date() < deadline
+        return false
+    }
 }
