@@ -40,6 +40,37 @@ if [[ -n "$STALE" ]]; then
   "$CONTAINER" rm -f $STALE || true
 fi
 
+# ── Build, then desandbox the runner ─────────────────────────────────────────
+# Xcode signs the xctrunner with com.apple.security.app-sandbox=true and a
+# mach-lookup allowlist limited to testmanagerd services. A sandboxed runner's
+# child processes inherit that seatbelt, so the container CLI can reach the
+# daemon neither by XPC (mach-lookup denied) nor by path (HOME points into the
+# runner's container), and launchctl submit is denied too. ENABLE_APP_SANDBOX
+# on the test target is ignored for xctrunners. The only working approach:
+# build first, strip the entitlement, re-sign ad-hoc (CI already proves ad-hoc
+# runners work with CODE_SIGN_IDENTITY=-), then test-without-building.
+xcodebuild build-for-testing \
+  -project Berthly.xcodeproj \
+  -scheme Berthly \
+  -destination 'platform=macOS'
+
+PRODUCTS=$(xcodebuild -project Berthly.xcodeproj -scheme Berthly -destination 'platform=macOS' \
+  -showBuildSettings build-for-testing 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/ {print $3; exit}')
+RUNNER="$PRODUCTS/BerthlyE2ETests-Runner.app"
+if [[ ! -d "$RUNNER" ]]; then
+  echo "error: runner not found at $RUNNER" >&2
+  exit 1
+fi
+
+ENTITLEMENTS=$(mktemp -t berthly-e2e-entitlements).plist
+codesign -d --entitlements :"$ENTITLEMENTS" "$RUNNER"
+if /usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$ENTITLEMENTS" >/dev/null 2>&1; then
+  /usr/libexec/PlistBuddy -c 'Delete :com.apple.security.app-sandbox' "$ENTITLEMENTS"
+  codesign --force --sign - --entitlements "$ENTITLEMENTS" "$RUNNER"
+  echo "Desandboxed $RUNNER"
+fi
+rm -f "$ENTITLEMENTS"
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 ONLY="BerthlyE2ETests"
 if [[ $# -ge 1 ]]; then
@@ -47,8 +78,9 @@ if [[ $# -ge 1 ]]; then
 fi
 
 # TEST_RUNNER_ prefix forwards the variable into the test-runner process, where
-# BerthlyE2ETestCase checks it as the opt-in gate.
-exec env TEST_RUNNER_BERTHLY_E2E=1 xcodebuild test \
+# BerthlyE2ETestCase checks it as the opt-in gate. test-without-building keeps
+# the desandboxed runner intact (a plain `xcodebuild test` would re-sign it).
+exec env TEST_RUNNER_BERTHLY_E2E=1 xcodebuild test-without-building \
   -project Berthly.xcodeproj \
   -scheme Berthly \
   -destination 'platform=macOS' \

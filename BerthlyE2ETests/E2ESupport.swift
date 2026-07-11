@@ -45,6 +45,18 @@ enum ContainerCLI {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: binaryPath)
         process.arguments = arguments
+        // The XCUITest runner executes with a *container* HOME
+        // (~/Library/Containers/…xctrunner/Data). The container CLI resolves its appRoot
+        // (apiserver plist, image store) relative to HOME, so inheriting the runner's
+        // environment makes it look in an empty container and report "apiserver is not
+        // running and not registered with launchd" even when the daemon is up. Resolve
+        // the REAL home from the passwd database instead — it isn't affected by the env.
+        var environment = ProcessInfo.processInfo.environment
+        if let passwd = getpwuid(getuid()), let dir = passwd.pointee.pw_dir {
+            environment["HOME"] = String(cString: dir)
+        }
+        environment["PATH"] = "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = environment
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = pipe
@@ -129,8 +141,24 @@ class BerthlyE2ETestCase: XCTestCase {
         guard ContainerCLI.isInstalled else {
             throw XCTSkip("container CLI not found at \(ContainerCLI.binaryPath)")
         }
-        guard ContainerCLI.daemonIsRunning else {
-            throw XCTSkip("container daemon not running — start it with `container system start`")
+        let status: ContainerCLI.Result
+        do {
+            status = try ContainerCLI.run(["system", "status"], timeout: 10)
+        } catch {
+            throw XCTSkip("container CLI failed to launch: \(error)")
+        }
+        guard status.status == 0 else {
+            // Two ways to land here: the daemon really is down, or this suite was run
+            // WITHOUT scripts/e2e.sh. Xcode signs the xctrunner with app-sandbox=true and
+            // a mach-lookup allowlist that excludes com.apple.container.*, so a sandboxed
+            // runner's CLI children can't reach the daemon by XPC *or* by path (container
+            // HOME) — e2e.sh strips that entitlement and re-signs the runner after
+            // build-for-testing. There is no in-process escape: ENABLE_APP_SANDBOX is
+            // ignored for xctrunners, and the sandbox denies launchctl submit.
+            throw XCTSkip("""
+            container daemon unreachable (exit \(status.status)): \(status.output.prefix(200))
+            If the daemon IS running, you're in a sandboxed runner — run via scripts/e2e.sh.
+            """)
         }
 
         // Same rationale as BerthlyUITests.setUpWithError: a stray instance from a manual
