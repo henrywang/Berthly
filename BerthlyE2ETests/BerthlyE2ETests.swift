@@ -320,6 +320,47 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         XCTAssertFalse(gone.output.contains(containerName), "daemon should no longer know it")
     }
 
+    /// Terminal journey (PLAN/E2E-TEST.md §2.4): open the Terminal tab on a running container,
+    /// type a command into SwiftTerm's TerminalView, and prove it ran *inside the container* by
+    /// exec-checking for the file it creates. The spike confirmed XCUITest keystrokes reach the
+    /// view (unlike AppleScript System Events, which don't — see swiftterm-integration notes).
+    @MainActor
+    func testTerminalTabExecutesTypedCommand() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        let create = try ContainerCLI.run(
+            ["run", "-d", "--name", containerName, Self.fixtureImage, "sleep", "300"], timeout: 120)
+        XCTAssertEqual(create.status, 0, create.output)
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        let row = app.staticTexts["computeRow-\(containerName)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.click()
+
+        // Terminal tab: segmented Picker segments are radioButtons in XCUITest on macOS.
+        let terminalTab = app.radioButtons["Terminal"]
+        XCTAssertTrue(terminalTab.waitForExistence(timeout: 10))
+        terminalTab.click()
+
+        // The exec'd shell connects asynchronously; there's no queryable "prompt ready" signal
+        // in SwiftTerm's view. So retry the whole focus-type-check: `touch` is idempotent, and
+        // re-typing costs nothing until the shell is live enough to run it. Focus the terminal
+        // area (right of the split) each iteration in case the click didn't land first time.
+        let marker = "/berthly-e2e-typed"
+        var created = false
+        let deadline = Date(timeIntervalSinceNow: 30)
+        repeat {
+            app.windows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)).click()
+            app.typeText("touch \(marker)\r")
+            Thread.sleep(forTimeInterval: 2)
+            if (try? ContainerCLI.exec(containerName, ["ls", marker]))?.status == 0 {
+                created = true; break
+            }
+        } while Date() < deadline
+        XCTAssertTrue(created,
+                      "typed command should run in the container; tree:\n\(app.windows.firstMatch.debugDescription)")
+    }
+
     /// Reverse direction: create via CLI, assert the UI notices. Covers the refresh /
     /// observation path that the UI-driven journey can't isolate.
     @MainActor
