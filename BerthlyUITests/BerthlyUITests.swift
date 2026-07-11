@@ -889,7 +889,15 @@ final class BerthlyUITests: XCTestCase {
                 containerOption.click()
                 let cancelButton = app.buttons["Cancel"]
                 XCTAssertTrue(cancelButton.waitForExistence(timeout: 5))
-                cancelButton.click()
+                // Dismiss with Escape, not a click. Cancel binds .keyboardShortcut(.cancelAction),
+                // so Escape closes the sheet — and a key event goes to the focused window, immune
+                // to element hittability. A coordinate .click() on Cancel raced the sheet's
+                // present/dismiss animation on CI: XCUITest logged "Falling back to element center
+                // point", the synthesized click landed on stale mid-animation coordinates, missed
+                // the live control, and the sheet never dismissed (waitForNonExistence then timed
+                // out at this line). Nothing in RunContainerSheet auto-focuses a text field, so
+                // Escape reaches the window's cancelAction rather than being swallowed by editing.
+                app.typeKey(.escape, modifierFlags: [])
                 // Wait for the sheet to fully dismiss before looping. "Cancel" is unique to the
                 // sheet (the popover has none), so its disappearance marks a settled window. This
                 // must be the last line: it also gates the measure closure's re-invocation, so
