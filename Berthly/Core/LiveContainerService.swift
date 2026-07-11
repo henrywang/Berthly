@@ -909,18 +909,21 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func mapVolume(_ cfg: VolumeConfiguration) -> Volume {
-        // `source` is the sparse backing image (volume.img): its logical size is the
-        // allocation, its on-disk blocks are the data actually written. `sizeInBytes` is the
-        // *requested* size, which the driver rounds up (a 1M request becomes a 128MB image),
-        // so the file is the honest source; fall back to the config when it can't be read.
-        let disk = Self.volumeDiskUsage(imagePath: cfg.source)
+        // Capacity is the *configured* size (`--size`; default 512 GB) — the volume's declared
+        // logical size, i.e. what the user asked for. It is deliberately NOT the backing
+        // image's apparent size: the driver over-provisions tiny volumes to a 128 MB minimum
+        // image, so a `--size 2M` volume lives inside a 128 MB `volume.img`. `usedMB` is that
+        // image's real on-disk footprint (host bytes actually consumed), capped at capacity so
+        // a tiny volume whose ext4 overhead alone exceeds its nominal size can't read past 100%.
+        let configuredMB = cfg.sizeInBytes.map { Int($0 / 1_048_576) } ?? 0
+        let footprintMB = Self.volumeFootprintMB(imagePath: cfg.source) ?? 0
         let created = cfg.creationDate.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
         return Volume(
             id: cfg.name,
             name: cfg.name,
             type: cfg.isAnonymous ? .anonymous : .named,
-            usedMB: disk?.usedMB ?? 0,
-            allocatedMB: disk?.allocatedMB ?? cfg.sizeInBytes.map { Int($0 / 1_048_576) } ?? 0,
+            usedMB: Self.volumeUsedMB(footprintMB: footprintMB, configuredMB: configuredMB),
+            allocatedMB: configuredMB,
             driver: cfg.driver,
             source: cfg.source,
             created: created,
@@ -932,14 +935,22 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    /// Used/allocated sizes of a volume's sparse backing image: logical file size = allocated,
-    /// on-disk allocated bytes = actually written. `nil` when the file can't be read.
-    nonisolated static func volumeDiskUsage(imagePath: String) -> (usedMB: Int, allocatedMB: Int)? {
+    /// On-disk footprint of a volume's sparse backing image (`volume.img`) in MB — the bytes
+    /// actually allocated on the host, not the file's (much larger) apparent size. `nil` when
+    /// the file can't be read.
+    nonisolated static func volumeFootprintMB(imagePath: String) -> Int? {
         let url = URL(fileURLWithPath: imagePath)
-        guard let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey, .fileSizeKey]),
-              let logical = values.fileSize else { return nil }
-        return (usedMB: (values.totalFileAllocatedSize ?? 0) / 1_048_576,
-                allocatedMB: logical / 1_048_576)
+        guard let values = try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey]),
+              let footprint = values.totalFileAllocatedSize else { return nil }
+        return footprint / 1_048_576
+    }
+
+    /// Displayed "used" for a volume: the backing image's on-disk footprint, capped at the
+    /// configured capacity so an over-provisioned tiny volume (whose ext4 overhead can exceed
+    /// its nominal size) never reads past 100%. `configuredMB == 0` means capacity is unknown,
+    /// so the raw footprint is shown as-is.
+    nonisolated static func volumeUsedMB(footprintMB: Int, configuredMB: Int) -> Int {
+        configuredMB > 0 ? min(footprintMB, configuredMB) : footprintMB
     }
 
     nonisolated static func mapNetwork(_ r: NetworkResource) -> Network {

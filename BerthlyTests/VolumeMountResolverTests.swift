@@ -103,11 +103,11 @@ struct VolumeMountResolverTests {
     }
 }
 
-struct VolumeDiskUsageTests {
+struct VolumeFootprintTests {
 
-    /// A sparse file reports its logical size as the allocation and only the written blocks
-    /// as usage — the same shape as a volume's backing `volume.img`.
-    @Test func sparseFileReportsLogicalAndOnDiskSizes() throws {
+    /// A volume's footprint counts only the on-disk blocks actually written, not the sparse
+    /// image's much larger apparent size — the same shape as a real `volume.img`.
+    @Test func footprintReflectsOnDiskBlocksNotApparentSize() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("berthly-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -116,20 +116,38 @@ struct VolumeDiskUsageTests {
         let img = dir.appendingPathComponent("volume.img")
         FileManager.default.createFile(atPath: img.path, contents: nil)
         let handle = try FileHandle(forWritingTo: img)
-        // 2 MB of incompressible data at the front, then a hole out to 64 MB.
+        // 2 MB of incompressible data at the front, then a hole out to 64 MB apparent size.
         var bytes = [UInt8](repeating: 0, count: 2 * 1_048_576)
         for i in bytes.indices { bytes[i] = UInt8.random(in: .min ... .max) }
         try handle.write(contentsOf: Data(bytes))
         try handle.truncate(atOffset: 64 * 1_048_576)
         try handle.close()
 
-        let usage = try #require(LiveContainerService.volumeDiskUsage(imagePath: img.path))
-        #expect(usage.allocatedMB == 64)
-        #expect(usage.usedMB >= 1)
-        #expect(usage.usedMB < 64)
+        let footprint = try #require(LiveContainerService.volumeFootprintMB(imagePath: img.path))
+        #expect(footprint >= 1)
+        #expect(footprint < 64)  // far below the 64 MB apparent size — the hole isn't counted
     }
 
     @Test func missingFileReturnsNil() {
-        #expect(LiveContainerService.volumeDiskUsage(imagePath: "/nonexistent/volume.img") == nil)
+        #expect(LiveContainerService.volumeFootprintMB(imagePath: "/nonexistent/volume.img") == nil)
+    }
+}
+
+struct VolumeUsedMBTests {
+
+    /// A `--size 2M` volume sits in a 128 MB image whose ext4 overhead alone (~2 MB) can
+    /// exceed the nominal size; capping keeps the bar from reading past 100%.
+    @Test func cappedAtConfiguredCapacityForTinyVolume() {
+        #expect(LiveContainerService.volumeUsedMB(footprintMB: 3, configuredMB: 2) == 2)
+    }
+
+    /// The common case — a 512 GB default volume with 66 MB written shows the real footprint.
+    @Test func rawFootprintWhenBelowCapacity() {
+        #expect(LiveContainerService.volumeUsedMB(footprintMB: 66, configuredMB: 524_288) == 66)
+    }
+
+    /// Unknown capacity (no `sizeInBytes`) shows the footprint as-is rather than hiding it.
+    @Test func rawFootprintWhenCapacityUnknown() {
+        #expect(LiveContainerService.volumeUsedMB(footprintMB: 5, configuredMB: 0) == 5)
     }
 }
