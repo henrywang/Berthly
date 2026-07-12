@@ -391,6 +391,10 @@ private struct MenuBarDaemonRow: View {
 private struct MenuBarTypeTile: View {
     let systemImage: String
     let status: ContainerStatus
+    /// Stopped rows recede (mirrors the sidebar's `TypeStatusGlyph.dimmed`): the tile fill and
+    /// type glyph drop to a neutral secondary tint. The status badge stays full-strength so a
+    /// crashed or paused pinned row still stands out.
+    var dimmed: Bool = false
 
     var body: some View {
         // .overlay (not a shared ZStack alignment) so the type glyph defaults to centered and
@@ -398,12 +402,12 @@ private struct MenuBarTypeTile: View {
         // applies that alignment to every child, including the type icon, which had no frame of
         // its own to center against and so drifted to the corner too.
         RoundedRectangle(cornerRadius: 7)
-            .fill(Color.berthlyAccent.opacity(0.15))
+            .fill(dimmed ? AnyShapeStyle(Color.secondary.opacity(0.12)) : AnyShapeStyle(Color.berthlyAccent.opacity(0.15)))
             .frame(width: 26, height: 26)
             .overlay {
                 Image(systemName: systemImage)
                     .font(.system(size: 12))
-                    .foregroundStyle(Color.berthlyAccent)
+                    .foregroundStyle(dimmed ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.berthlyAccent))
             }
             .overlay(alignment: .bottomTrailing) {
                 // Chipped: the badge sits on the accent tile fill and needs the background circle
@@ -422,12 +426,16 @@ private struct MenuBarContainerRow: View {
     @Environment(\.openWindow) private var openWindow
     @State private var isWorking = false
 
+    private var isRunning: Bool { container.status == .running }
+
     var body: some View {
         HStack(spacing: 8) {
-            MenuBarTypeTile(systemImage: "shippingbox", status: container.status)
+            MenuBarTypeTile(systemImage: "shippingbox", status: container.status, dimmed: !isRunning)
             VStack(alignment: .leading, spacing: 1) {
                 Text(container.name)
                     .font(.system(.callout, design: .monospaced))
+                    // Stopped (pinned) rows recede — mirrors the sidebar's ComputeListView.
+                    .foregroundStyle(isRunning ? Color.primary : Color.secondary)
                     .lineLimit(1)
                 Text(container.image)
                     .font(.caption2)
@@ -494,12 +502,16 @@ private struct MenuBarMachineRow: View {
     @Environment(\.openWindow) private var openWindow
     @State private var isWorking = false
 
+    private var isRunning: Bool { machine.status == .running }
+
     var body: some View {
         HStack(spacing: 8) {
-            MenuBarTypeTile(systemImage: "desktopcomputer", status: machine.status)
+            MenuBarTypeTile(systemImage: "desktopcomputer", status: machine.status, dimmed: !isRunning)
             VStack(alignment: .leading, spacing: 1) {
                 Text(machine.name)
                     .font(.system(.callout, design: .monospaced))
+                    // Stopped (pinned) rows recede — mirrors the sidebar's ComputeListView.
+                    .foregroundStyle(isRunning ? Color.primary : Color.secondary)
                     .lineLimit(1)
                 Text(machine.resources)
                     .font(.caption2)
