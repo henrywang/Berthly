@@ -20,10 +20,11 @@ struct RegistriesListView: View {
         Group {
             if service.registries.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    header
+                    scopeBar
+                        .padding(.top, 8)
                     infoBanner
                         .padding(.horizontal, 20)
-                        .padding(.top, 12)
+                        .padding(.top, 8)
                     ContentUnavailableView {
                         Label("No Registries", systemImage: "building.columns")
                     } description: {
@@ -38,10 +39,11 @@ struct RegistriesListView: View {
                 }
             } else if filtered.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    header
+                    scopeBar
+                        .padding(.top, 8)
                     infoBanner
                         .padding(.horizontal, 20)
-                        .padding(.top, 12)
+                        .padding(.top, 8)
                     ContentUnavailableView.search(text: filterText)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -57,10 +59,11 @@ struct RegistriesListView: View {
                 // divider under the toolbar that Compute/Networks (List with no header) don't have.
                 .safeAreaInset(edge: .top) {
                     VStack(alignment: .leading, spacing: 0) {
-                        header
+                        scopeBar
+                            .padding(.top, 8)
                         infoBanner
                             .padding(.horizontal, 20)
-                            .padding(.top, 12)
+                            .padding(.top, 8)
                         columnHeader
                             .padding(.horizontal, 20)
                             .padding(.top, 16)
@@ -85,16 +88,19 @@ struct RegistriesListView: View {
 
     // MARK: - Header
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("Registries")
-                .font(.largeTitle.weight(.bold))
-            Text("Credentials for pushing & pulling images · shared by the daemon and every machine")
-                .font(.subheadline)
+    // A quiet, icon-anchored context strip under the toolbar title — same tier as Volumes'
+    // usage strip. Not an in-content large title (the toolbar already says "Registries"); the
+    // SF Symbol + caption/secondary styling makes it read as pane identity, not a stray subtitle.
+    private var scopeBar: some View {
+        HStack(spacing: 8) {
+            Label("Credentials for pushing & pulling images · shared by the daemon and every machine",
+                  systemImage: "building.columns")
+                .font(.caption)
                 .foregroundStyle(.secondary)
+            Spacer()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
     }
 
     private var infoBanner: some View {
