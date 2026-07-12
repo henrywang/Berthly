@@ -93,7 +93,6 @@ private struct VolumeDetailContent: View {
                         .fontDesign(.monospaced)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    VolumeChip(text: volume.driver, color: .berthlyAccent)
                     VolumeChip(text: volume.type == .named ? "named" : "anonymous",
                                color: volume.type == .named ? .statusRunning : .purple)
                     if volume.reclaimable {
