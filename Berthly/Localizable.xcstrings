@@ -52,6 +52,16 @@
         }
       }
     },
+    "%@, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
     "%lld" : {
 
     },
@@ -306,9 +316,6 @@
 
     },
     "Container System Stopped" : {
-
-    },
-    "CONTAINERS" : {
 
     },
     "Containers reach the internet through the host (NAT)." : {
@@ -676,9 +683,6 @@
 
     },
     "Machine not found" : {
-
-    },
-    "MACHINES" : {
 
     },
     "Memory" : {

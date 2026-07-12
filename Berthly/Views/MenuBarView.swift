@@ -406,11 +406,9 @@ private struct MenuBarTypeTile: View {
                     .foregroundStyle(Color.berthlyAccent)
             }
             .overlay(alignment: .bottomTrailing) {
-                Image(systemName: status.systemImage)
-                    .font(.system(size: 7, weight: .bold))
-                    .foregroundStyle(status.color)
-                    .padding(2.5)
-                    .background(Circle().fill(.background))
+                // Chipped: the badge sits on the accent tile fill and needs the background circle
+                // to separate from it. Shared with the sidebar's `TypeStatusGlyph` (unchipped).
+                StatusShapeBadge(status: status, size: 7, chipped: true)
                     .offset(x: 4, y: 4)
             }
             .frame(width: 30, height: 30)

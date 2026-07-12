@@ -62,41 +62,32 @@ struct ComputeListView: View {
                 List(selection: $selection) {
                     if runningCount > 0 {
                         Section {
-                            if !runningContainerEntries.isEmpty {
-                                ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
-                                ForEach(runningContainerEntries) { entry in
-                                    ContainerComputeRow(container: entry.container, selection: $selection)
-                                        .tag(entry.tag)
-                                        .listRowSeparator(.hidden)
-                                }
+                            // Containers first, then machines — the per-row type glyph carries the
+                            // kind now (no CONTAINERS/MACHINES sub-header), and keeping the two
+                            // kinds contiguous gives soft clustering without a header row.
+                            ForEach(runningContainerEntries) { entry in
+                                ContainerComputeRow(container: entry.container, selection: $selection)
+                                    .tag(entry.tag)
+                                    .listRowSeparator(.hidden)
                             }
-                            if !runningMachineEntries.isEmpty {
-                                ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
-                                ForEach(runningMachineEntries) { entry in
-                                    MachineComputeRow(machine: entry.machine, selection: $selection)
-                                        .tag(entry.tag)
-                                        .listRowSeparator(.hidden)
-                                }
+                            ForEach(runningMachineEntries) { entry in
+                                MachineComputeRow(machine: entry.machine, selection: $selection)
+                                    .tag(entry.tag)
+                                    .listRowSeparator(.hidden)
                             }
                         } header: { ComputeSectionHeader("RUNNING \(runningCount)") }
                     }
                     if stoppedCount > 0 {
                         Section {
-                            if !stoppedContainerEntries.isEmpty {
-                                ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
-                                ForEach(stoppedContainerEntries) { entry in
-                                    ContainerComputeRow(container: entry.container, selection: $selection)
-                                        .tag(entry.tag)
-                                        .listRowSeparator(.hidden)
-                                }
+                            ForEach(stoppedContainerEntries) { entry in
+                                ContainerComputeRow(container: entry.container, selection: $selection)
+                                    .tag(entry.tag)
+                                    .listRowSeparator(.hidden)
                             }
-                            if !stoppedMachineEntries.isEmpty {
-                                ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
-                                ForEach(stoppedMachineEntries) { entry in
-                                    MachineComputeRow(machine: entry.machine, selection: $selection)
-                                        .tag(entry.tag)
-                                        .listRowSeparator(.hidden)
-                                }
+                            ForEach(stoppedMachineEntries) { entry in
+                                MachineComputeRow(machine: entry.machine, selection: $selection)
+                                    .tag(entry.tag)
+                                    .listRowSeparator(.hidden)
                             }
                         } header: { ComputeSectionHeader("STOPPED \(stoppedCount)") }
                     }
@@ -190,13 +181,19 @@ private struct ContainerComputeRow: View {
     @State private var isDeleting = false
     @State private var errorMessage: String?
 
+    private var isRunning: Bool { container.status == .running }
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            StatusGlyph(status: container.status)
+            TypeStatusGlyph(typeSystemImage: "shippingbox", status: container.status, dimmed: !isRunning)
+                .frame(width: computeGlyphWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(container.name)
                     .font(.system(.body, design: .default, weight: .medium))
+                    // Stopped rows recede into the background (paired with the dimmed glyph); the
+                    // full-strength status badge is what still flags a crashed one.
+                    .foregroundStyle(isRunning ? Color.primary : Color.secondary)
                     // Unambiguous handle for the sidebar row (E2E lifecycle journey): the
                     // detail view shows the same name, so tests can't query by text alone.
                     .accessibilityIdentifier("computeRow-\(container.name)")
@@ -294,13 +291,18 @@ private struct MachineComputeRow: View {
     @State private var isDeleting = false
     @State private var errorMessage: String?
 
+    private var isRunning: Bool { machine.status == .running }
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            StatusGlyph(status: machine.status)
+            TypeStatusGlyph(typeSystemImage: "desktopcomputer", status: machine.status, dimmed: !isRunning)
+                .frame(width: computeGlyphWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(machine.name)
                     .font(.system(.body, design: .default, weight: .medium))
+                    // Stopped rows recede into the background — see ContainerComputeRow.
+                    .foregroundStyle(isRunning ? Color.primary : Color.secondary)
                     // Same rationale as computeRow-: the detail view repeats the name.
                     .accessibilityIdentifier("machineRow-\(machine.name)")
                 Text(machine.image)
@@ -375,28 +377,14 @@ private struct MachineComputeRow: View {
     }
 }
 
-// MARK: - Status glyph
+// MARK: - Layout
 
-/// Per-row state indicator: without it, status only exists as section membership, so an
-/// errored or paused container is indistinguishable from a plainly stopped one. Reuses the
-/// shape+color coding from `ContainerStatus` (shapes carry the meaning for colorblind users).
-private struct StatusGlyph: View {
-    let status: ContainerStatus
+// Shared leading width for both row kinds' `TypeStatusGlyph`, so container and machine names
+// start in the same column even though the glyph + corner badge is wider than the text after it.
+private let computeGlyphWidth: CGFloat = 22
 
-    var body: some View {
-        Image(systemName: status.systemImage)
-            .font(.system(size: 9))
-            .foregroundStyle(status.color)
-            .frame(width: 12)
-            .accessibilityLabel(status.label)
-    }
-}
+// MARK: - Section header
 
-// MARK: - Section headers
-
-// Two header levels stack here (RUNNING/STOPPED over CONTAINERS/MACHINES); the section level
-// is stronger (secondary vs tertiary) and the type level indents under it so they don't read
-// as the same hierarchy at a glance.
 private struct ComputeSectionHeader: View {
     let text: LocalizedStringKey
     init(_ text: LocalizedStringKey) { self.text = text }
@@ -406,26 +394,6 @@ private struct ComputeSectionHeader: View {
             .font(.caption2.weight(.semibold))
             .foregroundStyle(.secondary)
             .textCase(nil)
-    }
-}
-
-private struct ComputeTypeHeader: View {
-    let text: LocalizedStringKey
-    let systemImage: String
-    init(_ text: LocalizedStringKey, systemImage: String) {
-        self.text = text
-        self.systemImage = systemImage
-    }
-
-    var body: some View {
-        Label(text, systemImage: systemImage)
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.tertiary)
-            .imageScale(.small)
-            .textCase(nil)
-            .listRowSeparator(.hidden)
-            .padding(.top, 4)
-            .padding(.leading, 8)
     }
 }
 
