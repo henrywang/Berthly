@@ -51,8 +51,15 @@ struct BerthlyApp: App {
                 .environment(service)
                 .environment(menuBarBridge)
         } label: {
+            // Must stay render-stable: any label change makes SwiftUI call
+            // NSStatusBarButton.setImage, which invalidates the status window's constraints —
+            // and when that lands mid display cycle (e.g. during the detail-pane slide
+            // animation in the main window), AppKit's feedback-loop guard throws
+            // "window has been marked as needing another Update Constraints in Window pass,
+            // but it has already had more ... than there are views" and crashes. Daemon
+            // connection state is shown inside MenuBarView instead (dimming the icon via
+            // `service.isConnected` here is what used to crash).
             Image("MenuBarIcon")
-                .opacity(service.isConnected ? 1.0 : 0.4)
         }
         .menuBarExtraStyle(.window)
 
