@@ -5,6 +5,10 @@ import SwiftUI
 
 @main
 struct BerthlyApp: App {
+    init() {
+        StatusButtonImageDedupe.install()
+    }
+
     @State private var service: ContainerServiceBase = Self.makeService()
     @State private var menuBarBridge = MenuBarBridge()
     @State private var buildJobManager = BuildJobManager()
