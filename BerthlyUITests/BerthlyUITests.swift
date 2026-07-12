@@ -447,6 +447,35 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Not mounted into any container"].waitForExistence(timeout: 5))
     }
 
+    /// Selecting a network opens its detail pane, and selecting another swaps the content —
+    /// same list→detail wiring as Volumes. Asserts on detail-only text (the "Topology" section
+    /// title and the driver-specific egress badge) rather than tagging the pane, since a
+    /// container accessibilityIdentifier would flatten those child texts away.
+    @MainActor
+    func testNetworkSelectionOpensAndSwapsDetailPane() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+
+        app.staticTexts["Networks"].click()
+        // `app-net` is a NAT network in the mock; its row confirms we're on the page.
+        XCTAssertTrue(app.staticTexts["app-net"].waitForExistence(timeout: 5))
+
+        // No detail pane until something is selected — "Topology" is a detail-only section title.
+        XCTAssertFalse(app.staticTexts["Topology"].exists)
+
+        app.staticTexts["app-net"].click()
+        XCTAssertTrue(app.staticTexts["Topology"].waitForExistence(timeout: 5))
+        // app-net is a NAT network — the topology diagram leads with its egress badge.
+        XCTAssertTrue(app.staticTexts["NAT → en0 · Internet"].waitForExistence(timeout: 5))
+
+        // Selecting the host-only network swaps the pane to the isolated branch.
+        app.staticTexts["data-net"].click()
+        XCTAssertTrue(app.staticTexts["Isolated · no egress"].waitForExistence(timeout: 5))
+    }
+
     @MainActor
     func testReturnSubmitsNetworkCreateFromAnyField() throws {
         let app = XCUIApplication.berthly()
