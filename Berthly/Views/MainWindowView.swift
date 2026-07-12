@@ -9,6 +9,7 @@ struct MainWindowView: View {
     @State private var selectedCompute: ComputeItem?
     @State private var selectedImageID: String?
     @State private var selectedVolumeID: String?
+    @State private var selectedNetworkID: String?
     @State private var isRefreshing = false
     @State private var refreshRotation = 0.0
     @State private var showPullSheet = false
@@ -74,17 +75,31 @@ struct MainWindowView: View {
                             removal: .move(edge: .leading)
                         ))
                 }
+                if let id = selectedNetworkID, sidebarSelection == .networks {
+                    Divider()
+                    NetworkDetailView(networkID: id, onDelete: { selectedNetworkID = nil })
+                        .frame(minWidth: 320, idealWidth: 480)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .trailing),
+                            removal: .move(edge: .leading)
+                        ))
+                }
             }
             .animation(.easeInOut(duration: 0.25), value: selectedCompute)
             .animation(.easeInOut(duration: 0.25), value: selectedImageID)
             .animation(.easeInOut(duration: 0.25), value: selectedVolumeID)
+            .animation(.easeInOut(duration: 0.25), value: selectedNetworkID)
             .onChange(of: service.isConnected) { _, connected in
-                if !connected { selectedCompute = nil; selectedImageID = nil; selectedVolumeID = nil }
+                if !connected {
+                    selectedCompute = nil; selectedImageID = nil
+                    selectedVolumeID = nil; selectedNetworkID = nil
+                }
             }
             .onChange(of: sidebarSelection) { _, _ in
                 selectedCompute = nil
                 selectedImageID = nil
                 selectedVolumeID = nil
+                selectedNetworkID = nil
             }
             // `.onChange` only fires on a value change *after* this view is already observing it —
             // if the menu bar sets `pendingIntent` in the same beat it creates a fresh window (the
@@ -187,6 +202,7 @@ struct MainWindowView: View {
             selectedCompute = nil
             selectedImageID = nil
             selectedVolumeID = nil
+            selectedNetworkID = nil
             sidebarSelection = sidebarSelection(for: section)
         case .runContainer:    showRunSheet = true
         case .createMachine:   showMachineCreateSheet = true
@@ -295,6 +311,7 @@ struct MainWindowView: View {
         selectedCompute != nil
             || (selectedImageID != nil && sidebarSelection == .images)
             || (selectedVolumeID != nil && sidebarSelection == .volumes)
+            || (selectedNetworkID != nil && sidebarSelection == .networks)
     }
 
     /// The create action for the selected sidebar section, if it has one.
@@ -317,7 +334,7 @@ struct MainWindowView: View {
         case .volumes:
             VolumesListView(selectedID: $selectedVolumeID)
         case .networks:
-            NetworksListView()
+            NetworksListView(selectedID: $selectedNetworkID)
         case .images:
             ImagesListView(selectedID: $selectedImageID)
         case .registries:

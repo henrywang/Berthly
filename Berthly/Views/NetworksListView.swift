@@ -1,10 +1,13 @@
 import SwiftUI
 
 struct NetworksListView: View {
+    @Binding var selectedID: String?
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
     @State private var filterText = ""
     @State private var isSearchPresented = false
+    @State private var deleteTargetID: String?
+    @State private var deleteErrorMessage: String?
 
     private var filtered: [Network] {
         let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
@@ -15,7 +18,7 @@ struct NetworksListView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
+        Group {
             if service.networks.isEmpty {
                 ContentUnavailableView {
                     Label("No Networks", systemImage: "arrow.triangle.branch")
@@ -32,16 +35,62 @@ struct NetworksListView: View {
                 ContentUnavailableView.search(text: filterText)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                List {
+                List(selection: $selectedID) {
                     ForEach(filtered) { net in
-                        NetworkRow(networkID: net.id).listRowSeparator(.hidden)
+                        NetworkRow(networkID: net.id).tag(net.id).listRowSeparator(.hidden)
                     }
                 }
+                // ⌫ on the selected network — same confirm-then-delete as the hover trash button.
+                .onDeleteCommand { deleteTargetID = selectedID }
             }
         }
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or subnet")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Networks")
+        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
+            get: { deleteTargetID != nil },
+            set: { if !$0 { deleteTargetID = nil } }
+        )) {
+            Button("Delete", role: .destructive) { performDelete() }
+            Button("Cancel", role: .cancel) { deleteTargetID = nil }
+        } message: {
+            Text(deleteConfirmMessage)
+        }
+        .alert("Error", isPresented: Binding(
+            get: { deleteErrorMessage != nil },
+            set: { if !$0 { deleteErrorMessage = nil } }
+        )) {
+            Button("OK") { deleteErrorMessage = nil }
+        } message: {
+            Text(deleteErrorMessage ?? "")
+        }
+    }
+
+    private var deleteTarget: Network? {
+        // The default network can't be deleted — ignore ⌫ on it rather than confirm a no-op.
+        service.networks.first(where: { $0.id == deleteTargetID && !$0.isDefault })
+    }
+
+    private var deleteConfirmTitle: String {
+        deleteTarget.map { "Delete \($0.name)?" } ?? ""
+    }
+
+    private var deleteConfirmMessage: String {
+        guard let network = deleteTarget else { return "" }
+        if !network.endpoints.isEmpty {
+            return "This network has \(network.endpoints.count) endpoint\(network.endpoints.count == 1 ? "" : "s"). Deleting it may disrupt connectivity."
+        }
+        return "This action cannot be undone."
+    }
+
+    private func performDelete() {
+        guard let network = deleteTarget else { return }
+        deleteTargetID = nil
+        if selectedID == network.id { selectedID = nil }
+        Task {
+            do { try await service.deleteNetwork(network.id) }
+            catch { deleteErrorMessage = error.localizedDescription }
+        }
     }
 }
 
@@ -61,6 +110,7 @@ private struct NetworkRow: View {
 
     var body: some View {
         if let network {
+            let endpoints = NetworkPresentation.resolvedEndpoints(for: network, containers: service.containers)
             HStack(alignment: .center, spacing: 10) {
                 Image(systemName: "arrow.triangle.branch")
                     .foregroundStyle(network.isDefault ? Color.berthlyAccent : .secondary)
@@ -71,13 +121,10 @@ private struct NetworkRow: View {
                     HStack(spacing: 6) {
                         Text(network.name)
                             .font(.system(.body, design: .default, weight: .medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
                         if network.isDefault {
-                            Text("default")
-                                .font(.caption2.weight(.medium))
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color.berthlyAccent.opacity(0.15), in: Capsule())
-                                .foregroundStyle(Color.berthlyAccent)
+                            RowChip(text: "DEFAULT", color: .secondary)
                         }
                     }
                     Text(network.subnet)
@@ -96,13 +143,10 @@ private struct NetworkRow: View {
                     .disabled(network.isDefault)
                     .help(network.isDefault ? "The default network can't be deleted" : "Delete Network")
                 } else {
-                    VStack(alignment: .trailing, spacing: 2) {
-                        Text(endpointSummary(network))
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.primary)
-                        Text(driverLabel(network.driver))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        RowChip(text: network.driver.rawValue,
+                                color: network.driver == .nat ? .berthlyAccent : .statusPaused)
+                        endpointStatus(endpoints)
                     }
                 }
             }
@@ -144,23 +188,49 @@ private struct NetworkRow: View {
         }
     }
 
-    private func endpointSummary(_ net: Network) -> String {
-        let running = net.endpoints.filter(\.isRunning).count
-        let total   = net.endpoints.count
-        if total == 0 { return "no endpoints" }
-        return "\(running)/\(total) active"
-    }
-
-    private func driverLabel(_ driver: NetworkDriver) -> String {
-        switch driver {
-        case .nat:      return "NAT"
-        case .hostOnly: return "Host-only"
+    /// Trailing second line: endpoint count with a status dot — green when any endpoint's
+    /// workload is running, gray when all are stopped, tertiary "no endpoints" when empty.
+    @ViewBuilder
+    private func endpointStatus(_ endpoints: [NetworkEndpoint]) -> some View {
+        if endpoints.isEmpty {
+            Text(NetworkPresentation.endpointSummary(count: 0))
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        } else {
+            HStack(spacing: 4) {
+                Circle()
+                    .fill(endpoints.contains(where: \.isRunning)
+                          ? Color.statusRunning
+                          : Color(NSColor.tertiaryLabelColor))
+                    .frame(width: 5, height: 5)
+                Text(NetworkPresentation.endpointSummary(count: endpoints.count))
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
     }
 }
 
+// MARK: - Row chip
+
+/// Small tinted tag (driver, DEFAULT) — list-row sibling of NetworkDetailView's chip.
+private struct RowChip: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
 #Preview {
-    NetworksListView()
+    @Previewable @State var selectedID: String? = nil
+    NetworksListView(selectedID: $selectedID)
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())
         .frame(width: 360, height: 300)

@@ -42,6 +42,16 @@
         }
       }
     },
+    "%@ · gw %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · gw %2$@"
+          }
+        }
+      }
+    },
     "%lld" : {
 
     },
@@ -56,6 +66,9 @@
       }
     },
     "%lld%%" : {
+
+    },
+    "→ gw %@" : {
 
     },
     "+%lld more — open Berthly to see all" : {
@@ -133,6 +146,9 @@
     "Advanced" : {
 
     },
+    "ALIASES" : {
+
+    },
     "Allocate a TTY (-t)" : {
 
     },
@@ -152,6 +168,9 @@
 
     },
     "Attach and show output" : {
+
+    },
+    "Attach with --network %@" : {
 
     },
     "Attach with --volume %@:/path" : {
@@ -343,6 +362,9 @@
     "Copy Source Path" : {
 
     },
+    "Copy subnet" : {
+
+    },
     "Copy Subnet" : {
 
     },
@@ -380,9 +402,6 @@
 
     },
     "Daemon Logs" : {
-
-    },
-    "default" : {
 
     },
     "Defaults to Dockerfile or Containerfile in the build context." : {
@@ -473,6 +492,12 @@
 
     },
     "Enable Rosetta" : {
+
+    },
+    "ENDPOINT" : {
+
+    },
+    "Endpoints %lld" : {
 
     },
     "Entrypoint override" : {
@@ -614,6 +639,9 @@
     "Into Container" : {
 
     },
+    "IPV4" : {
+
+    },
     "Isolated to the host — no outbound internet access." : {
 
     },
@@ -695,6 +723,9 @@
     "Network" : {
 
     },
+    "Network not found" : {
+
+    },
     "Networks" : {
 
     },
@@ -708,6 +739,9 @@
 
     },
     "No Compute Resources" : {
+
+    },
+    "No endpoints attached" : {
 
     },
     "No Images" : {
@@ -1165,6 +1199,9 @@
 
     },
     "Tokens are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart." : {
+
+    },
+    "Topology" : {
 
     },
     "Total %@ · %@ reclaimable" : {
