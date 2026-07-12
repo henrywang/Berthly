@@ -65,7 +65,7 @@ struct ComputeListView: View {
                             if !runningContainerEntries.isEmpty {
                                 ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
                                 ForEach(runningContainerEntries) { entry in
-                                    ContainerComputeRow(container: entry.container)
+                                    ContainerComputeRow(container: entry.container, selection: $selection)
                                         .tag(entry.tag)
                                         .listRowSeparator(.hidden)
                                 }
@@ -73,7 +73,7 @@ struct ComputeListView: View {
                             if !runningMachineEntries.isEmpty {
                                 ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
                                 ForEach(runningMachineEntries) { entry in
-                                    MachineComputeRow(machine: entry.machine)
+                                    MachineComputeRow(machine: entry.machine, selection: $selection)
                                         .tag(entry.tag)
                                         .listRowSeparator(.hidden)
                                 }
@@ -85,7 +85,7 @@ struct ComputeListView: View {
                             if !stoppedContainerEntries.isEmpty {
                                 ComputeTypeHeader("CONTAINERS", systemImage: "shippingbox")
                                 ForEach(stoppedContainerEntries) { entry in
-                                    ContainerComputeRow(container: entry.container)
+                                    ContainerComputeRow(container: entry.container, selection: $selection)
                                         .tag(entry.tag)
                                         .listRowSeparator(.hidden)
                                 }
@@ -93,7 +93,7 @@ struct ComputeListView: View {
                             if !stoppedMachineEntries.isEmpty {
                                 ComputeTypeHeader("MACHINES", systemImage: "desktopcomputer")
                                 ForEach(stoppedMachineEntries) { entry in
-                                    MachineComputeRow(machine: entry.machine)
+                                    MachineComputeRow(machine: entry.machine, selection: $selection)
                                         .tag(entry.tag)
                                         .listRowSeparator(.hidden)
                                 }
@@ -163,6 +163,7 @@ struct ComputeListView: View {
     private func performDelete() {
         guard let target = deleteTarget else { return }
         deleteTarget = nil
+        if selection == target { selection = nil }
         Task {
             do {
                 switch target {
@@ -180,6 +181,9 @@ struct ComputeListView: View {
 
 private struct ContainerComputeRow: View {
     let container: Container
+    // Clearing selection here (mirroring the list's performDelete) collapses the detail pane
+    // when the selected container is deleted from the row — otherwise it strands on "not found".
+    @Binding var selection: ComputeItem?
     @Environment(ContainerServiceBase.self) private var service
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
@@ -247,6 +251,7 @@ private struct ContainerComputeRow: View {
             // item (identifier-OR-label matching) — the E2E lifecycle journey drives this.
             Button("Delete", role: .destructive) {
                 isDeleting = true
+                if selection == .container(container.id) { selection = nil }
                 Task {
                     do { try await service.deleteContainer(container.id) }
                     catch { errorMessage = error.localizedDescription }
@@ -280,6 +285,9 @@ private struct ContainerComputeRow: View {
 
 private struct MachineComputeRow: View {
     let machine: Machine
+    // Clearing selection here (mirroring the list's performDelete) collapses the detail pane
+    // when the selected machine is deleted from the row — otherwise it strands on "not found".
+    @Binding var selection: ComputeItem?
     @Environment(ContainerServiceBase.self) private var service
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
@@ -337,6 +345,7 @@ private struct MachineComputeRow: View {
         .alert("Delete \(machine.name)?", isPresented: $showDeleteConfirm) {
             Button("Delete", role: .destructive) {
                 isDeleting = true
+                if selection == .machine(machine.id) { selection = nil }
                 Task {
                     do { try await service.deleteMachine(machine.id) }
                     catch { errorMessage = error.localizedDescription }

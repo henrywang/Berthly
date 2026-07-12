@@ -54,12 +54,12 @@ struct ImagesListView: View {
                 List(selection: $selectedID) {
                     if !local.isEmpty {
                         Section {
-                            ForEach(local)  { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
+                            ForEach(local)  { img in ImageRow(imageID: img.id, selectedID: $selectedID).tag(img.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("LOCAL \(local.count)") }
                     }
                     if !pulled.isEmpty {
                         Section {
-                            ForEach(pulled) { img in ImageRow(imageID: img.id).tag(img.id).listRowSeparator(.hidden) }
+                            ForEach(pulled) { img in ImageRow(imageID: img.id, selectedID: $selectedID).tag(img.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("PULLED \(pulled.count)") }
                     }
                 }
@@ -130,6 +130,9 @@ struct ImagesListView: View {
 
 private struct ImageRow: View {
     let imageID: String
+    // Clearing selection here (mirroring the list's performDelete) collapses the detail pane
+    // when the selected image is deleted from the row — otherwise it strands on "not found".
+    @Binding var selectedID: String?
     @Environment(ContainerServiceBase.self) private var service
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
@@ -214,6 +217,7 @@ private struct ImageRow: View {
             .alert("Delete \(image.fullName)?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     isDeleting = true
+                    if selectedID == image.id { selectedID = nil }
                     Task {
                         do { try await service.deleteImage(image.fullName) }
                         catch { errorMessage = error.localizedDescription }

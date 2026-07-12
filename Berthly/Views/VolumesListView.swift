@@ -51,12 +51,12 @@ struct VolumesListView: View {
                 List(selection: $selectedID) {
                     if !named.isEmpty {
                         Section {
-                            ForEach(named)     { v in VolumeRow(volumeID: v.id).tag(v.id).listRowSeparator(.hidden) }
+                            ForEach(named)     { v in VolumeRow(volumeID: v.id, selectedID: $selectedID).tag(v.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("NAMED \(named.count)") }
                     }
                     if !anonymous.isEmpty {
                         Section {
-                            ForEach(anonymous) { v in VolumeRow(volumeID: v.id).tag(v.id).listRowSeparator(.hidden) }
+                            ForEach(anonymous) { v in VolumeRow(volumeID: v.id, selectedID: $selectedID).tag(v.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("ANONYMOUS \(anonymous.count)") }
                     }
                 }
@@ -140,6 +140,9 @@ struct VolumesListView: View {
 
 private struct VolumeRow: View {
     let volumeID: String
+    // Clearing selection here (mirroring the list's performDelete) collapses the detail pane
+    // when the selected volume is deleted from the row — otherwise it strands on "not found".
+    @Binding var selectedID: String?
     @Environment(ContainerServiceBase.self) private var service
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
@@ -201,6 +204,7 @@ private struct VolumeRow: View {
             .alert("Delete \(volume.name)?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     isDeleting = true
+                    if selectedID == volume.id { selectedID = nil }
                     Task {
                         do { try await service.deleteVolume(volume.name) }
                         catch { errorMessage = error.localizedDescription }

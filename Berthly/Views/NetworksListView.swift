@@ -37,7 +37,7 @@ struct NetworksListView: View {
             } else {
                 List(selection: $selectedID) {
                     ForEach(filtered) { net in
-                        NetworkRow(networkID: net.id).tag(net.id).listRowSeparator(.hidden)
+                        NetworkRow(networkID: net.id, selectedID: $selectedID).tag(net.id).listRowSeparator(.hidden)
                     }
                 }
                 // ⌫ on the selected network — same confirm-then-delete as the hover trash button.
@@ -98,6 +98,9 @@ struct NetworksListView: View {
 
 private struct NetworkRow: View {
     let networkID: String
+    // Clearing selection here (mirroring the list's performDelete) collapses the detail pane
+    // when the selected network is deleted from the row — otherwise it strands on "not found".
+    @Binding var selectedID: String?
     @Environment(ContainerServiceBase.self) private var service
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
@@ -163,6 +166,7 @@ private struct NetworkRow: View {
             .alert("Delete \(network.name)?", isPresented: $showDeleteConfirm) {
                 Button("Delete", role: .destructive) {
                     isDeleting = true
+                    if selectedID == network.id { selectedID = nil }
                     Task {
                         do { try await service.deleteNetwork(network.id) }
                         catch { errorMessage = error.localizedDescription }
