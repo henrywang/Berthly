@@ -47,7 +47,7 @@ struct BerthlyApp: App {
         }
 
         MenuBarExtra(isInserted: $showMenuBarIcon) {
-            MenuBarView()
+            MenuBarContentShell()
                 .environment(service)
                 .environment(menuBarBridge)
         } label: {
@@ -66,5 +66,33 @@ struct BerthlyApp: App {
         Settings {
             SettingsView()
         }
+    }
+}
+
+/// Mounts `MenuBarView` only while the status-bar panel is on screen.
+///
+/// With `.menuBarExtraStyle(.window)`, *any* invalidation of the MenuBarExtra scene — the
+/// content included, not just the label — makes SwiftUI re-apply the status button via
+/// `NSStatusBarButton.setImage`, which invalidates the status window's constraints. When the
+/// service's polling ticks land while another window is mid layout animation, AppKit's
+/// feedback-loop guard throws ("window has been marked as needing another Update Constraints
+/// in Window pass, but it has already had more ... than there are views"). MenuBarView reads
+/// live service state, so it must not be part of the scene while the panel is closed; this
+/// shell contributes no observable reads of its own, leaving the closed-panel scene fully
+/// inert. (The label must stay static for the same reason — see `BerthlyApp`.)
+private struct MenuBarContentShell: View {
+    @State private var isPanelOpen = false
+
+    var body: some View {
+        Group {
+            if isPanelOpen {
+                MenuBarView()
+            } else {
+                // Roughly MenuBarView's footprint so the panel doesn't visibly resize on open.
+                Color.clear.frame(width: 300, height: 120)
+            }
+        }
+        .onAppear { isPanelOpen = true }
+        .onDisappear { isPanelOpen = false }
     }
 }
