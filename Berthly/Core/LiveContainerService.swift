@@ -1178,6 +1178,49 @@ final class LiveContainerService: ContainerServiceBase {
         return size.isEmpty ? [:] : ["size": size]
     }
 
+    /// The daemon's hard bounds on a volume's `--size`, verified against a live daemon:
+    /// below 1 MiB it rejects with "volume size too small: minimum 1MiB"; at/above 16 TiB the
+    /// ext4 layer rejects with "cannot set filesystem size to N bytes" (4 KiB-block ceiling).
+    nonisolated static let minVolumeSizeBytes = 1_048_576                    // 1 MiB
+    nonisolated static let maxVolumeSizeBytes = 16 * 1_099_511_627_776 - 1   // just under 16 TiB
+
+    /// Pure/testable: validates the size string a user typed in the create sheet, pre-empting the
+    /// daemon's own error round-trips with friendlier inline messages. Returns `nil` when the input
+    /// is acceptable (including empty, which means "use the 512 GB default"), or a message otherwise.
+    /// Suffixes are binary (`1M` == 1 MiB == 1 048 576 bytes), matching the daemon.
+    nonisolated static func validateVolumeSize(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }  // blank → daemon default
+        guard let bytes = parseVolumeSizeBytes(trimmed) else {
+            return "Enter a size like 10G, 512M, or 2T."
+        }
+        if bytes < minVolumeSizeBytes { return "Minimum volume size is 1 MB." }
+        if bytes > maxVolumeSizeBytes { return "Maximum volume size is just under 16 TB." }
+        return nil
+    }
+
+    /// Parses `<number><K|M|G|T|P>?` (binary suffixes, case-insensitive; no suffix means bytes)
+    /// into a byte count, or `nil` if it isn't a well-formed size. Mirrors the daemon's parser.
+    nonisolated static func parseVolumeSizeBytes(_ raw: String) -> Int? {
+        let s = raw.trimmingCharacters(in: .whitespaces)
+        guard !s.isEmpty else { return nil }
+        let multipliers: [Character: Int] = [
+            "k": 1_024, "m": 1_048_576, "g": 1_073_741_824,
+            "t": 1_099_511_627_776, "p": 1_125_899_906_842_624,
+        ]
+        let last = s[s.index(before: s.endIndex)]
+        if let mult = multipliers[Character(last.lowercased())] {
+            let numberPart = String(s.dropLast())
+            guard let value = Double(numberPart), value > 0, value.isFinite else { return nil }
+            let bytes = value * Double(mult)
+            guard bytes.isFinite, bytes < Double(Int.max) else { return nil }
+            return Int(bytes)
+        }
+        // No suffix: a plain byte count (integers only, matching the daemon).
+        guard let bytes = Int(s), bytes > 0 else { return nil }
+        return bytes
+    }
+
     override func createNetwork(options: NetworkCreateOptions) async throws {
         let name = options.name.trimmingCharacters(in: .whitespaces)
         guard !name.isEmpty else {

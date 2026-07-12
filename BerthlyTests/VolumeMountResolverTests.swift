@@ -151,3 +151,27 @@ struct VolumeUsedMBTests {
         #expect(LiveContainerService.volumeUsedMB(footprintMB: 5, configuredMB: 0) == 5)
     }
 }
+
+struct VolumeConfiguredCapacityTests {
+
+    private func volume(allocatedMB: Int) -> Volume {
+        Volume(id: "v", name: "v", type: .named, usedMB: 10, allocatedMB: allocatedMB,
+               driver: "local", source: "", created: "", labels: [], mounts: [], fs: "ext4",
+               reclaimable: true)
+    }
+
+    /// A user-chosen size gauges usage meaningfully.
+    @Test func explicitSizeHasConfiguredCapacity() {
+        #expect(volume(allocatedMB: 1024).hasConfiguredCapacity)
+    }
+
+    /// The 512 GiB sparse default is not a real capacity — no gauge.
+    @Test func sparseDefaultHasNoConfiguredCapacity() {
+        #expect(!volume(allocatedMB: Volume.defaultSparseCapacityMB).hasConfiguredCapacity)
+    }
+
+    /// Unknown capacity (0) is not gaugeable either.
+    @Test func unknownCapacityHasNoConfiguredCapacity() {
+        #expect(!volume(allocatedMB: 0).hasConfiguredCapacity)
+    }
+}

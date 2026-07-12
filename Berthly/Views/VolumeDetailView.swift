@@ -139,17 +139,19 @@ private struct VolumeDetailContent: View {
 
     // MARK: Capacity
 
+    @ViewBuilder
     private func capacitySection(_ volume: Volume) -> some View {
-        DetailSection(title: "Capacity") {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 4) {
-                    Spacer()
-                    Text(formatVolumeMB(volume.usedMB))
-                        .font(.system(.callout, design: .monospaced, weight: .semibold))
-                    Text("/ \(formatVolumeMB(volume.allocatedMB))")
-                        .font(.system(.callout, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                    if volume.allocatedMB > 0 {
+        if volume.hasConfiguredCapacity {
+            // Real, user-chosen capacity: a used/allocated gauge is meaningful.
+            DetailSection(title: "Capacity") {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        Spacer()
+                        Text(formatVolumeMB(volume.usedMB))
+                            .font(.system(.callout, design: .monospaced, weight: .semibold))
+                        Text("/ \(formatVolumeMB(volume.allocatedMB))")
+                            .font(.system(.callout, design: .monospaced))
+                            .foregroundStyle(.secondary)
                         Text("\(Int((volume.usagePercent * 100).rounded()))%")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(barColor(volume))
@@ -157,8 +159,6 @@ private struct VolumeDetailContent: View {
                             .padding(.vertical, 2)
                             .background(barColor(volume).opacity(0.12), in: Capsule())
                     }
-                }
-                if volume.allocatedMB > 0 {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
                             Capsule().fill(.quaternary)
@@ -168,6 +168,25 @@ private struct VolumeDetailContent: View {
                         }
                     }
                     .frame(height: 8)
+                }
+            }
+        } else {
+            // No meaningful capacity (512 GiB sparse default or unknown): a bar would read a
+            // constant ~0%, so feature the actual on-disk footprint instead, with the sparse cap
+            // as muted context.
+            DetailSection(title: "Disk Usage") {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(formatVolumeMB(volume.usedMB))
+                        .font(.system(.title3, design: .monospaced, weight: .semibold))
+                    Text("on disk")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if volume.allocatedMB > 0 {
+                        Text("grows up to \(formatVolumeMB(volume.allocatedMB))")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
             }
         }
@@ -212,7 +231,7 @@ private struct VolumeDetailContent: View {
                     .font(.system(.callout, design: .monospaced, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text("\(formatVolumeMB(volume.allocatedMB)) · \(volume.driver)")
+                Text("\(formatVolumeMB(volume.hasConfiguredCapacity ? volume.allocatedMB : volume.usedMB)) · \(volume.driver)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -295,17 +314,20 @@ private struct VolumeDetailContent: View {
         ]
         if !volume.source.isEmpty { rows.append(("Source", volume.source)) }
         rows.append(("Created", volume.created))
-        if volume.allocatedMB > 0 {
+        if volume.hasConfiguredCapacity {
             rows.append(("Allocated", formatVolumeMB(volume.allocatedMB)))
             rows.append(("Used", "\(formatVolumeMB(volume.usedMB)) · \(Int((volume.usagePercent * 100).rounded()))%"))
         } else {
-            rows.append(("Used", formatVolumeMB(volume.usedMB)))
+            rows.append(("On disk", formatVolumeMB(volume.usedMB)))
+            if volume.allocatedMB > 0 {
+                rows.append(("Max size", formatVolumeMB(volume.allocatedMB)))
+            }
         }
         rows.append(("Labels", volume.labels.isEmpty ? "–" : volume.labels.joined(separator: ", ")))
         rows.append(("Reclaimable", volume.reclaimable ? "yes" : "no · in use"))
 
         return DetailSection(title: "Configuration") {
-            KeyValueRows(rows: rows, monoKeys: ["Source", "Labels", "Allocated", "Used"])
+            KeyValueRows(rows: rows, monoKeys: ["Source", "Labels", "Allocated", "Used", "On disk", "Max size"])
                 .background(.background)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
@@ -432,6 +454,14 @@ private struct VolumeChip: View {
 #Preview("Anonymous") {
     let mock = MockContainerService()
     VolumeDetailView(volumeID: "anon1")
+        .environment(mock as ContainerServiceBase)
+        .environment(MenuBarBridge())
+        .frame(width: 520, height: 720)
+}
+
+#Preview("Sparse default (no --size)") {
+    let mock = MockContainerService()
+    VolumeDetailView(volumeID: "logs")
         .environment(mock as ContainerServiceBase)
         .environment(MenuBarBridge())
         .frame(width: 520, height: 720)

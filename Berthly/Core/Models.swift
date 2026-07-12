@@ -145,6 +145,19 @@ struct Volume: Identifiable, Hashable {
     let fs: String
     let reclaimable: Bool
 
+    /// The daemon's default volume `--size` when the user doesn't specify one: 512 GiB. This is a
+    /// sparse maximum, not a reservation — the backing image only consumes what's actually written.
+    /// Volumes at this size have no meaningful capacity to gauge usage against (a used/allocated bar
+    /// reads a perpetual ~0%), so the UI shows their real on-disk footprint instead.
+    static let defaultSparseCapacityMB = 524_288  // 512 GiB / 1 MiB
+
+    /// Whether `allocatedMB` is a capacity the user actually chose (worth gauging usage against),
+    /// as opposed to the 512 GiB sparse default or an unknown size. Drives whether the UI renders a
+    /// used/allocated bar or just the on-disk footprint.
+    var hasConfiguredCapacity: Bool {
+        allocatedMB > 0 && allocatedMB != Self.defaultSparseCapacityMB
+    }
+
     var usagePercent: Double {
         guard allocatedMB > 0 else { return 0 }
         return Double(usedMB) / Double(allocatedMB)

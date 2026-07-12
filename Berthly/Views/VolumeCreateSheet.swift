@@ -11,8 +11,16 @@ struct VolumeCreateSheet: View {
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
+    /// Inline size-validation message (min 1 MB / max ~16 TB / bad format), or `nil` when the
+    /// size is acceptable — pre-empts the daemon's own rejection with friendlier text.
+    private var sizeError: String? {
+        LiveContainerService.validateVolumeSize(size)
+    }
+
     private var canSubmit: Bool {
-        !isSubmitting && !name.trimmingCharacters(in: .whitespaces).isEmpty
+        !isSubmitting
+            && !name.trimmingCharacters(in: .whitespaces).isEmpty
+            && sizeError == nil
     }
 
     var body: some View {
@@ -52,9 +60,16 @@ struct VolumeCreateSheet: View {
                     TextField("10G", text: $size)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
-                    Text("Optional — leave blank for no size limit. Accepts K, M, G, T, P suffixes.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                        .accessibilityIdentifier("volumeSizeField")
+                    if let sizeError {
+                        Text(sizeError)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                    } else {
+                        Text("Optional — blank uses the 512 GB default. Accepts K, M, G, T, P suffixes.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
                 }
 
                 if let errorMessage {

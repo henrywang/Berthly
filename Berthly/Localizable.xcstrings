@@ -560,6 +560,9 @@
     "General" : {
 
     },
+    "grows up to %@" : {
+
+    },
     "Hide token" : {
 
     },
@@ -774,6 +777,9 @@
     "OK" : {
 
     },
+    "on disk" : {
+
+    },
     "Operation Failed" : {
 
     },
@@ -783,7 +789,7 @@
     "Optional — auto-generated if left blank" : {
 
     },
-    "Optional — leave blank for no size limit. Accepts K, M, G, T, P suffixes." : {
+    "Optional — blank uses the 512 GB default. Accepts K, M, G, T, P suffixes." : {
 
     },
     "Optional — path to write the container ID to" : {

@@ -259,7 +259,11 @@ private struct VolumeRow: View {
     }
 
     private func usageString(_ v: Volume) -> String {
-        "\(formatVolumeMB(v.usedMB)) / \(formatVolumeMB(v.allocatedMB))"
+        // A 512 GiB sparse-default (or unknown) capacity makes "x / 512 GB" misleading, so show
+        // just the real on-disk footprint in that case.
+        v.hasConfiguredCapacity
+            ? "\(formatVolumeMB(v.usedMB)) / \(formatVolumeMB(v.allocatedMB))"
+            : formatVolumeMB(v.usedMB)
     }
 
     private func mountSummary(_ v: Volume) -> String {
