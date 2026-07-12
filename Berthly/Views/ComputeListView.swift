@@ -92,6 +92,9 @@ struct ComputeListView: View {
                         } header: { ComputeSectionHeader("STOPPED \(stoppedCount)") }
                     }
                 }
+                // Kill the hairline AppKit draws under the pinned first section header — see
+                // NonFloatingListHeaders.
+                .nonFloatingSectionHeaders()
                 // ⌫ on a selected, stopped row — same confirm-then-delete flow as the row's
                 // hover trash button and context menu, just reached by keyboard.
                 .onDeleteCommand { deleteTarget = deletableSelection }

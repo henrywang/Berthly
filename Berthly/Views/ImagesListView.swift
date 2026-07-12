@@ -63,6 +63,9 @@ struct ImagesListView: View {
                         } header: { LibrarySectionHeader("PULLED \(pulled.count)") }
                     }
                 }
+                // Kill the hairline AppKit draws under the pinned first section header — see
+                // NonFloatingListHeaders.
+                .nonFloatingSectionHeaders()
                 // ⌫ on the selected image — same confirm-then-delete as the hover trash button.
                 .onDeleteCommand { deleteTargetID = selectedID }
                 // Attached as a safe-area inset (not a sibling above the List) so List stays the
