@@ -957,7 +957,9 @@ final class LiveContainerService: ContainerServiceBase {
         Network(
             id: r.id,
             name: r.name,
-            driver: r.configuration.plugin.lowercased().contains("host") ? .hostOnly : .nat,
+            // The plugin is "container-network-vmnet" for both modes — the NAT/host-only
+            // distinction lives in the configuration's mode, not the plugin name.
+            driver: r.configuration.mode == .hostOnly ? .hostOnly : .nat,
             subnet: r.status.ipv4Subnet.description,
             gateway: r.status.ipv4Gateway.description,
             isDefault: r.name == NetworkClient.defaultNetworkName,

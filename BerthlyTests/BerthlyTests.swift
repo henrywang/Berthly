@@ -512,10 +512,11 @@ struct MachineCreateMappingTests {
 
 struct NetworkMappingTests {
 
-    private func makeResource(name: String, subnet: String, gateway: String) throws -> NetworkResource {
+    private func makeResource(name: String, subnet: String, gateway: String,
+                              mode: NetworkMode = .nat) throws -> NetworkResource {
         let configuration = try NetworkConfiguration(
             name: name,
-            mode: .nat,
+            mode: mode,
             plugin: "container-network-vmnet"
         )
         let status = NetworkStatus(
@@ -543,6 +544,22 @@ struct NetworkMappingTests {
         let resource = try makeResource(name: "app-net", subnet: "192.168.65.0/24", gateway: "192.168.65.1")
         let network = LiveContainerService.mapNetwork(resource)
         #expect(network.isDefault == false)
+    }
+
+    // The driver must come from the configuration's mode — the plugin string is
+    // "container-network-vmnet" for both modes, so it can't distinguish them.
+    @Test func mapNetworkMapsHostOnlyModeToHostOnlyDriver() throws {
+        let resource = try makeResource(name: "data-net", subnet: "192.168.66.0/24",
+                                        gateway: "192.168.66.1", mode: .hostOnly)
+        let network = LiveContainerService.mapNetwork(resource)
+        #expect(network.driver == .hostOnly)
+    }
+
+    @Test func mapNetworkMapsNatModeToNatDriver() throws {
+        let resource = try makeResource(name: "app-net", subnet: "192.168.65.0/24",
+                                        gateway: "192.168.65.1", mode: .nat)
+        let network = LiveContainerService.mapNetwork(resource)
+        #expect(network.driver == .nat)
     }
 }
 
