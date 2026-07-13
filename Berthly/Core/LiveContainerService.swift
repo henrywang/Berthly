@@ -2417,12 +2417,32 @@ final class LiveContainerService: ContainerServiceBase {
         if let destination, !destination.isEmpty, destination != reference {
             image = try await image.tag(new: destination)
         }
-        try await image.push(
-            platform: ociPlatform,
-            scheme: insecure ? .http : .auto,
-            containerSystemConfig: config,
-            progressUpdate: progress
-        )
+        // Raced against a stall watchdog via `raceAgainstStall` (NOT a plain `withThrowingTaskGroup`
+        // — see PushStallGuard.swift's doc comment: that implicitly awaits every child before
+        // returning, which hangs forever if the XPC push call itself ignores cancellation). An auth
+        // failure against some registries can retry forever inside the vendored registry client
+        // with no error ever thrown, so without this, a stuck push hangs the call (and the UI)
+        // indefinitely instead of failing fast.
+        let stallMonitor = PushStallMonitor()
+        let watchedProgress: ProgressUpdateHandler = { events in
+            // Only genuine completion events arm the watchdog — see `containsRealProgress`'s doc
+            // comment for why a planning-only event (total item/byte counts) must not count.
+            if containsRealProgress(events) {
+                await stallMonitor.markProgress()
+            }
+            await progress?(events)
+        }
+        // `raceAgainstStall`'s operation runs on a separate, concurrently-executing Task — capture
+        // an immutable snapshot of the (possibly just-retagged) image rather than the `var`.
+        let imageToPush = image
+        try await raceAgainstStall(timeout: .seconds(60), monitor: stallMonitor) {
+            try await imageToPush.push(
+                platform: ociPlatform,
+                scheme: insecure ? .http : .auto,
+                containerSystemConfig: config,
+                progressUpdate: watchedProgress
+            )
+        }
         // A retag created a new local reference — surface it in the list.
         await refresh()
     }

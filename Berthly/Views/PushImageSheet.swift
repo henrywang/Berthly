@@ -116,6 +116,11 @@ struct PushImageSheet: View {
             .padding(.vertical, 14)
         }
         .frame(width: 480)
+        // `service.registries` is lazily loaded — only `RegistriesListView`'s own `.task` and
+        // sign-in/out populate it — so without this, `isSignedIn` can read stale/empty (false
+        // negative) for a user who's genuinely signed in but hasn't opened the Registries pane
+        // this session. Loads every time the sheet appears, matching RegistriesListView's pattern.
+        .task { await service.loadRegistries() }
     }
 
     @ViewBuilder
