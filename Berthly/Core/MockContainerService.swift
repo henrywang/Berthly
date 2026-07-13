@@ -18,13 +18,13 @@ final class MockContainerService: ContainerServiceBase {
             Container(id: "1a2b3c4d5e", name: "sandbox",       image: "local/base:latest",   status: .paused,  ports: [],                                          cpuPercent:  0, memoryMB:   0,  memoryLimitMB:  512, networkIOString: "–",        uptime: "–",      command: "/bin/bash",                       mounts: [], networks: [],          environment: []),
         ]
         images = [
-            ContainerImage(id: "3f9a2b7c1d", repository: "local/web",       tag: "1.4",    arch: ["arm64", "amd64"], sizeBytes: 182 * 1_048_576, created: "2h ago",  source: .built,  usage: .usedBy(3)),
-            ContainerImage(id: "a17c44e9b2", repository: "local/api",       tag: "2.1",    arch: ["arm64"],          sizeBytes: 240 * 1_048_576, created: "5h ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "c20e81f7a4", repository: "local/datastore", tag: "15",     arch: ["arm64", "amd64"], sizeBytes: 410 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "7b3d09c5e1", repository: "local/cache",     tag: "7",      arch: ["arm64"],          sizeBytes:  38 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "1a2b3c4d5e", repository: "local/base",      tag: "latest", arch: ["arm64", "amd64"], sizeBytes:  96 * 1_048_576, created: "3d ago",  source: .pulled, usage: .usedBy(2)),
-            ContainerImage(id: "b4c8d2e6f0", repository: "local/proxy",     tag: "1.25",   arch: ["amd64"],          sizeBytes:  54 * 1_048_576, created: "2d ago",  source: .built,  usage: .unused),
-            ContainerImage(id: "9f2c1a7e44", repository: "buildkit",        tag: "0.13",   arch: ["arm64", "amd64"], sizeBytes: 160 * 1_048_576, created: "1w ago",  source: .pulled, usage: .builderImage),
+            ContainerImage(id: "local/web:1.4",       repository: "local/web",       tag: "1.4",    digest: "sha256:3f9a2b7c1d", arch: ["arm64", "amd64"], sizeBytes: 182 * 1_048_576, created: "2h ago",  source: .built,  usage: .usedBy(3)),
+            ContainerImage(id: "local/api:2.1",       repository: "local/api",       tag: "2.1",    digest: "sha256:a17c44e9b2", arch: ["arm64"],          sizeBytes: 240 * 1_048_576, created: "5h ago",  source: .built,  usage: .usedBy(1)),
+            ContainerImage(id: "local/datastore:15",  repository: "local/datastore", tag: "15",     digest: "sha256:c20e81f7a4", arch: ["arm64", "amd64"], sizeBytes: 410 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
+            ContainerImage(id: "local/cache:7",       repository: "local/cache",     tag: "7",      digest: "sha256:7b3d09c5e1", arch: ["arm64"],          sizeBytes:  38 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
+            ContainerImage(id: "local/base:latest",   repository: "local/base",      tag: "latest", digest: "sha256:1a2b3c4d5e", arch: ["arm64", "amd64"], sizeBytes:  96 * 1_048_576, created: "3d ago",  source: .pulled, usage: .usedBy(2)),
+            ContainerImage(id: "local/proxy:1.25",    repository: "local/proxy",     tag: "1.25",   digest: "sha256:b4c8d2e6f0", arch: ["amd64"],          sizeBytes:  54 * 1_048_576, created: "2d ago",  source: .built,  usage: .unused),
+            ContainerImage(id: "buildkit:0.13",       repository: "buildkit",        tag: "0.13",   digest: "sha256:9f2c1a7e44", arch: ["arm64", "amd64"], sizeBytes: 160 * 1_048_576, created: "1w ago",  source: .pulled, usage: .builderImage),
         ]
         let volumesRoot = "~/Library/Application Support/com.apple.container/volumes"
         volumes = [
@@ -85,8 +85,8 @@ final class MockContainerService: ContainerServiceBase {
         let apiHistory = ["ADD file:def456 in /", "WORKDIR /srv", "npm install", "CMD [\"node\",\"server.js\"]"]
 
         return [
-            "3f9a2b7c1d": ImageInspectData(variants: webVariants, command: "nginx -g daemon off;", workDir: "/app", user: "www-data", stopSignal: "SIGTERM", env: webEnv, labels: webLabels, history: webHistory),
-            "a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory),
+            "sha256:3f9a2b7c1d": ImageInspectData(variants: webVariants, command: "nginx -g daemon off;", workDir: "/app", user: "www-data", stopSignal: "SIGTERM", env: webEnv, labels: webLabels, history: webHistory),
+            "sha256:a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory),
         ]
     }
 
@@ -308,7 +308,12 @@ final class MockContainerService: ContainerServiceBase {
         let parts = options.reference.split(separator: ":", maxSplits: 1)
         let repo = String(parts.first ?? Substring(options.reference))
         let tag = parts.count > 1 ? String(parts[1]) : "latest"
-        images.append(ContainerImage(id: UUID().uuidString, repository: repo, tag: tag,
+        // A name always points at exactly one piece of content — rebuilding an existing tag
+        // replaces its entry rather than appending a second row with the same id (that append is
+        // the same id-collision shape this file's other push/pull mutations now guard against).
+        images.removeAll { $0.fullName == options.reference }
+        images.append(ContainerImage(id: "\(repo):\(tag)", repository: repo, tag: tag,
+                                     digest: "sha256:\(UUID().uuidString.prefix(12).lowercased())",
                                      arch: ["arm64"], sizeBytes: 182 * 1_048_576,
                                      created: "just now", source: .built, usage: .unused))
     }
@@ -450,8 +455,36 @@ final class MockContainerService: ContainerServiceBase {
         let parts = reference.split(separator: ":", maxSplits: 1)
         let repo = String(parts.first ?? Substring(reference))
         let tag = parts.count > 1 ? String(parts[1]) : "latest"
-        images.append(ContainerImage(id: UUID().uuidString, repository: repo, tag: tag,
+        images.append(ContainerImage(id: "\(repo):\(tag)", repository: repo, tag: tag,
+                                     digest: "sha256:\(UUID().uuidString.prefix(12).lowercased())",
                                      arch: ["arm64"], sizeBytes: totalBytes,
                                      created: "just now", source: .pulled, usage: .unused))
+    }
+
+    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
+        let source = images.first { $0.fullName == reference }
+        let layerCount = 6
+        let totalBytes = source?.sizeBytes ?? 120_000_000
+        let bytesPerLayer = totalBytes / Int64(layerCount)
+        await progress?([.addTotalItems(layerCount), .addTotalSize(totalBytes)])
+        for _ in 0..<layerCount {
+            try? await Task.sleep(for: .milliseconds(200))
+            await progress?([.addItems(1), .addSize(bytesPerLayer)])
+        }
+        // Reflect a retag: the destination becomes a local reference sharing the SAME digest as the
+        // source (retagging doesn't touch content) — this is exactly the shape that exposed the
+        // id/digest collision bug, so the mock models it faithfully rather than glossing over it.
+        // A name always points at exactly one piece of content, so retagging onto an *existing*
+        // destination name replaces that entry rather than appending a second row with its id.
+        if let destination, !destination.isEmpty, destination != reference {
+            let parts = destination.split(separator: ":", maxSplits: 1)
+            let repo = String(parts.first ?? Substring(destination))
+            let tag = parts.count > 1 ? String(parts[1]) : "latest"
+            images.removeAll { $0.fullName == destination }
+            images.append(ContainerImage(id: "\(repo):\(tag)", repository: repo, tag: tag,
+                                         digest: source?.digest ?? "sha256:\(UUID().uuidString.prefix(12).lowercased())",
+                                         arch: source?.arch ?? ["arm64"], sizeBytes: totalBytes,
+                                         created: "just now", source: source?.source ?? .built, usage: .unused))
+        }
     }
 }

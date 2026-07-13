@@ -203,7 +203,7 @@ private struct ImageRow: View {
                 Button("Run from This Image…") { showRunSheet = true }
                 Divider()
                 Button("Copy Reference") { copyToPasteboard(image.fullName) }
-                Button("Copy Digest") { copyToPasteboard(image.id) }
+                Button("Copy Digest") { copyToPasteboard(image.digest) }
                 Divider()
                 Button("Delete…", role: .destructive) { showDeleteConfirm = true }
             }

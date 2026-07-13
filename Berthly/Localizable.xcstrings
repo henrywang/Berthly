@@ -444,6 +444,9 @@
     "Delete…" : {
 
     },
+    "Destination" : {
+
+    },
     "DESTINATION" : {
 
     },
@@ -598,6 +601,9 @@
 
     },
     "Image pulled" : {
+
+    },
+    "Image pushed" : {
 
     },
     "Image reference" : {
@@ -871,6 +877,21 @@
     "Pulls from Docker Hub or any public registry — no sign-in" : {
 
     },
+    "Push" : {
+
+    },
+    "Push failed" : {
+
+    },
+    "Push Image" : {
+
+    },
+    "Push this image to a registry" : {
+
+    },
+    "Pushing image" : {
+
+    },
     "Re-applies even if the selected kernel already matches the active one." : {
 
     },
@@ -890,6 +911,9 @@
 
     },
     "Registry host" : {
+
+    },
+    "registry.example.com/team/web:1.0" : {
 
     },
     "Remove" : {
@@ -1252,6 +1276,12 @@
 
     },
     "Updating container to v%@…" : {
+
+    },
+    "Uploads a local image to a registry" : {
+
+    },
+    "Use docker.io/%@" : {
 
     },
     "Use Recommended" : {

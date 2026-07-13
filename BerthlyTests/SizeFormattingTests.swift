@@ -5,8 +5,8 @@ import Testing
 struct DeleteWarningTests {
 
     private func image(usage: ImageUsage) -> ContainerImage {
-        ContainerImage(id: "abc", repository: "local/web", tag: "1", arch: ["arm64"],
-                       sizeBytes: 1_048_576, created: "now", source: .built, usage: usage)
+        ContainerImage(id: "local/web:1", repository: "local/web", tag: "1", digest: "sha256:abc",
+                       arch: ["arm64"], sizeBytes: 1_048_576, created: "now", source: .built, usage: usage)
     }
 
     private func volume(mounts: [VolumeMount]) -> Volume {

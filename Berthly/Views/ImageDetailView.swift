@@ -30,13 +30,16 @@ private struct ImageDetailContent: View {
     @Environment(ContainerServiceBase.self) private var service
     @State private var errorMessage: String?
     @State private var rebuildParams: RebuildParams?
+    @State private var showPushSheet = false
 
     private var image: ContainerImage? {
         service.images.first(where: { $0.id == imageID })
     }
 
     private var inspect: ImageInspectData? {
-        service.imageInspectData[imageID]
+        // Keyed by content digest, not `imageID` (the local reference/name) — inspect data is
+        // content-addressable, so two differently-named images sharing a digest share this too.
+        image.flatMap { service.imageInspectData[$0.digest] }
     }
 
     var body: some View {
@@ -52,7 +55,7 @@ private struct ImageDetailContent: View {
                 if let inspect {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 20) {
-                            PlatformsSection(indexDigest: image.id, variants: inspect.variants)
+                            PlatformsSection(indexDigest: image.digest, variants: inspect.variants)
 
                             let configRows = configRows(inspect)
                             if !configRows.isEmpty {
@@ -82,6 +85,9 @@ private struct ImageDetailContent: View {
                     prefillTag: params.tag,
                     prefillContext: params.context
                 )
+            }
+            .sheet(isPresented: $showPushSheet) {
+                PushImageSheet(image: image)
             }
         }
     }
@@ -128,6 +134,9 @@ private struct ImageDetailContent: View {
 
             Spacer(minLength: 8)
 
+            // Secondary actions are icon-only so the primary "Push" keeps its label without the
+            // three buttons + title overflowing the detail pane's width (they truncate to "Re…",
+            // "C…" otherwise). Tooltips carry the names.
             if image.source == .built {
                 Button {
                     rebuildParams = RebuildParams(
@@ -137,16 +146,29 @@ private struct ImageDetailContent: View {
                 } label: {
                     Label("Rebuild", systemImage: "arrow.clockwise")
                 }
+                .labelStyle(.iconOnly)
                 .buttonStyle(.bordered)
+                .help("Rebuild")
             }
 
             Button {
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(image.id, forType: .string)
+                NSPasteboard.general.setString(image.digest, forType: .string)
             } label: {
                 Label("Copy Digest", systemImage: "doc.on.doc")
             }
+            .labelStyle(.iconOnly)
             .buttonStyle(.bordered)
+            .help("Copy Digest")
+
+            Button {
+                showPushSheet = true
+            } label: {
+                Label("Push", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.berthlyAccent)
+            .help("Push this image to a registry")
         }
     }
 }

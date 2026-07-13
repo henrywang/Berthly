@@ -899,9 +899,14 @@ final class LiveContainerService: ContainerServiceBase {
         let isBuilt = img.description.descriptor.annotations?[AnnotationKeys.containerizationImageName] != nil
 
         return ContainerImage(
-            id: img.digest,
+            // The daemon's own reference string, not a re-derived "repository:tag" — that
+            // reconstruction drops any `@sha256:...` digest-only suffix, so two distinct untagged
+            // (dangling) images could both collapse to "repo:latest" and collide. `img.reference`
+            // is guaranteed unique because it's literally the local store's own key for this entry.
+            id: ref,
             repository: repository,
             tag: tag,
+            digest: img.digest,
             arch: arch,
             sizeBytes: sizeBytes,
             created: created,
@@ -2397,6 +2402,28 @@ final class LiveContainerService: ContainerServiceBase {
         )
         onUnpacking?()
         try await image.unpack(platform: ociPlatform)
+        await refresh()
+    }
+
+    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
+        let config = await resolvedSystemConfig()
+        let ociPlatform: Platform? = try {
+            guard let p = platform, !p.isEmpty else { return nil }
+            return try Platform(from: p)
+        }()
+        var image = try await ClientImage.get(reference: reference, containerSystemConfig: config)
+        // Retag onto the registry-qualified destination first (push needs a host in the reference).
+        // A no-op when the destination matches the source, e.g. re-pushing an already-qualified name.
+        if let destination, !destination.isEmpty, destination != reference {
+            image = try await image.tag(new: destination)
+        }
+        try await image.push(
+            platform: ociPlatform,
+            scheme: insecure ? .http : .auto,
+            containerSystemConfig: config,
+            progressUpdate: progress
+        )
+        // A retag created a new local reference — surface it in the list.
         await refresh()
     }
 }

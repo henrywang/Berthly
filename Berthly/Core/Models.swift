@@ -104,9 +104,18 @@ enum ImageUsage {
 }
 
 struct ContainerImage: Identifiable, Hashable {
+    /// The local store's own reference string (e.g. `local/web:1.4`, or a digest-qualified
+    /// `name@sha256:...` for an untagged pull) — unique per row. Deliberately *not* the content
+    /// digest: two different local names can point at identical content (a plain retag, e.g. the
+    /// push sheet's retag-then-push), and using the shared digest as `id` collided two rows onto
+    /// one SwiftUI identity, which crashed the list ("the ID ... occurs multiple times").
     let id: String
     let repository: String
     let tag: String
+    /// The content digest (`sha256:...`), shared by every local name pointing at the same bytes.
+    /// Kept separate from `id` for that reason — this is what "Copy Digest" and the platform
+    /// index/variant rows show, and what the inspect-data cache is keyed by.
+    let digest: String
     let arch: [String]
     let sizeBytes: Int64
     let created: String

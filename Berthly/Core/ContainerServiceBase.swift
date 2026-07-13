@@ -80,6 +80,11 @@ class ContainerServiceBase {
     func deleteNetwork(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
+    /// Push a local image to a registry. When `destination` is set and differs from `reference`,
+    /// the image is retagged to that registry-qualified reference before pushing — the native push
+    /// requires a registry host in the reference, which a locally-built name like `local/web:1.4`
+    /// lacks. Progress mirrors `pullImage`.
+    func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {}
     /// `onLog` reports slow first-run bootstrap steps (kernel/vminit downloads) that otherwise
     /// happen silently inside daemon startup — the guided install flow shows them in its log.
     func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {}
