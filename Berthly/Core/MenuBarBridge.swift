@@ -13,6 +13,7 @@ import Observation
 final class MenuBarBridge {
     enum Intent: Equatable {
         case selectCompute(ComputeItem)
+        case navigate(SidebarSelection)
         case openRunContainerSheet
         case openCreateMachineSheet
         case openBuildSheet

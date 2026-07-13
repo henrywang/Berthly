@@ -457,13 +457,15 @@ final class LiveContainerService: ContainerServiceBase {
     /// mangled script. `do shell script` runs with a minimal PATH
     /// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits `/usr/local/bin` — which made the upstream
     /// update script's final `container --version` self-check exit 1 *after* the update had
-    /// already succeeded. Prepending `/usr/local/bin` fixes every lookup of container's binaries
-    /// inside the elevated shell.
+    /// already succeeded. `/usr/local/bin` is *appended* (not prepended) so container's binaries
+    /// resolve there while the system directories still win any name collision: `/usr/local/bin`
+    /// is world-writable on Intel Homebrew installs, and prepending it would let an attacker who
+    /// planted a binary there shadow a system tool inside this root shell.
     nonisolated static func privilegedAppleScript(for shellCommand: String) -> String {
         let escaped = shellCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        return "do shell script \"export PATH=/usr/local/bin:$PATH; \(escaped)\" with administrator privileges"
+        return "do shell script \"export PATH=$PATH:/usr/local/bin; \(escaped)\" with administrator privileges"
     }
 
     /// `osascript` reports the user dismissing the admin-password dialog as
@@ -1562,7 +1564,7 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         let (process, pipe) = try Self.launchLogProcess(arguments: [
-            "log", "stream", "--info",
+            "stream", "--info",
             "--style", "ndjson",
             "--predicate", Self.daemonLogPredicate,
         ])
@@ -1589,7 +1591,7 @@ final class LiveContainerService: ContainerServiceBase {
     /// window, so this just drains its output instead of needing cancellation handling.
     nonisolated static func fetchDaemonLogBackfill() async -> [String] {
         guard let (_, pipe) = try? Self.launchLogProcess(arguments: [
-            "log", "show", "--last", "1h", "--info",
+            "show", "--last", "1h", "--info",
             "--style", "ndjson",
             "--predicate", daemonLogPredicate,
         ]) else { return [] }
@@ -1605,12 +1607,13 @@ final class LiveContainerService: ContainerServiceBase {
         return formatted
     }
 
-    /// Launches `/usr/bin/env` with the given arguments (always `log show`/`log stream` here),
-    /// piping stdout back for line-by-line reading — the shared setup behind both the one-shot
-    /// backfill and the live tail.
+    /// Launches `/usr/bin/log` with the given arguments (`show …`/`stream …` here), piping stdout
+    /// back for line-by-line reading — the shared setup behind both the one-shot backfill and the
+    /// live tail. Uses the absolute path (not `/usr/bin/env log`) so a `PATH` planted in the
+    /// environment can't redirect which `log` binary we run.
     nonisolated private static func launchLogProcess(arguments: [String]) throws -> (process: Foundation.Process, pipe: Pipe) {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/log")
         process.arguments = arguments
         let pipe = Pipe()
         process.standardOutput = pipe

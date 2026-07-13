@@ -81,11 +81,7 @@ private struct ContainerDetailContent: View {
             .frame(maxHeight: .infinity)
         }
         .navigationTitle(container.name)
-        .alert("Error", isPresented: Binding(get: { errorMessage != nil }, set: { if !$0 { errorMessage = nil } })) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage)
         .sheet(isPresented: $showCopySheet) {
             CopyFilesSheet(service: service, containerID: container.id, targetName: container.name)
         }

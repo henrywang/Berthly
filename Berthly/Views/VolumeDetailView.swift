@@ -71,14 +71,7 @@ private struct VolumeDetailContent: View {
                     Text("This will permanently delete the volume and all its data.")
                 }
             }
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorAlert($errorMessage)
         }
     }
 

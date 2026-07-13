@@ -102,14 +102,7 @@ struct VolumesListView: View {
         } message: {
             Text(deleteConfirmMessage)
         }
-        .alert("Error", isPresented: Binding(
-            get: { deleteErrorMessage != nil },
-            set: { if !$0 { deleteErrorMessage = nil } }
-        )) {
-            Button("OK") { deleteErrorMessage = nil }
-        } message: {
-            Text(deleteErrorMessage ?? "")
-        }
+        .errorAlert($deleteErrorMessage)
     }
 
     private var deleteTarget: Volume? {
@@ -120,12 +113,8 @@ struct VolumesListView: View {
         deleteTarget.map { "Delete \($0.name)?" } ?? ""
     }
 
-    private var deleteConfirmMessage: String {
-        guard let volume = deleteTarget else { return "" }
-        if !volume.mounts.isEmpty {
-            return "This volume is mounted by \(volume.mounts.count) container\(volume.mounts.count == 1 ? "" : "s"). Deleting it may cause data loss."
-        }
-        return "This will permanently delete the volume and all its data."
+    private var deleteConfirmMessage: LocalizedStringResource {
+        deleteTarget?.deleteWarning ?? ""
     }
 
     private func performDelete() {
@@ -216,20 +205,9 @@ private struct VolumeRow: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                if !volume.mounts.isEmpty {
-                    Text("This volume is mounted by \(volume.mounts.count) container\(volume.mounts.count == 1 ? "" : "s"). Deleting it may cause data loss.")
-                } else {
-                    Text("This will permanently delete the volume and all its data.")
-                }
+                Text(volume.deleteWarning)
             }
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorAlert($errorMessage)
         }
     }
 
@@ -273,26 +251,6 @@ private struct VolumeRow: View {
         v.mounts.isEmpty
             ? "Not mounted"
             : v.mounts.map(\.containerName).joined(separator: " · ")
-    }
-}
-
-// MARK: - Shared formatting
-
-func formatVolumeMB(_ mb: Int) -> String {
-    mb < 1024 ? "\(mb) MB" : String(format: "%.1f GB", Double(mb) / 1024)
-}
-
-// MARK: - Section Header
-
-private struct LibrarySectionHeader: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
-            .textCase(nil)
     }
 }
 

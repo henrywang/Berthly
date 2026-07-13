@@ -122,14 +122,7 @@ struct SetKernelSheet: View {
             footer
         }
         .frame(width: 540)
-        .alert("Error", isPresented: Binding(
-            get: { state.errorMessage != nil },
-            set: { if !$0 { state.errorMessage = nil } }
-        )) {
-            Button("OK") { state.errorMessage = nil }
-        } message: {
-            Text(state.errorMessage ?? "")
-        }
+        .errorAlert($state.errorMessage)
     }
 
     // MARK: - Sections

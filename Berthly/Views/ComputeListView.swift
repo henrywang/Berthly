@@ -112,14 +112,7 @@ struct ComputeListView: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        .alert("Error", isPresented: Binding(
-            get: { deleteErrorMessage != nil },
-            set: { if !$0 { deleteErrorMessage = nil } }
-        )) {
-            Button("OK") { deleteErrorMessage = nil }
-        } message: {
-            Text(deleteErrorMessage ?? "")
-        }
+        .errorAlert($deleteErrorMessage)
     }
 
     private func matches(_ name: String, _ detail: String, query: String) -> Bool {
@@ -263,14 +256,7 @@ private struct ContainerComputeRow: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage)
     }
 
     private func perform(_ action: @escaping () async throws -> Void) {
@@ -362,14 +348,7 @@ private struct MachineComputeRow: View {
         } message: {
             Text("This action cannot be undone.")
         }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage)
     }
 
     private func perform(_ action: @escaping () async throws -> Void) {

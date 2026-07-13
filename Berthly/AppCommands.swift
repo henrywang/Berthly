@@ -32,6 +32,21 @@ struct ContainerCommands: Commands {
         CommandGroup(after: .sidebar) {
             Button("Command Palette…") { bridge.commandPaletteToken += 1; ensureWindow() }
                 .keyboardShortcut("k", modifiers: .command)
+
+            Divider()
+
+            // ⌘1…⌘6 pane switching — standard macOS sidebar muscle memory (Xcode navigators,
+            // Mail mailboxes). Menu items own the shortcuts (this file's convention), and each
+            // routes through the same `navigate` intent the window reads on `.onChange`/`.onAppear`.
+            // Enabled while disconnected: the sections still render their empty/connect states.
+            Group {
+                paneItem("Compute",    .compute,    "1")
+                paneItem("Volumes",    .volumes,    "2")
+                paneItem("Networks",   .networks,   "3")
+                paneItem("Images",     .images,     "4")
+                paneItem("Registries", .registries, "5")
+                paneItem("System",     .system,     "6")
+            }
         }
 
         CommandMenu("Container") {
@@ -61,6 +76,12 @@ struct ContainerCommands: Commands {
             .keyboardShortcut("r", modifiers: .command)
             .disabled(!service.isConnected)
         }
+    }
+
+    /// A View-menu item that switches to `section` on ⌘<key>, opening a window first if needed.
+    private func paneItem(_ title: LocalizedStringKey, _ section: SidebarSelection, _ key: KeyEquivalent) -> some View {
+        Button(title) { send(.navigate(section)) }
+            .keyboardShortcut(key, modifiers: .command)
     }
 
     private func send(_ intent: MenuBarBridge.Intent) {

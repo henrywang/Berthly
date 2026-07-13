@@ -149,15 +149,6 @@ private struct ImageDetailContent: View {
             .buttonStyle(.bordered)
         }
     }
-
-    private func formatSize(_ bytes: Int64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
-        if mb >= 1    { return String(format: "%.0f MB", mb) }
-        let kb = Double(bytes) / 1024
-        if kb >= 1    { return String(format: "%.0f KB", kb) }
-        return "\(bytes) B"
-    }
 }
 
 // MARK: - Platforms Section

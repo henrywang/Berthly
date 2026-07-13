@@ -115,6 +115,16 @@ struct ContainerImage: Identifiable, Hashable {
 
     var fullName: String { "\(repository):\(tag)" }
 
+    /// Warning shown in the delete confirmation. Defined once here so the list view and the row's
+    /// hover/context-menu delete never drift apart. `LocalizedStringResource` keeps the string in
+    /// the catalog (`Text(_:)` localizes it) even though the model layer holds it.
+    var deleteWarning: LocalizedStringResource {
+        if case .usedBy(let n) = usage {
+            return "This image is used by \(n) container\(n == 1 ? "" : "s"). Deleting it may affect those containers."
+        }
+        return "This will remove the image from local storage."
+    }
+
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
@@ -156,6 +166,16 @@ struct Volume: Identifiable, Hashable {
     /// used/allocated bar or just the on-disk footprint.
     var hasConfiguredCapacity: Bool {
         allocatedMB > 0 && allocatedMB != Self.defaultSparseCapacityMB
+    }
+
+    /// Warning shown in the delete confirmation. Defined once here so the list view and the row's
+    /// hover/context-menu delete never drift apart. `LocalizedStringResource` keeps the string in
+    /// the catalog (`Text(_:)` localizes it) even though the model layer holds it.
+    var deleteWarning: LocalizedStringResource {
+        if !mounts.isEmpty {
+            return "This volume is mounted by \(mounts.count) container\(mounts.count == 1 ? "" : "s"). Deleting it may cause data loss."
+        }
+        return "This will permanently delete the volume and all its data."
     }
 
     var usagePercent: Double {

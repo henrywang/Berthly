@@ -174,14 +174,7 @@ struct MainWindowView: View {
         } message: { _ in
             Text("This can't be undone.")
         }
-        .alert("Delete failed", isPresented: Binding(
-            get: { deleteErrorMessage != nil },
-            set: { if !$0 { deleteErrorMessage = nil } }
-        )) {
-            Button("OK") { deleteErrorMessage = nil }
-        } message: {
-            Text(deleteErrorMessage ?? "")
-        }
+        .errorAlert($deleteErrorMessage, title: "Delete failed")
     }
 
     /// Present the palette for a ⌘K that hasn't been consumed yet. Idempotent via `lastPaletteToken`
@@ -287,6 +280,10 @@ struct MainWindowView: View {
         case .selectCompute(let item):
             sidebarSelection = .compute
             selectedCompute = item
+        case .navigate(let section):
+            // Setting the section fires `.onChange(of: sidebarSelection)`, which clears any open
+            // detail selection — so switching panes lands on the list, not a stale detail.
+            sidebarSelection = section
         case .openRunContainerSheet:
             showRunSheet = true
         case .openCreateMachineSheet:

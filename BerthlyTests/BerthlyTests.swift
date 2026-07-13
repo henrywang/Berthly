@@ -666,10 +666,12 @@ struct ContainerCompatibilityTests {
 struct PrivilegedCommandHelperTests {
 
     /// `do shell script`'s default PATH omits /usr/local/bin, which broke the upstream update
-    /// script's final `container --version` self-check — the AppleScript must prepend it.
-    @Test func appleScriptPrependsUsrLocalBinToPath() {
+    /// script's final `container --version` self-check — the AppleScript must add it. It's
+    /// *appended*, not prepended, so a world-writable /usr/local/bin can't shadow a system tool
+    /// inside the root shell.
+    @Test func appleScriptAppendsUsrLocalBinToPath() {
         let script = LiveContainerService.privilegedAppleScript(for: "/usr/local/bin/update-container.sh -v 1.1.0")
-        #expect(script.hasPrefix("do shell script \"export PATH=/usr/local/bin:$PATH; "))
+        #expect(script.hasPrefix("do shell script \"export PATH=$PATH:/usr/local/bin; "))
         #expect(script.contains("/usr/local/bin/update-container.sh -v 1.1.0"))
         #expect(script.hasSuffix("with administrator privileges"))
     }

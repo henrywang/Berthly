@@ -72,14 +72,7 @@ private struct MachineDetailContent: View {
                 .frame(maxHeight: .infinity)
             }
             .navigationTitle(machine.name)
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorAlert($errorMessage)
             // Palette "Open Shell" routing — see the matching comment in ContainerDetailView.
             .onAppear { consumeTerminalRequestIfRequested() }
             .onChange(of: bridge.terminalRequest) { _, _ in consumeTerminalRequestIfRequested() }

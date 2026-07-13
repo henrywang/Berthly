@@ -56,14 +56,7 @@ struct NetworksListView: View {
         } message: {
             Text(deleteConfirmMessage)
         }
-        .alert("Error", isPresented: Binding(
-            get: { deleteErrorMessage != nil },
-            set: { if !$0 { deleteErrorMessage = nil } }
-        )) {
-            Button("OK") { deleteErrorMessage = nil }
-        } message: {
-            Text(deleteErrorMessage ?? "")
-        }
+        .errorAlert($deleteErrorMessage)
     }
 
     private var deleteTarget: Network? {
@@ -181,14 +174,7 @@ private struct NetworkRow: View {
                     Text("This action cannot be undone.")
                 }
             }
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorAlert($errorMessage)
         }
     }
 

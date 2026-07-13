@@ -237,14 +237,7 @@ private struct DiskUsageSection: View {
         } message: {
             Text(allResult?.summaryText ?? "")
         }
-        .alert("Error", isPresented: Binding(
-            get: { allErrorMessage != nil },
-            set: { if !$0 { allErrorMessage = nil } }
-        )) {
-            Button("OK") { allErrorMessage = nil }
-        } message: {
-            Text(allErrorMessage ?? "")
-        }
+        .errorAlert($allErrorMessage)
     }
 }
 
@@ -335,14 +328,7 @@ private struct DiskUsageGridRow: View {
         } message: {
             Text(result?.summaryText ?? "")
         }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage)
     }
 }
 
@@ -493,14 +479,7 @@ private struct BuilderRow: View {
         } message: {
             Text("The builder container will be shut down.")
         }
-        .alert("Error", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage)
     }
 }
 

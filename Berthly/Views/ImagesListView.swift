@@ -94,14 +94,7 @@ struct ImagesListView: View {
         } message: {
             Text(deleteConfirmMessage)
         }
-        .alert("Error", isPresented: Binding(
-            get: { deleteErrorMessage != nil },
-            set: { if !$0 { deleteErrorMessage = nil } }
-        )) {
-            Button("OK") { deleteErrorMessage = nil }
-        } message: {
-            Text(deleteErrorMessage ?? "")
-        }
+        .errorAlert($deleteErrorMessage)
     }
 
     private var deleteTarget: ContainerImage? {
@@ -112,11 +105,8 @@ struct ImagesListView: View {
         deleteTarget.map { "Delete \($0.fullName)?" } ?? ""
     }
 
-    private var deleteConfirmMessage: String {
-        if case .usedBy(let n) = deleteTarget?.usage {
-            return "This image is used by \(n) container\(n == 1 ? "" : "s"). Deleting it may affect those containers."
-        }
-        return "This will remove the image from local storage."
+    private var deleteConfirmMessage: LocalizedStringResource {
+        deleteTarget?.deleteWarning ?? ""
     }
 
     private func performDelete() {
@@ -229,33 +219,13 @@ private struct ImageRow: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                if case .usedBy(let n) = image.usage {
-                    Text("This image is used by \(n) container\(n == 1 ? "" : "s"). Deleting it may affect those containers.")
-                } else {
-                    Text("This will remove the image from local storage.")
-                }
+                Text(image.deleteWarning)
             }
             .sheet(isPresented: $showRunSheet) {
                 RunContainerSheet(service: service, initialReference: image.fullName)
             }
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
-                Button("OK") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
+            .errorAlert($errorMessage)
         }
-    }
-
-    private func formatSize(_ bytes: Int64) -> String {
-        let mb = Double(bytes) / 1_048_576
-        if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
-        if mb >= 1    { return String(format: "%.0f MB", mb) }
-        let kb = Double(bytes) / 1024
-        if kb >= 1    { return String(format: "%.0f KB", kb) }
-        return "\(bytes) B"
     }
 }
 
@@ -280,20 +250,6 @@ struct LibrarySortMenu: View {
         .controlSize(.small)
         .fixedSize()
         .help("Sort the list")
-    }
-}
-
-// MARK: - Section Header
-
-private struct LibrarySectionHeader: View {
-    let text: String
-    init(_ text: String) { self.text = text }
-
-    var body: some View {
-        Text(text)
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(.tertiary)
-            .textCase(nil)
     }
 }
 
