@@ -36,19 +36,41 @@ private func sectionHeader(_ title: LocalizedStringKey, systemImage: String) -> 
     Label(title, systemImage: systemImage)
 }
 
-/// Right-aligned, selectable, middle-truncating monospaced value for a `LabeledContent`.
+/// Right-aligned, selectable, single-line monospaced value for a `LabeledContent`.
 ///
-/// Primary (not secondary) foreground: these are the row's actual data — versions, paths,
-/// image refs — and native System Settings shows such values in the primary label color, letting
+/// Primary (not secondary) foreground: these are the row's actual data — versions, refs, etc. —
+/// and native System Settings shows such values in the primary label color, letting
 /// right-alignment and the monospaced face carry the label/value distinction. Secondary gray is
 /// reserved on this page for genuine status/supplementary text (the "Up to date" state, disk
 /// "reclaimable" hints), not for data.
+///
+/// Only for values that are always short (version numbers, `linux/arm64`) — anything that can
+/// run long (paths, image refs) should use `pathRow` instead, see its doc comment for why.
 private func monoValue(_ text: String) -> some View {
     Text(text)
         .fontDesign(.monospaced)
         .textSelection(.enabled)
         .lineLimit(1)
-        .truncationMode(.middle)
+}
+
+/// A label/value row for path- or reference-like data that can run long (a kernel binary path,
+/// an image ref with registry/repo/tag) — stacks the value on its own full-width, left-aligned
+/// line below the label instead of squeezing both onto one row.
+///
+/// Tried putting this in a trailing-aligned `LabeledContent` first: once the value wrapped to
+/// more than one line, trailing alignment made every line ragged on the left, including cutting
+/// mid-word into the filename — much harder to read than plain left-aligned wrapping.
+private func pathRow(_ label: LocalizedStringKey, _ text: String) -> some View {
+    VStack(alignment: .leading, spacing: 4) {
+        Text(label)
+        Text(text)
+            .font(.callout)
+            .fontDesign(.monospaced)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+    .padding(.vertical, 2)
 }
 
 // MARK: - Daemon Version
@@ -342,7 +364,7 @@ private struct KernelSection: View {
     var body: some View {
         Section {
             if let kernel {
-                LabeledContent("Path") { monoValue(kernel.path) }
+                pathRow("Path", kernel.path)
                 LabeledContent("Platform") { monoValue(kernel.platform) }
                 Button("Set Kernel…") { showSetKernel = true }
             } else {
@@ -368,8 +390,8 @@ private struct SystemConfigSection: View {
     var body: some View {
         Section {
             if let config {
-                LabeledContent("VM Init Image") { monoValue(config.vminitImage) }
-                LabeledContent("Builder Image") { monoValue(config.builderImage) }
+                pathRow("VM Init Image", config.vminitImage)
+                pathRow("Builder Image", config.builderImage)
 
                 Button("Reveal config.toml in Finder") {
                     revealConfigFile()
