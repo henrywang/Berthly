@@ -128,6 +128,7 @@ private struct ImageDetailContent: View {
                         Text("·").font(.caption).foregroundStyle(.tertiary)
                         Text(image.created).font(.caption).foregroundStyle(.secondary)
                     }
+                    UsageBadge(usage: image.usage)
                 }
             }
             .layoutPriority(1)

@@ -163,6 +163,7 @@ private struct ImageRow: View {
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
+                        UsageBadge(usage: image.usage)
                     }
                 }
 
@@ -225,6 +226,40 @@ private struct ImageRow: View {
                 RunContainerSheet(service: service, initialReference: image.fullName)
             }
             .errorAlert($errorMessage)
+        }
+    }
+}
+
+// MARK: - Usage Badge
+
+/// Marks an image as referenced by a container/machine (or as an infra builder image), so
+/// deleting it reads as a deliberate choice rather than an accident — shown on both the image
+/// row and `ImageDetailView`'s header. `.unused` renders nothing: an unused image is the
+/// expected, safe-to-delete default, so it doesn't need a badge to say so.
+struct UsageBadge: View {
+    let usage: ImageUsage
+
+    var body: some View {
+        switch usage {
+        case .usedBy:
+            // statusPaused (amber), not berthlyAccent — this codebase reserves accent blue for
+            // interactive/primary controls; amber is already the "notable, look before you act"
+            // tint (RO mounts, non-default networks), which fits a can't-delete-carelessly cue.
+            Text(usage.displayString)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.statusPaused)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(Color.statusPaused.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+        case .builderImage:
+            Text(usage.displayString)
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+        case .unused:
+            EmptyView()
         }
     }
 }

@@ -745,12 +745,15 @@ final class LiveContainerService: ContainerServiceBase {
         } catch {
             containers = []
         }
-        images    = (try? await fetchImages())   ?? []
-        volumes   = Volume.resolvingMounts((try? await fetchVolumes()) ?? [], containers: containers)
-        networks  = (try? await fetchNetworks()) ?? []
         let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
         machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName) }
         builders  = builderSnaps.map { mapBuilder($0) }
+
+        images = ContainerImage.resolvingUsage(
+            (try? await fetchImages()) ?? [], containers: containers, machines: machines
+        )
+        volumes   = Volume.resolvingMounts((try? await fetchVolumes()) ?? [], containers: containers)
+        networks  = (try? await fetchNetworks()) ?? []
     }
 
     // MARK: - Fetch
@@ -911,7 +914,7 @@ final class LiveContainerService: ContainerServiceBase {
             sizeBytes: sizeBytes,
             created: created,
             source: isBuilt ? .built : .pulled,
-            usage: .unused
+            usage: .unused  // resolved against containers/machines by ContainerImage.resolvingUsage in refreshAll
         )
     }
 

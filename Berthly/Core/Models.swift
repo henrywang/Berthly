@@ -122,7 +122,7 @@ struct ContainerImage: Identifiable, Hashable {
     let source: ImageSource
     let usage: ImageUsage
 
-    var fullName: String { "\(repository):\(tag)" }
+    nonisolated var fullName: String { "\(repository):\(tag)" }
 
     /// Warning shown in the delete confirmation. Defined once here so the list view and the row's
     /// hover/context-menu delete never drift apart. `LocalizedStringResource` keeps the string in
@@ -136,6 +136,30 @@ struct ContainerImage: Identifiable, Hashable {
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+extension ContainerImage {
+    /// Fills each image's `usage` by cross-referencing the containers and machines whose
+    /// `image` field names it — the daemon's image list carries no reverse "used by" info,
+    /// so it's reconstructed the same way `Volume.resolvingMounts` reconstructs mounts.
+    /// Machine image refs aren't pre-stripped of a trailing `@digest` the way `Container.image`
+    /// is, so that's normalized here before comparing.
+    nonisolated static func resolvingUsage(_ images: [ContainerImage], containers: [Container], machines: [Machine]) -> [ContainerImage] {
+        func strippedDigest(_ ref: String) -> String {
+            guard let atIdx = ref.firstIndex(of: "@") else { return ref }
+            let name = String(ref[ref.startIndex ..< atIdx])
+            return name.isEmpty ? ref : name
+        }
+        let refs = containers.map(\.image) + machines.map { strippedDigest($0.image) }
+        return images.map { image in
+            let count = refs.filter { $0 == image.id || $0 == image.fullName || $0 == image.digest }.count
+            return ContainerImage(
+                id: image.id, repository: image.repository, tag: image.tag, digest: image.digest,
+                arch: image.arch, sizeBytes: image.sizeBytes, created: image.created, source: image.source,
+                usage: count > 0 ? .usedBy(count) : .unused
+            )
+        }
+    }
 }
 
 // MARK: - Volume
