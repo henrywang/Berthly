@@ -405,7 +405,10 @@
     "Creating…" : {
 
     },
-    "Credentials for pushing & pulling images · shared by the daemon and every machine" : {
+    "Credentials are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart." : {
+
+    },
+    "Credentials for pushing & pulling images" : {
 
     },
     "Daemon Logs" : {
@@ -1206,9 +1209,6 @@
 
     },
     "Token or password for this host" : {
-
-    },
-    "Tokens are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart." : {
 
     },
     "Topology" : {

@@ -86,9 +86,9 @@ struct RegistriesListView: View {
     // SF Symbol + caption/secondary styling makes it read as pane identity, not a stray subtitle.
     private var scopeBar: some View {
         HStack(spacing: 8) {
-            Label("Credentials for pushing & pulling images · shared by the daemon and every machine",
+            Label("Credentials for pushing & pulling images",
                   systemImage: "building.columns")
-                .font(.caption)
+                .font(.callout)
                 .foregroundStyle(.secondary)
             Spacer()
         }
@@ -101,7 +101,7 @@ struct RegistriesListView: View {
             Image(systemName: "lock.fill")
                 .foregroundStyle(.blue)
                 .padding(.top, 1)
-            Text("Tokens are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart.")
+            Text("Credentials are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
