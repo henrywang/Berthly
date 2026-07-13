@@ -40,7 +40,7 @@ struct ImagesListView: View {
         Group {
             if service.images.isEmpty {
                 ContentUnavailableView {
-                    Label("No Images", systemImage: "shippingbox")
+                    Label("No Images", systemImage: "square.stack.3d.up")
                 } description: {
                     Text("Pull or build an image to get started.")
                 } actions: {
@@ -140,7 +140,7 @@ private struct ImageRow: View {
     var body: some View {
         if let image {
             HStack(alignment: .center, spacing: 10) {
-                Image(systemName: image.source == .built ? "hammer" : "shippingbox")
+                Image(systemName: image.source == .built ? "hammer" : "square.stack.3d.up")
                     .foregroundStyle(.secondary)
                     .imageScale(.small)
                     .frame(width: 16)

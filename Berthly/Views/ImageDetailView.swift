@@ -11,7 +11,7 @@ struct ImageDetailView: View {
         if service.images.contains(where: { $0.id == imageID }) {
             ImageDetailContent(imageID: imageID)
         } else {
-            ContentUnavailableView("Image not found", systemImage: "shippingbox")
+            ContentUnavailableView("Image not found", systemImage: "square.stack.3d.up")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -103,7 +103,7 @@ private struct ImageDetailContent: View {
 
     private func detailHeader(_ image: ContainerImage) -> some View {
         HStack(alignment: .center, spacing: 10) {
-            Image(systemName: image.source == .built ? "hammer" : "shippingbox")
+            Image(systemName: image.source == .built ? "hammer" : "square.stack.3d.up")
                 .font(.title2)
                 .foregroundStyle(.secondary)
 
