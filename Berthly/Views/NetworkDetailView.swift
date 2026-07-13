@@ -211,7 +211,7 @@ private struct NetworkDetailContent: View {
     }
 
     private func endpointGrid(_ network: Network, endpoints: [NetworkEndpoint]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+        CenteredAdaptiveGrid(minimumWidth: 140, spacing: 8) {
             ForEach(endpoints) { endpoint in
                 endpointCard(endpoint)
             }
@@ -363,6 +363,63 @@ private struct NetworkDetailContent: View {
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 16)
+    }
+}
+
+// MARK: - Centered adaptive grid
+
+/// Mirrors `LazyVGrid(columns: [.adaptive(minimum:)])`'s column math, but centers a short
+/// trailing row instead of leaving it flush left beside empty grid cells.
+private struct CenteredAdaptiveGrid: Layout {
+    var minimumWidth: CGFloat
+    var spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rawWidth = proposal.width ?? minimumWidth
+        let width = rawWidth.isFinite ? rawWidth : minimumWidth
+        let columns = columnCount(for: width)
+        let columnWidth = columnWidth(for: width, columns: columns)
+        var height: CGFloat = 0
+        var rowCount = 0
+        for start in stride(from: 0, to: subviews.count, by: columns) {
+            let row = subviews[start..<min(start + columns, subviews.count)]
+            height += row.map { $0.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height }.max() ?? 0
+            rowCount += 1
+        }
+        height += spacing * CGFloat(max(0, rowCount - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let columns = columnCount(for: bounds.width)
+        let columnWidth = columnWidth(for: bounds.width, columns: columns)
+        var y = bounds.minY
+
+        for start in stride(from: 0, to: subviews.count, by: columns) {
+            let rowSubviews = Array(subviews[start..<min(start + columns, subviews.count)])
+            let rowHeight = rowSubviews.map { $0.sizeThatFits(ProposedViewSize(width: columnWidth, height: nil)).height }.max() ?? 0
+            let rowWidth = CGFloat(rowSubviews.count) * columnWidth + CGFloat(rowSubviews.count - 1) * spacing
+            var x = bounds.minX + (bounds.width - rowWidth) / 2
+
+            for subview in rowSubviews {
+                subview.place(
+                    at: CGPoint(x: x, y: y),
+                    anchor: .topLeading,
+                    proposal: ProposedViewSize(width: columnWidth, height: rowHeight)
+                )
+                x += columnWidth + spacing
+            }
+            y += rowHeight + spacing
+        }
+    }
+
+    private func columnCount(for width: CGFloat) -> Int {
+        guard width.isFinite else { return 1 }
+        return max(1, Int((width + spacing) / (minimumWidth + spacing)))
+    }
+
+    private func columnWidth(for width: CGFloat, columns: Int) -> CGFloat {
+        (width - CGFloat(columns - 1) * spacing) / CGFloat(columns)
     }
 }
 
