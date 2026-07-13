@@ -166,6 +166,7 @@ private struct RegistryRow: View {
                 .frame(width: 90, alignment: .trailing)
             }
             .padding(.vertical, 4)
+            .padding(.horizontal, 20)
             .contextMenu {
                 Button("Copy Host") { copyToPasteboard(registry.host) }
                 Button("Copy Username") { copyToPasteboard(registry.username) }
