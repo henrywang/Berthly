@@ -985,6 +985,9 @@
     "Restart" : {
 
     },
+    "Restart Container" : {
+
+    },
     "Retry" : {
 
     },
@@ -1166,10 +1169,16 @@
     "Stop Builder" : {
 
     },
+    "Stop Container" : {
+
+    },
     "Stop container daemon — this stops every running container on this Mac, not just ones Berthly manages" : {
 
     },
     "Stop Container Daemon…" : {
+
+    },
+    "Stop Machine" : {
 
     },
     "Stop the container daemon?" : {

@@ -175,6 +175,7 @@ private struct ContainerComputeRow: View {
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
+    @State private var isWorking = false
     @State private var errorMessage: String?
 
     private var isRunning: Bool { container.status == .running }
@@ -202,8 +203,26 @@ private struct ContainerComputeRow: View {
 
             Spacer()
 
-            if isHovered {
-                if !isRunning {
+            if isWorking {
+                // Start/stop/restart against the real daemon takes seconds — without this the
+                // click looks ignored until the next state refresh flips the row.
+                ProgressView()
+                    .controlSize(.small)
+            } else if isHovered {
+                if isRunning {
+                    Button { perform { try await service.restartContainer(container.id) } } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Restart Container")
+                    .accessibilityLabel("Restart")
+                    Button { perform { try await service.stopContainer(container.id) } } label: {
+                        Image(systemName: "stop.fill")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Stop Container")
+                    .accessibilityLabel("Stop")
+                } else {
                     Button { perform { try await service.startContainer(container.id) } } label: {
                         Image(systemName: "play.fill")
                     }
@@ -225,7 +244,7 @@ private struct ContainerComputeRow: View {
             }
         }
         .padding(.vertical, 2)
-        .opacity(isDeleting ? 0.4 : 1)
+        .opacity(isDeleting || isWorking ? 0.4 : 1)
         .onHover { isHovered = $0 }
         // The full action set, reachable by right-click — the hover trash icon alone isn't
         // discoverable and doesn't exist in the accessibility tree until hover, so this is also
@@ -268,9 +287,12 @@ private struct ContainerComputeRow: View {
     }
 
     private func perform(_ action: @escaping () async throws -> Void) {
+        guard !isWorking else { return }
+        isWorking = true
         Task {
             do { try await action() }
             catch { errorMessage = error.localizedDescription }
+            isWorking = false
         }
     }
 }
@@ -286,6 +308,7 @@ private struct MachineComputeRow: View {
     @State private var isHovered = false
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
+    @State private var isWorking = false
     @State private var errorMessage: String?
 
     private var isRunning: Bool { machine.status == .running }
@@ -311,8 +334,21 @@ private struct MachineComputeRow: View {
 
             Spacer()
 
-            if isHovered {
-                if !isRunning {
+            if isWorking {
+                // See ContainerComputeRow: real stop/start takes seconds, show it's in flight.
+                ProgressView()
+                    .controlSize(.small)
+            } else if isHovered {
+                if isRunning {
+                    // No restart here — mirrors the menu bar and the context menu: the machine
+                    // service API has no restart, only stop/start.
+                    Button { perform { try await service.stopMachine(machine.id) } } label: {
+                        Image(systemName: "stop.fill")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Stop Machine")
+                    .accessibilityLabel("Stop")
+                } else {
                     Button { perform { try await service.startMachine(machine.id) } } label: {
                         Image(systemName: "play.fill")
                     }
@@ -334,7 +370,7 @@ private struct MachineComputeRow: View {
             }
         }
         .padding(.vertical, 2)
-        .opacity(isDeleting ? 0.4 : 1)
+        .opacity(isDeleting || isWorking ? 0.4 : 1)
         .onHover { isHovered = $0 }
         .contextMenu {
             if machine.status == .running {
@@ -368,9 +404,12 @@ private struct MachineComputeRow: View {
     }
 
     private func perform(_ action: @escaping () async throws -> Void) {
+        guard !isWorking else { return }
+        isWorking = true
         Task {
             do { try await action() }
             catch { errorMessage = error.localizedDescription }
+            isWorking = false
         }
     }
 }

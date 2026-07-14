@@ -93,12 +93,16 @@ final class MockContainerService: ContainerServiceBase {
     // MARK: - Operations (simulated in mock)
 
     override func startContainer(_ id: String) async throws {
+        // Simulated daemon latency (like runContainer/createMachine below): rows show a spinner
+        // while these are in flight, which an instant flip would make invisible in mock mode.
+        try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
         let c = containers[i]
         containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .running, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "0m", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
     }
 
     override func stopContainer(_ id: String) async throws {
+        try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
         let c = containers[i]
         containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
@@ -123,6 +127,7 @@ final class MockContainerService: ContainerServiceBase {
     }
 
     override func startMachine(_ id: String) async throws {
+        try? await Task.sleep(for: .milliseconds(600))
         guard let i = machines.firstIndex(where: { $0.id == id }) else { return }
         let m = machines[i]
         machines[i] = Machine(id: m.id, name: m.name, image: m.image, status: .running,
@@ -133,6 +138,7 @@ final class MockContainerService: ContainerServiceBase {
     }
 
     override func stopMachine(_ id: String) async throws {
+        try? await Task.sleep(for: .milliseconds(600))
         guard let i = machines.firstIndex(where: { $0.id == id }) else { return }
         let m = machines[i]
         machines[i] = Machine(id: m.id, name: m.name, image: m.image, status: .stopped,
