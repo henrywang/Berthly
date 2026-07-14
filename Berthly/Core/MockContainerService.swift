@@ -461,6 +461,63 @@ final class MockContainerService: ContainerServiceBase {
                                      created: "just now", source: .pulled, usage: .unused))
     }
 
+    override func tagImage(reference: String, newReference: String) async throws -> String {
+        guard let source = images.first(where: { $0.fullName == reference }) else {
+            throw ContainerCLIError(exitCode: 1, message: "No such image: \(reference)")
+        }
+        let trimmed = newReference.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else {
+            throw ContainerCLIError(exitCode: 1, message: "Target reference is required.")
+        }
+        let parts = trimmed.split(separator: ":", maxSplits: 1)
+        let repo = String(parts.first ?? Substring(trimmed))
+        let tag = parts.count > 1 ? String(parts[1]) : "latest"
+        let full = "\(repo):\(tag)"
+        // Same shape as pushImage's retag above: the new name shares the source's digest (a tag
+        // doesn't copy content), and tagging onto an existing name replaces that entry rather
+        // than appending a second row with the same id.
+        images.removeAll { $0.fullName == full }
+        images.append(ContainerImage(id: full, repository: repo, tag: tag,
+                                     digest: source.digest, arch: source.arch,
+                                     sizeBytes: source.sizeBytes, created: "just now",
+                                     source: source.source, usage: .unused))
+        return full
+    }
+
+    /// Records the last save so tests and previews can assert what the UI asked for — no tar is
+    /// actually written (previews shouldn't touch the filesystem).
+    private(set) var lastImageSave: (references: [String], path: String)?
+
+    override func saveImages(references: [String], to path: String, platform: String? = nil) async throws {
+        for reference in references where !images.contains(where: { $0.fullName == reference }) {
+            throw ContainerCLIError(exitCode: 1, message: "No such image: \(reference)")
+        }
+        try? await Task.sleep(for: .milliseconds(400))
+        lastImageSave = (references, path)
+    }
+
+    override func loadImages(from path: String, force: Bool = false, progress: ProgressUpdateHandler? = nil) async throws -> ImageLoadSummary {
+        // Only the unpack phase reports progress (matching the live service).
+        let entryCount = 5
+        await progress?([.addTotalItems(entryCount)])
+        for _ in 0..<entryCount {
+            try? await Task.sleep(for: .milliseconds(150))
+            await progress?([.addItems(1)])
+        }
+        // Round-trip the save flow's naming: `alpine_latest.tar` loads back as `alpine:latest`.
+        let stem = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
+        let parts = stem.split(separator: "_", maxSplits: 1)
+        let repo = parts.first.map(String.init) ?? "loaded"
+        let tag = parts.count > 1 ? String(parts[1]) : "latest"
+        let full = "\(repo):\(tag)"
+        images.removeAll { $0.fullName == full }
+        images.append(ContainerImage(id: full, repository: repo, tag: tag,
+                                     digest: "sha256:\(UUID().uuidString.prefix(12).lowercased())",
+                                     arch: ["arm64"], sizeBytes: 145_000_000,
+                                     created: "just now", source: .pulled, usage: .unused))
+        return ImageLoadSummary(loadedReferences: [full], rejectedMembers: [])
+    }
+
     override func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
         let source = images.first { $0.fullName == reference }
         let layerCount = 6

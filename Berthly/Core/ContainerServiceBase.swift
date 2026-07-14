@@ -80,6 +80,21 @@ class ContainerServiceBase {
     func deleteNetwork(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
+    /// Create an additional local reference for an existing image (like `container image tag`).
+    /// Returns the reference actually created: normalization can add a default registry host,
+    /// a `library/` namespace, or `:latest` — the UI shows the result so that isn't a surprise.
+    @discardableResult
+    func tagImage(reference: String, newReference: String) async throws -> String { newReference }
+    /// Export images as an OCI tar archive at `path` (like `container image save -o`). No
+    /// progress reporting: the daemon's save API offers none, so callers show indeterminate
+    /// progress. `platform` limits the archive to one platform; `nil` saves every variant.
+    func saveImages(references: [String], to path: String, platform: String? = nil) async throws {}
+    /// Import images from an OCI tar archive (like `container image load -i`) and unpack each
+    /// (`progress` reports the unpack phase — the load phase itself is silent). `force` loads
+    /// despite invalid archive member files, which are skipped and reported in the summary.
+    func loadImages(from path: String, force: Bool = false, progress: ProgressUpdateHandler? = nil) async throws -> ImageLoadSummary {
+        ImageLoadSummary(loadedReferences: [], rejectedMembers: [])
+    }
     /// Push a local image to a registry. When `destination` is set and differs from `reference`,
     /// the image is retagged to that registry-qualified reference before pushing — the native push
     /// requires a registry host in the reference, which a locally-built name like `local/web:1.4`

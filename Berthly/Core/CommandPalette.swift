@@ -26,6 +26,7 @@ nonisolated enum PaletteAction: Equatable {
     case createMachine
     case buildImage
     case pullImage
+    case loadImage
     case createVolume
     case createNetwork
     case addRegistry
@@ -167,6 +168,8 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
                        keywords: ["dockerfile"], action: .buildImage),
         PaletteCommand(id: "action.pull", title: "Pull Image…", systemImage: "arrow.down.circle",
                        keywords: ["download", "registry"], action: .pullImage),
+        PaletteCommand(id: "action.loadImage", title: "Load Image from Disk…", systemImage: "square.and.arrow.down.on.square",
+                       keywords: ["import", "tar", "archive", "restore"], action: .loadImage),
         PaletteCommand(id: "action.createVolume", title: "Create Volume…", systemImage: "cylinder",
                        keywords: ["new"], action: .createVolume),
         PaletteCommand(id: "action.createNetwork", title: "Create Network…", systemImage: "arrow.triangle.branch",

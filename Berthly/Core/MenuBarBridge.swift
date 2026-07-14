@@ -18,6 +18,7 @@ final class MenuBarBridge {
         case openCreateMachineSheet
         case openBuildSheet
         case openPullSheet
+        case openLoadImageSheet
         case openCreateVolumeSheet
         case openCreateNetworkSheet
         case openAddRegistrySheet

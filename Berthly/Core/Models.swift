@@ -162,6 +162,14 @@ extension ContainerImage {
     }
 }
 
+/// Outcome of loading an OCI tar archive: one archive can carry several images, and the client
+/// skips (rather than fails on) archive members with unsafe paths — both facts the UI reports.
+nonisolated struct ImageLoadSummary: Equatable {
+    let loadedReferences: [String]
+    /// Archive member files that were skipped (invalid paths / symlink traversal).
+    let rejectedMembers: [String]
+}
+
 // MARK: - Volume
 
 enum VolumeType { case named, anonymous }

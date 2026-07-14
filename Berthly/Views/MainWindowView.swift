@@ -20,6 +20,7 @@ struct MainWindowView: View {
     @State private var showVolumeCreateSheet = false
     @State private var showNetworkCreateSheet = false
     @State private var showAddRegistrySheet = false
+    @State private var loadImageRequest: ImageLoadRequest?
     @State private var showBuildsPopover = false
     @State private var viewedBuildJob: BuildJob?
     @State private var showCommandPalette = false
@@ -136,6 +137,9 @@ struct MainWindowView: View {
         .sheet(isPresented: $showAddRegistrySheet) {
             AddRegistrySheet()
         }
+        .sheet(item: $loadImageRequest) { request in
+            LoadImageSheet(archiveURL: request.url)
+        }
         .sheet(item: $viewedBuildJob) { job in
             BuildImageSheet(service: service, existingJob: job)
         }
@@ -201,6 +205,7 @@ struct MainWindowView: View {
         case .createMachine:   showMachineCreateSheet = true
         case .buildImage:      showBuildSheet = true
         case .pullImage:       showPullSheet = true
+        case .loadImage:       promptLoadImage()
         case .createVolume:    showVolumeCreateSheet = true
         case .createNetwork:   showNetworkCreateSheet = true
         case .addRegistry:     showAddRegistrySheet = true
@@ -220,6 +225,14 @@ struct MainWindowView: View {
         case .restartContainer(let id): Task { try? await service.restartContainer(id) }
         case .startMachine(let id):     Task { try? await service.startMachine(id) }
         case .stopMachine(let id):      Task { try? await service.stopMachine(id) }
+        }
+    }
+
+    /// File picker first, sheet second: the sheet only exists to show progress/outcome, so a
+    /// cancelled panel opens nothing at all.
+    private func promptLoadImage() {
+        if let url = promptForArchiveToLoad() {
+            loadImageRequest = ImageLoadRequest(url: url)
         }
     }
 
@@ -292,6 +305,8 @@ struct MainWindowView: View {
             showBuildSheet = true
         case .openPullSheet:
             showPullSheet = true
+        case .openLoadImageSheet:
+            promptLoadImage()
         case .openCreateVolumeSheet:
             showVolumeCreateSheet = true
         case .openCreateNetworkSheet:

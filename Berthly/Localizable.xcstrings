@@ -65,6 +65,9 @@
     "%lld" : {
 
     },
+    "%lld images loaded" : {
+
+    },
     "%lld mount%@" : {
       "localizations" : {
         "en" : {
@@ -172,6 +175,9 @@
 
     },
     "Architecture" : {
+
+    },
+    "Archive" : {
 
     },
     "arm64" : {
@@ -402,6 +408,9 @@
     "Create Volume" : {
 
     },
+    "Creates an additional name for this image" : {
+
+    },
     "Creating…" : {
 
     },
@@ -528,6 +537,9 @@
     "Error" : {
 
     },
+    "Exports an OCI tar archive that container image load can import" : {
+
+    },
     "Expose virtualization capabilities" : {
 
     },
@@ -597,6 +609,9 @@
     "Image built successfully" : {
 
     },
+    "Image loaded" : {
+
+    },
     "Image not found" : {
 
     },
@@ -609,7 +624,16 @@
     "Image reference" : {
 
     },
+    "Image saved" : {
+
+    },
+    "Image tagged" : {
+
+    },
     "Images" : {
+
+    },
+    "Imports images from an OCI tar archive into the local store" : {
 
     },
     "Index" : {
@@ -682,6 +706,21 @@
     "LIBRARY" : {
 
     },
+    "Load Anyway, Skipping Invalid Files" : {
+
+    },
+    "Load failed" : {
+
+    },
+    "Load Image from Disk" : {
+
+    },
+    "Load Image from Disk…" : {
+
+    },
+    "Loading image" : {
+
+    },
     "Loading…" : {
 
     },
@@ -701,6 +740,9 @@
 
     },
     "MODE" : {
+
+    },
+    "More Actions" : {
 
     },
     "Mount type" : {
@@ -743,6 +785,9 @@
 
     },
     "Networks" : {
+
+    },
+    "New reference" : {
 
     },
     "New VMs pick up the kernel · running containers are unaffected." : {
@@ -952,6 +997,9 @@
     "Reveal config.toml in Finder" : {
 
     },
+    "Reveal in Finder" : {
+
+    },
     "RO" : {
 
     },
@@ -989,6 +1037,15 @@
 
     },
     "RW" : {
+
+    },
+    "Save failed" : {
+
+    },
+    "Save Image to Disk" : {
+
+    },
+    "Save to Disk…" : {
 
     },
     "Saves as  %@" : {
@@ -1041,6 +1098,16 @@
     },
     "Size" : {
 
+    },
+    "Skipped %lld invalid archive member%@ (unsafe paths)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "Skipped %1$lld invalid archive member%2$@ (unsafe paths)."
+          }
+        }
+      }
     },
     "Sort" : {
 
@@ -1135,6 +1202,18 @@
     "Tag" : {
 
     },
+    "Tag failed" : {
+
+    },
+    "Tag Image" : {
+
+    },
+    "Tag, save, or copy digest" : {
+
+    },
+    "Tag…" : {
+
+    },
     "Tar Archive" : {
 
     },
@@ -1142,6 +1221,9 @@
 
     },
     "Target stage" : {
+
+    },
+    "team/web:2.0" : {
 
     },
     "Terminal" : {
@@ -1327,6 +1409,9 @@
 
     },
     "Wrap" : {
+
+    },
+    "Writing archive…" : {
 
     },
     "You may be asked for your admin password. This can take a few minutes." : {

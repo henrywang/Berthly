@@ -31,6 +31,8 @@ private struct ImageDetailContent: View {
     @State private var errorMessage: String?
     @State private var rebuildParams: RebuildParams?
     @State private var showPushSheet = false
+    @State private var showTagSheet = false
+    @State private var saveRequest: ImageSaveRequest?
 
     private var image: ContainerImage? {
         service.images.first(where: { $0.id == imageID })
@@ -89,6 +91,12 @@ private struct ImageDetailContent: View {
             .sheet(isPresented: $showPushSheet) {
                 PushImageSheet(image: image)
             }
+            .sheet(isPresented: $showTagSheet) {
+                TagImageSheet(image: image)
+            }
+            .sheet(item: $saveRequest) { request in
+                SaveImageSheet(request: request)
+            }
         }
     }
 
@@ -112,23 +120,14 @@ private struct ImageDetailContent: View {
                     .font(.title3.weight(.semibold))
                     .fontDesign(.monospaced)
                     .lineLimit(1)
-                HStack(spacing: 6) {
-                    ForEach(image.arch, id: \.self) { arch in
-                        Text(arch)
-                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
-                    }
-                    if image.sizeBytes > 0 {
-                        Text(formatSize(image.sizeBytes)).font(.caption).foregroundStyle(.secondary)
-                    }
-                    if image.created != "–" {
-                        Text("·").font(.caption).foregroundStyle(.tertiary)
-                        Text(image.created).font(.caption).foregroundStyle(.secondary)
-                    }
-                    UsageBadge(usage: image.usage)
+                // When the pane squeezes this row (detail min is 320pt), whole elements drop
+                // instead of degrading in place — squeezing wraps the badges mid-word ("arm6/4")
+                // and truncating leaves ellipsis soup ("18… · 2…"). Size/created go first (the
+                // Platforms section still shows per-variant sizes), then the usage badge.
+                ViewThatFits(in: .horizontal) {
+                    metadataRow(for: image, sizeAndDate: true, usage: true)
+                    metadataRow(for: image, sizeAndDate: false, usage: true)
+                    metadataRow(for: image, sizeAndDate: false, usage: false)
                 }
             }
             .layoutPriority(1)
@@ -136,8 +135,8 @@ private struct ImageDetailContent: View {
             Spacer(minLength: 8)
 
             // Secondary actions are icon-only so the primary "Push" keeps its label without the
-            // three buttons + title overflowing the detail pane's width (they truncate to "Re…",
-            // "C…" otherwise). Tooltips carry the names.
+            // buttons + title overflowing the detail pane's width (they truncate to "Re…"
+            // otherwise). Tooltips carry the names.
             if image.source == .built {
                 Button {
                     rebuildParams = RebuildParams(
@@ -152,15 +151,32 @@ private struct ImageDetailContent: View {
                 .help("Rebuild")
             }
 
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(image.digest, forType: .string)
+            // Tag/Save/Copy Digest share one overflow menu rather than each being an icon button —
+            // a fourth control makes the header overflow at the pane's ideal width (the arch badges
+            // wrap and Push loses its label; see the width comment above the Rebuild button).
+            // Copy Digest also stays reachable from the Platforms section's copyable digests and
+            // the list row's context menu.
+            Menu {
+                Button("Tag…") { showTagSheet = true }
+                Button("Save to Disk…") {
+                    if let destination = promptForArchiveDestination(imageName: image.fullName) {
+                        saveRequest = ImageSaveRequest(reference: image.fullName, destination: destination)
+                    }
+                }
+                Divider()
+                Button("Copy Digest") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(image.digest, forType: .string)
+                }
             } label: {
-                Label("Copy Digest", systemImage: "doc.on.doc")
+                Label("More Actions", systemImage: "ellipsis.circle")
             }
             .labelStyle(.iconOnly)
+            .menuStyle(.button)
             .buttonStyle(.bordered)
-            .help("Copy Digest")
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Tag, save, or copy digest")
 
             Button {
                 showPushSheet = true
@@ -169,8 +185,40 @@ private struct ImageDetailContent: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.berthlyAccent)
+            // Never give up the label: without this, the title's layoutPriority squeezes the
+            // trailing button first and "Push" truncates before the (truncatable) title does.
+            .fixedSize()
             .help("Push this image to a registry")
         }
+    }
+
+    /// One candidate line for the header's `ViewThatFits`. `fixedSize` on the whole row so a
+    /// candidate either fits intact or is skipped — partial squeezing is what produced the
+    /// mid-word badge wrap this replaces.
+    private func metadataRow(for image: ContainerImage, sizeAndDate: Bool, usage: Bool) -> some View {
+        HStack(spacing: 6) {
+            ForEach(image.arch, id: \.self) { arch in
+                Text(arch)
+                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 2)
+                    .background(.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+            }
+            if sizeAndDate {
+                if image.sizeBytes > 0 {
+                    Text(formatSize(image.sizeBytes)).font(.caption).foregroundStyle(.secondary)
+                }
+                if image.created != "–" {
+                    Text("·").font(.caption).foregroundStyle(.tertiary)
+                    Text(image.created).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            if usage {
+                UsageBadge(usage: image.usage)
+            }
+        }
+        .fixedSize()
     }
 }
 

@@ -68,6 +68,10 @@ struct ContainerCommands: Commands {
                 .keyboardShortcut("p", modifiers: [.command, .shift])
                 .disabled(!service.isConnected)
 
+            Button("Load Image from Disk…") { send(.openLoadImageSheet) }
+                .keyboardShortcut("l", modifiers: [.command, .shift])
+                .disabled(!service.isConnected)
+
             Divider()
 
             Button("Refresh") {

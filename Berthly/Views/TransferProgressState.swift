@@ -44,6 +44,11 @@ final class TransferProgressState {
               doneText: { "\($0) pushed · uploaded to registry" })
     }
 
+    static func load() -> TransferProgressState {
+        .init(verb: "LOAD", commandText: "container image load",
+              doneText: { "\($0) ready · loaded into local store" })
+    }
+
     func start(reference: String) {
         completedItems = 0; totalItems = 0; transferredBytes = 0; totalBytes = 0
         hasLoggedManifest = false

@@ -132,6 +132,8 @@ private struct ImageRow: View {
     @State private var isDeleting = false
     @State private var errorMessage: String?
     @State private var showRunSheet = false
+    @State private var showTagSheet = false
+    @State private var saveRequest: ImageSaveRequest?
 
     private var image: ContainerImage? {
         service.images.first(where: { $0.id == imageID })
@@ -203,6 +205,13 @@ private struct ImageRow: View {
             .contextMenu {
                 Button("Run from This Image…") { showRunSheet = true }
                 Divider()
+                Button("Tag…") { showTagSheet = true }
+                Button("Save to Disk…") {
+                    if let destination = promptForArchiveDestination(imageName: image.fullName) {
+                        saveRequest = ImageSaveRequest(reference: image.fullName, destination: destination)
+                    }
+                }
+                Divider()
                 Button("Copy Reference") { copyToPasteboard(image.fullName) }
                 Button("Copy Digest") { copyToPasteboard(image.digest) }
                 Divider()
@@ -224,6 +233,12 @@ private struct ImageRow: View {
             }
             .sheet(isPresented: $showRunSheet) {
                 RunContainerSheet(service: service, initialReference: image.fullName)
+            }
+            .sheet(isPresented: $showTagSheet) {
+                TagImageSheet(image: image)
+            }
+            .sheet(item: $saveRequest) { request in
+                SaveImageSheet(request: request)
             }
             .errorAlert($errorMessage)
         }

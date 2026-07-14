@@ -2450,4 +2450,46 @@ final class LiveContainerService: ContainerServiceBase {
         // A retag created a new local reference — surface it in the list.
         await refresh()
     }
+
+    override func tagImage(reference: String, newReference: String) async throws -> String {
+        let config = await resolvedSystemConfig()
+        let existing = try await ClientImage.get(reference: reference, containerSystemConfig: config)
+        // The same normalization the CLI's `image tag` applies (default registry host, `library/`,
+        // `:latest`) — without it the daemon stores the raw string and `image ls` shows a name
+        // that doesn't round-trip through pull/push.
+        let target = try ClientImage.normalizeReference(newReference, containerSystemConfig: config)
+        _ = try await existing.tag(new: target)
+        await refresh()
+        return target
+    }
+
+    override func saveImages(references: [String], to path: String, platform: String? = nil) async throws {
+        let config = await resolvedSystemConfig()
+        let ociPlatform: Platform? = try {
+            guard let p = platform, !p.isEmpty else { return nil }
+            return try Platform(from: p)
+        }()
+        do {
+            try await ClientImage.save(references: references, out: path, platform: ociPlatform, containerSystemConfig: config)
+        } catch {
+            // A failed save can leave a partial tar behind — nobody can load it, so don't leave it
+            // sitting where the user asked for a good one.
+            try? FileManager.default.removeItem(atPath: path)
+            throw error
+        }
+    }
+
+    override func loadImages(from path: String, force: Bool = false, progress: ProgressUpdateHandler? = nil) async throws -> ImageLoadSummary {
+        let result = try await ClientImage.load(from: path, force: force)
+        // Unpack like pull does (and like the CLI's `image load`) — a loaded-but-unpacked image
+        // can't start a container.
+        for image in result.images {
+            try await image.unpack(platform: nil, progressUpdate: progress)
+        }
+        await refresh()
+        return ImageLoadSummary(
+            loadedReferences: result.images.map(\.reference),
+            rejectedMembers: result.rejectedMembers
+        )
+    }
 }
