@@ -754,6 +754,7 @@ final class LiveContainerService: ContainerServiceBase {
         )
         volumes   = Volume.resolvingMounts((try? await fetchVolumes()) ?? [], containers: containers)
         networks  = (try? await fetchNetworks()) ?? []
+        await loadRegistries()
     }
 
     // MARK: - Fetch
