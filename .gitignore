@@ -20,6 +20,9 @@ DerivedData/
 # Code coverage
 *.profraw
 
+# Release artifacts (scripts/release.sh)
+dist/
+
 # macOS
 .DS_Store
 **/.DS_Store
