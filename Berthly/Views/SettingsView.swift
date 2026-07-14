@@ -25,8 +25,10 @@ private struct GeneralSettingsTab: View {
     /// it in System Settings > General > Login Items behind our back.
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var errorMessage: String?
+    @Environment(UpdaterService.self) private var updater
 
     var body: some View {
+        @Bindable var updater = updater
         Form {
             Section {
                 Toggle("Launch at login", isOn: $launchAtLogin)
@@ -36,6 +38,18 @@ private struct GeneralSettingsTab: View {
                 Toggle("Show menu bar icon", isOn: $showMenuBarIcon)
             } footer: {
                 Text("With the menu bar icon shown, Berthly keeps monitoring containers while the main window is closed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section {
+                Toggle("Automatically check for updates", isOn: $updater.automaticallyChecksForUpdates)
+                Toggle("Automatically download and install updates", isOn: $updater.automaticallyDownloadsUpdates)
+                    .disabled(!updater.automaticallyChecksForUpdates)
+            } header: {
+                Text("Updates")
+            } footer: {
+                Text("You can always check manually from the Berthly menu: Check for Updates…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -129,4 +143,5 @@ private struct ThemeRow: View {
 
 #Preview {
     SettingsView()
+        .environment(UpdaterService(startingUpdater: false))
 }

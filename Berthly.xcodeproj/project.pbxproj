@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */ = {isa = PBXBuildFile; productRef = F66A582A8B95234B7827C89F /* NIOPosix */; };
 		74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */ = {isa = PBXBuildFile; productRef = 96820BCC7D9F569A1EA97615 /* NIOCore */; };
+		B4C0FEED0000000000000003 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = B4C0FEED0000000000000002 /* Sparkle */; };
 		B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */ = {isa = PBXBuildFile; productRef = ECDA028CF797475EAD0334FE /* ContainerPlugin */; };
 		F86446362FF182CC0064946B /* ContainerAPIClient in Frameworks */ = {isa = PBXBuildFile; productRef = F86446352FF182CC0064946B /* ContainerAPIClient */; };
 		F86446382FF182CC0064946B /* ContainerBuild in Frameworks */ = {isa = PBXBuildFile; productRef = F86446372FF182CC0064946B /* ContainerBuild */; };
@@ -107,6 +108,7 @@
 				74EA2BEF62F91C75A6C951B9 /* NIOCore in Frameworks */,
 				3DC684AE3C566F37874667EB /* NIOPosix in Frameworks */,
 				B5F9642A63C64E548148E9A6 /* ContainerPlugin in Frameworks */,
+				B4C0FEED0000000000000003 /* Sparkle in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -208,6 +210,7 @@
 				F66A582A8B95234B7827C89F /* NIOPosix */,
 				ECDA028CF797475EAD0334FE /* ContainerPlugin */,
 				2970A0938E89DE97EBCC0188 /* SwiftTerm */,
+				B4C0FEED0000000000000002 /* Sparkle */,
 			);
 			productName = Berthly;
 			productReference = F80E29442FF1647500094CE8 /* Berthly.app */;
@@ -299,6 +302,7 @@
 				F86446342FF182CC0064946B /* XCRemoteSwiftPackageReference "container" */,
 				E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */,
 				9468CC2C48A393EB0BB748A0 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
+				B4C0FEED0000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = F80E29452FF1647500094CE8 /* Products */;
@@ -561,6 +565,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -592,6 +598,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Config/Info.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -745,6 +753,14 @@
 				minimumVersion = 1.13.0;
 			};
 		};
+		B4C0FEED0000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/sparkle-project/Sparkle";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.6.0;
+			};
+		};
 		E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-nio.git";
@@ -778,6 +794,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */;
 			productName = NIOCore;
+		};
+		B4C0FEED0000000000000002 /* Sparkle */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B4C0FEED0000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */;
+			productName = Sparkle;
 		};
 		ECDA028CF797475EAD0334FE /* ContainerPlugin */ = {
 			isa = XCSwiftPackageProductDependency;

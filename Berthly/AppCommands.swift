@@ -12,6 +12,29 @@ import SwiftUI
 /// Actions route through `MenuBarBridge.pendingIntent` exactly like the menu bar extra's entry
 /// points: `MainWindowView` picks the intent up via `.onChange`/`.onAppear`, which also covers
 /// choosing a menu item while no main window exists (the intent survives until the window mounts).
+/// App-menu entry for Sparkle self-updates, in the standard spot under "About Berthly".
+/// The button lives in a child View (not directly in the CommandGroup) so reading the
+/// `@Observable` updater's `canCheckForUpdates` re-evaluates the menu item when an update
+/// session starts/ends.
+struct UpdaterCommands: Commands {
+    let updater: UpdaterService
+
+    var body: some Commands {
+        CommandGroup(after: .appInfo) {
+            CheckForUpdatesButton(updater: updater)
+        }
+    }
+
+    private struct CheckForUpdatesButton: View {
+        let updater: UpdaterService
+
+        var body: some View {
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
+        }
+    }
+}
+
 struct ContainerCommands: Commands {
     let service: ContainerServiceBase
     let bridge: MenuBarBridge

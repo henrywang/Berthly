@@ -192,6 +192,12 @@
     "Attach with --volume %@:/path" : {
 
     },
+    "Automatically check for updates" : {
+
+    },
+    "Automatically download and install updates" : {
+
+    },
     "Berthly" : {
 
     },
@@ -247,6 +253,9 @@
 
     },
     "Capacity" : {
+
+    },
+    "Check for Updates…" : {
 
     },
     "Choose a folder…" : {
@@ -1372,6 +1381,9 @@
     "Update Required" : {
 
     },
+    "Updates" : {
+
+    },
     "Updating container to v%@…" : {
 
     },
@@ -1427,6 +1439,9 @@
 
     },
     "Writing archive…" : {
+
+    },
+    "You can always check manually from the Berthly menu: Check for Updates…" : {
 
     },
     "You may be asked for your admin password. This can take a few minutes." : {

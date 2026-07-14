@@ -12,6 +12,11 @@ struct BerthlyApp: App {
     @State private var service: ContainerServiceBase = Self.makeService()
     @State private var menuBarBridge = MenuBarBridge()
     @State private var buildJobManager = BuildJobManager()
+    /// Sparkle self-updater (PLAN/UPGRADE.md). Not started under tests, so nothing can hit the
+    /// update feed or pop update UI mid-test.
+    @State private var updaterService = UpdaterService(
+        startingUpdater: UpdaterService.shouldStartUpdater(environment: ProcessInfo.processInfo.environment)
+    )
     /// Mirrors the General settings toggle — `MenuBarExtra(isInserted:)` inserts/removes the
     /// status item live as it changes.
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
@@ -47,6 +52,7 @@ struct BerthlyApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
+            UpdaterCommands(updater: updaterService)
             ContainerCommands(service: service, bridge: menuBarBridge)
         }
 
@@ -69,6 +75,7 @@ struct BerthlyApp: App {
 
         Settings {
             SettingsView()
+                .environment(updaterService)
         }
     }
 }

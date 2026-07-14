@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Sparkle self-update configuration (see PLAN/UPGRADE.md). This file is merged into the
+	     generated Info.plist via INFOPLIST_FILE; it lives outside the Berthly/ synchronized
+	     group so the build doesn't also copy it as a bundle resource. -->
+
+	<!-- Appcast feed: attached to each GitHub release by the release script, so "latest" always
+	     serves the newest release's feed. Dormant (404, silent for scheduled checks) until the
+	     first release publishes an appcast.xml asset. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/henrywang/Berthly/releases/latest/download/appcast.xml</string>
+
+	<!-- EdDSA public key for update signature verification. The private key lives in the
+	     release Mac's login keychain (Sparkle `generate_keys`, 2026-07-14) — losing it strands
+	     every installed copy on manual re-downloads, so keep an exported backup
+	     (`generate_keys -x`). -->
+	<key>SUPublicEDKey</key>
+	<string>leVOeieVTEAIa83/mmUc26sKeDfIycUbApNEN2Mij+g=</string>
+
+	<!-- Berthly owns the "Automatically check for updates" toggle in Settings; defining this key
+	     also suppresses Sparkle's own first-launch permission prompt. -->
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+</dict>
+</plist>
