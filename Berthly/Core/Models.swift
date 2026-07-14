@@ -101,6 +101,12 @@ enum ImageUsage {
         case .builderImage:  return "builder image"
         }
     }
+
+    /// Only `.unused` — a builder image is infrastructure, not reclaimable space.
+    nonisolated var isUnused: Bool {
+        if case .unused = self { return true }
+        return false
+    }
 }
 
 struct ContainerImage: Identifiable, Hashable {
@@ -144,6 +150,25 @@ extension ContainerImage {
     /// so it's reconstructed the same way `Volume.resolvingMounts` reconstructs mounts.
     /// Machine image refs aren't pre-stripped of a trailing `@digest` the way `Container.image`
     /// is, so that's normalized here before comparing.
+    /// Disk-usage summary for the images list's header bar. Sizes are deduplicated by content
+    /// digest: a retag adds a second *name* for the same bytes, not a second copy on disk, so
+    /// summing `sizeBytes` per row would double-count. A digest's bytes are reclaimable only
+    /// when *every* name pointing at it is unused — deleting an unused tag whose content is
+    /// still referenced through another name frees nothing.
+    nonisolated static func diskUsage(of images: [ContainerImage]) -> (totalBytes: Int64, reclaimableBytes: Int64) {
+        var sizeByDigest: [String: Int64] = [:]
+        var allUnusedByDigest: [String: Bool] = [:]
+        for image in images {
+            sizeByDigest[image.digest] = max(sizeByDigest[image.digest, default: 0], image.sizeBytes)
+            allUnusedByDigest[image.digest] = allUnusedByDigest[image.digest, default: true] && image.usage.isUnused
+        }
+        let total = sizeByDigest.values.reduce(0, +)
+        let reclaimable = sizeByDigest.reduce(Int64(0)) { sum, entry in
+            allUnusedByDigest[entry.key] == true ? sum + entry.value : sum
+        }
+        return (total, reclaimable)
+    }
+
     nonisolated static func resolvingUsage(_ images: [ContainerImage], containers: [Container], machines: [Machine]) -> [ContainerImage] {
         func strippedDigest(_ ref: String) -> String {
             guard let atIdx = ref.firstIndex(of: "@") else { return ref }

@@ -36,6 +36,12 @@ struct ImagesListView: View {
     private var local:  [ContainerImage] { filtered.filter { $0.source == .built } }
     private var pulled: [ContainerImage] { filtered.filter { $0.source == .pulled } }
 
+    // Summarizes all images, not `filtered` — like the Volumes bar, it reports disk state,
+    // which a text filter doesn't change.
+    private var diskUsage: (totalBytes: Int64, reclaimableBytes: Int64) {
+        ContainerImage.diskUsage(of: service.images)
+    }
+
     var body: some View {
         Group {
             if service.images.isEmpty {
@@ -72,12 +78,23 @@ struct ImagesListView: View {
                 // flush top-level view under the toolbar — otherwise macOS shows a stray hairline
                 // divider under the toolbar that Compute/Networks (List with no header) don't have.
                 .safeAreaInset(edge: .top) {
-                    HStack {
+                    HStack(spacing: 8) {
+                        Label(formatSize(diskUsage.totalBytes) + " on disk", systemImage: "internaldrive")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if diskUsage.reclaimableBytes > 0 {
+                            Text(formatSize(diskUsage.reclaimableBytes) + " reclaimable")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(Color.statusPaused)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.statusPaused.opacity(0.12), in: Capsule())
+                        }
                         Spacer()
                         LibrarySortMenu(selectionRaw: $sortOrderRaw)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
                     .background(.background)
                 }
             }
