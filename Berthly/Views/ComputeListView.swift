@@ -203,6 +203,14 @@ private struct ContainerComputeRow: View {
             Spacer()
 
             if isHovered {
+                if !isRunning {
+                    Button { perform { try await service.startContainer(container.id) } } label: {
+                        Image(systemName: "play.fill")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Start Container")
+                    .accessibilityLabel("Start")
+                }
                 Button(role: .destructive) { showDeleteConfirm = true } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(container.status == .running ? Color.secondary : Color.red)
@@ -304,6 +312,14 @@ private struct MachineComputeRow: View {
             Spacer()
 
             if isHovered {
+                if !isRunning {
+                    Button { perform { try await service.startMachine(machine.id) } } label: {
+                        Image(systemName: "play.fill")
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Start Machine")
+                    .accessibilityLabel("Start")
+                }
                 Button(role: .destructive) { showDeleteConfirm = true } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(machine.status == .running ? Color.secondary : Color.red)

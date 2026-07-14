@@ -1133,10 +1133,16 @@
     "Start a new container from an image" : {
 
     },
+    "Start Container" : {
+
+    },
     "Start Container System" : {
 
     },
     "Start immediately" : {
+
+    },
+    "Start Machine" : {
 
     },
     "Start the container to copy files" : {
