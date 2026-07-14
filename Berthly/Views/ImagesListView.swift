@@ -189,22 +189,19 @@ private struct ImageRow: View {
                 Spacer()
 
                 if isHovered {
-                    HStack(spacing: 12) {
-                        Button { showRunSheet = true } label: {
-                            Image(systemName: "play.fill")
-                                .foregroundStyle(Color.berthlyAccent)
-                        }
-                        .buttonStyle(.hoverIcon)
-                        .help("Run from this image")
-                        .accessibilityLabel("Run from this image")
-
-                        Button(role: .destructive) { showDeleteConfirm = true } label: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.red)
-                        }
-                        .buttonStyle(.hoverIcon)
-                        .help("Delete Image")
+                    Button { showRunSheet = true } label: {
+                        Image(systemName: "play.fill")
                     }
+                    .buttonStyle(.hoverIcon)
+                    .help("Run from this image")
+                    .accessibilityLabel("Run from this image")
+
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Image(systemName: "trash")
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.hoverIcon)
+                    .help("Delete Image")
                 } else {
                     VStack(alignment: .trailing, spacing: 2) {
                         Text(formatSize(image.sizeBytes))
