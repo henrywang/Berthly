@@ -99,6 +99,10 @@ class ContainerServiceBase {
     func deleteImage(_ reference: String) async throws {}
     func deleteVolume(_ name: String) async throws {}
     func deleteNetwork(_ id: String) async throws {}
+    /// Boot the stopped builder container — like `container builder start`. Uses the configured
+    /// default CPU/memory (the CLI's `-c`/`-m` overrides stay a CLI affair); a later build reuses
+    /// the running builder instead of paying the boot cost itself.
+    func startBuilder(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
     /// Delete the (stopped) builder container and its build cache — like `container builder
     /// delete`. The next build recreates the builder automatically, so this is the "reset a

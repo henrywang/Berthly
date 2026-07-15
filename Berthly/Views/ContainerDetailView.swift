@@ -366,14 +366,17 @@ private struct InspectSection: View {
 
 private struct LogsTab: View {
     let container: Container
+    @State private var source: LogStreamer.LogSource = .stdio
 
     var body: some View {
-        LogStreamView(id: container.id) { onLine in
+        // `id` folds in the source so switching Output ↔ Boot restarts the stream task.
+        LogStreamView(id: "\(container.id)-\(source.rawValue)", stream: { onLine in
             try await LogStreamer.stream(
+                source: source,
                 fetch: { try await ContainerClient().logs(id: container.id) },
                 onLine: onLine
             )
-        }
+        }, source: $source)
     }
 }
 

@@ -808,6 +808,9 @@
     "local/myapp:1.0" : {
 
     },
+    "Log source" : {
+
+    },
     "Machine created" : {
 
     },
@@ -1233,6 +1236,9 @@
 
     },
     "Start a new container from an image" : {
+
+    },
+    "Start Builder" : {
 
     },
     "Start Container" : {

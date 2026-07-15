@@ -1220,6 +1220,17 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    /// Native replication of `container builder start` with default resources: reuses the same
+    /// create-or-bootstrap path builds go through (`startBuilderContainer`), so a matching stopped
+    /// builder is booted in place and a config-drifted one is recreated. Log output is dropped —
+    /// the row's spinner covers the (fast, image-already-present) boot; first-ever builder
+    /// creation with its image download normally happens via a build, which does stream logs.
+    override func startBuilder(_ id: String) async throws {
+        let config = await resolvedSystemConfig()
+        try await startBuilderContainer(containerSystemConfig: config, cpus: nil, memory: nil, onLog: { _ in })
+        await refresh()
+    }
+
     override func stopBuilder(_ id: String) async throws {
         try await ContainerClient().stop(id: id)
         await refresh()

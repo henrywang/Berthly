@@ -79,6 +79,55 @@ struct LogStreamerTests {
         #expect(collector.lines.isEmpty)
     }
 
+    @MainActor
+    @Test func streamBootSourceReadsTheSecondHandle() async throws {
+        // The daemon replies `[stdio, boot]` for container/machine logs; `.boot` must select the
+        // second handle — mirroring the CLI's `logs --boot` (`fhs[1]`) — and never mix in stdio.
+        let stdio = Pipe(), boot = Pipe()
+        stdio.fileHandleForWriting.write(Data("stdout: hello\n".utf8))
+        try stdio.fileHandleForWriting.close()
+        boot.fileHandleForWriting.write(Data("vminit: booting\nvminit: ready\n".utf8))
+        try boot.fileHandleForWriting.close()
+
+        let collector = Collector()
+        let task = Task { @MainActor in
+            try await LogStreamer.stream(
+                source: .boot,
+                fetch: { [stdio.fileHandleForReading, boot.fileHandleForReading] },
+                onLine: { collector.lines.append($0) }
+            )
+        }
+        var waited = 0
+        while collector.lines.count < 2, waited < 200 {
+            try await Task.sleep(for: .milliseconds(5))
+            waited += 1
+        }
+        task.cancel()
+        _ = try? await task.value
+
+        #expect(collector.lines == ["vminit: booting", "vminit: ready"])
+    }
+
+    @MainActor
+    @Test func streamBootSourceReturnsQuietlyWhenBootHandleIsMissing() async throws {
+        // A daemon reply with fewer handles than expected must not crash on `fhs[1]` — the view
+        // just shows an empty log. The lone (stdio) handle still gets closed on the way out.
+        let pipe = Pipe()
+        try pipe.fileHandleForWriting.close()
+        let collector = Collector()
+        try await LogStreamer.stream(
+            source: .boot,
+            fetch: { [pipe.fileHandleForReading] },
+            onLine: { collector.lines.append($0) }
+        )
+        #expect(collector.lines.isEmpty)
+    }
+
+    @Test func logSourceHandleIndicesMatchTheDaemonReplyOrder() {
+        #expect(LogStreamer.LogSource.stdio.handleIndex == 0)
+        #expect(LogStreamer.LogSource.boot.handleIndex == 1)
+    }
+
     @Test func readUpToCountThrowsRatherThanCrashingOnInvalidFd() throws {
         // Isolates the follow loop's exact primitive (`read(upToCount:)`, which wraps
         // `readDataUpToLength:error:` — the selector named in the production crash trace) rather

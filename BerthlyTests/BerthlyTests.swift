@@ -820,6 +820,21 @@ struct MockContainerServiceTests {
         #expect(mock.containers.first(where: { $0.id == running[1].id })?.status == .running)
     }
 
+    @Test func startBuilderBootsAStoppedBuilderKeepingItsConfig() async throws {
+        let mock = MockContainerService()
+        let builder = try #require(mock.builders.first)
+        try await mock.stopBuilder(builder.id)
+        #expect(mock.builders.first?.status == .stopped)
+
+        try await mock.startBuilder(builder.id)
+
+        let restarted = try #require(mock.builders.first)
+        #expect(restarted.status == .running)
+        #expect(restarted.image == builder.image)
+        #expect(restarted.cpus == builder.cpus)
+        #expect(restarted.memoryGB == builder.memoryGB)
+    }
+
     @Test func pruneVolumesRemovesOnlyUnmountedVolumesAndReportsFreedBytes() async throws {
         let mock = MockContainerService()
         let unmounted = mock.volumes.filter(\.mounts.isEmpty)

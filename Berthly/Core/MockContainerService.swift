@@ -202,6 +202,13 @@ final class MockContainerService: ContainerServiceBase {
         pinnedMachineIDs.remove(id)
     }
 
+    override func startBuilder(_ id: String) async throws {
+        guard let i = builders.firstIndex(where: { $0.id == id }) else { return }
+        let b = builders[i]
+        builders[i] = Builder(id: b.id, name: b.name, image: b.image, status: .running,
+                              autoStarted: b.autoStarted, cpus: b.cpus, memoryGB: b.memoryGB)
+    }
+
     override func stopBuilder(_ id: String) async throws {
         guard let i = builders.firstIndex(where: { $0.id == id }) else { return }
         let b = builders[i]

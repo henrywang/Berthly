@@ -9,12 +9,30 @@ import Foundation
 /// test with an in-memory `Pipe` rather than a live XPC connection. The pure line-splitting step
 /// (`lines(from:)`) is the primary test target.
 enum LogStreamer {
-    /// Emits every existing line from the first handle, then follows appended data until the
+    /// Which of the daemon's two log files to stream. The daemon hands back `[stdio, boot]` for
+    /// both containers and machines; the CLI's `logs --boot` flag selects the second — this is
+    /// the GUI's equivalent. Raw values feed the Logs tab's segmented picker labels.
+    nonisolated enum LogSource: String, CaseIterable, Hashable {
+        case stdio = "Output"
+        case boot  = "Boot"
+
+        /// Position of this source in the daemon's `[FileHandle]` reply — mirrors the CLI's
+        /// `boot ? fhs[1] : fhs[0]` in `ContainerLogs`/`MachineLogs`.
+        var handleIndex: Int {
+            switch self {
+            case .stdio: 0
+            case .boot:  1
+            }
+        }
+    }
+
+    /// Emits every existing line from the selected handle, then follows appended data until the
     /// surrounding task is cancelled. Runs on the main actor (callers invoke it from a view's
     /// `.task`), hopping to a detached task only for the blocking `FileHandle` reads so the UI
     /// never stalls.
     @MainActor
     static func stream(
+        source: LogSource = .stdio,
         fetch: @escaping () async throws -> [FileHandle],
         onLine: @escaping (String) -> Void
     ) async throws {
@@ -24,7 +42,8 @@ enum LogStreamer {
         // ourselves. By the time this function returns or throws, every detached read below has
         // already completed (we `await` each), so closing here never races an in-flight read.
         defer { for fh in fhs { try? fh.close() } }
-        guard let fh = fhs.first else { return }
+        guard fhs.count > source.handleIndex else { return }
+        let fh = fhs[source.handleIndex]
 
         // Drain whatever's already buffered off the main actor. `readToEnd()` (not the deprecated
         // `readDataToEndOfFile()`) surfaces a bad/closed descriptor as a catchable Swift `Error`

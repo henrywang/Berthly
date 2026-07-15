@@ -617,6 +617,7 @@ private struct BuilderRow: View {
     @State private var isStopping = false
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
+    @State private var isStarting = false
     @State private var errorMessage: String?
 
     private var isRunning: Bool { builder.status == .running }
@@ -641,6 +642,24 @@ private struct BuilderRow: View {
                     .disabled(isStopping)
                     .help("Stop Builder")
                 } else {
+                    // Benign and instantly reversible, so no confirmation alert — like
+                    // `container builder start`, this just boots the builder VM so the next
+                    // build skips the boot wait. Uses the configured default resources.
+                    Button {
+                        isStarting = true
+                        Task {
+                            do { try await service.startBuilder(builder.id) }
+                            catch { errorMessage = error.localizedDescription }
+                            isStarting = false
+                        }
+                    } label: {
+                        Label("Start", systemImage: "play.fill")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isStarting || isDeleting)
+                    .help("Start Builder")
+
                     // Delete only offered once stopped — same stop-first gate as container rows
                     // (the CLI needs --force to delete a running builder; the GUI doesn't offer
                     // that). The next build recreates the builder, so this is the reset path for
@@ -650,7 +669,7 @@ private struct BuilderRow: View {
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .disabled(isDeleting)
+                    .disabled(isDeleting || isStarting)
                     .help("Delete Builder")
                 }
             }
@@ -665,7 +684,7 @@ private struct BuilderRow: View {
                     .truncationMode(.middle)
             }
         }
-        .opacity(isStopping || isDeleting ? 0.4 : 1)
+        .opacity(isStopping || isDeleting || isStarting ? 0.4 : 1)
         .alert("Stop \(builder.name)?", isPresented: $showStopConfirm) {
             Button("Stop", role: .destructive) {
                 isStopping = true
@@ -804,6 +823,22 @@ private struct DaemonLogView: View {
         }
         return Line(time: String(fields[0].prefix(8)), message: String(fields[2]))
     }
+}
+
+#Preview("Builder rows — running / stopped") {
+    let mock = MockContainerService()
+    mock.builders = [
+        Builder(id: "running", name: "buildkit", image: "buildkit:0.13", status: .running,
+                autoStarted: true, cpus: 2, memoryGB: 2),
+        Builder(id: "stopped", name: "buildkit", image: "buildkit:0.13", status: .stopped,
+                autoStarted: false, cpus: 2, memoryGB: 2),
+    ]
+    return Form {
+        BuilderSection()
+    }
+    .formStyle(.grouped)
+    .environment(mock as ContainerServiceBase)
+    .frame(width: 560, height: 220)
 }
 
 #Preview("Daemon log — copy overlay") {

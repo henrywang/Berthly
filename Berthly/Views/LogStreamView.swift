@@ -9,6 +9,11 @@ import SwiftUI
 struct LogStreamView: View {
     let id: AnyHashable
     let stream: (@escaping @MainActor (String) -> Void) async throws -> Void
+    /// When set, the toolbar shows an Output/Boot segmented picker bound to the caller's log
+    /// source — the GUI equivalent of the CLI's `logs --boot` flag. The caller must fold the
+    /// source into `id` so switching restarts the stream task. `nil` hides the picker (Daemon
+    /// Logs and other single-source streams).
+    var source: Binding<LogStreamer.LogSource>? = nil
 
     struct LogLine: Identifiable {
         let id = UUID()
@@ -73,6 +78,18 @@ struct LogStreamView: View {
                 TextField("Filter logs", text: $filterText)
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 300)
+
+                if let source {
+                    Picker("Log source", selection: source) {
+                        ForEach(LogStreamer.LogSource.allCases, id: \.self) { s in
+                            Text(s.rawValue).tag(s)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .fixedSize()
+                    .accessibilityIdentifier("logSourcePicker")
+                }
 
                 Spacer()
 
@@ -264,6 +281,19 @@ private struct LogStreamLineRow: View {
         }
     }
     .frame(width: 640, height: 260)
+}
+
+#Preview("Full view — with source picker") {
+    LogStreamView(id: "preview-boot", stream: { onLine in
+        for raw in [
+            "vminit: mounting rootfs",
+            "vminit: starting init process",
+            "vminit: ready",
+        ] {
+            await MainActor.run { onLine(raw) }
+        }
+    }, source: .constant(.boot))
+    .frame(width: 640, height: 220)
 }
 
 #Preview("Log rows — structured / mixed / plain") {
