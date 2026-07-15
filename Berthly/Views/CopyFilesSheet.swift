@@ -54,20 +54,11 @@ struct CopyFilesSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "folder")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Copy Files")
-                    .font(.headline)
-                Text("Move a file or folder between your Mac and \(targetName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(20)
+        SheetHeader(
+            systemImage: "folder",
+            title: "Copy Files",
+            subtitle: "Move a file or folder between your Mac and \(targetName)"
+        )
     }
 
     // MARK: - Fields
@@ -120,6 +111,7 @@ struct CopyFilesSheet: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField(placeholder, text: $hostPath)
+                    .accessibilityIdentifier("copyHostPathField")
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.callout, design: .monospaced))
                     .disabled(isCopying)
@@ -135,6 +127,7 @@ struct CopyFilesSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: $containerPath)
+                .accessibilityIdentifier("copyContainerPathField")
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
                 .disabled(isCopying)
@@ -194,6 +187,7 @@ struct CopyFilesSheet: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!canCopy)
                     .keyboardShortcut(.return)
+                    .accessibilityIdentifier("copyFilesSubmitButton")
             }
         }
         .padding(.horizontal, 20)

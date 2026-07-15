@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# The workflow only checks out and tests code; the token never needs write access.
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -35,7 +39,8 @@ jobs:
           - name: UI tests (mock mode)
             only-testing: BerthlyUITests
     steps:
-      - uses: actions/checkout@v7
+      # Pinned to a full commit SHA so a moved tag can't silently change what runs.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
       - name: Select latest Xcode 26
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"

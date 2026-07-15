@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 // MARK: - Create-machine state
@@ -58,20 +61,11 @@ struct MachineCreateSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "desktopcomputer")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Create Machine")
-                        .font(.headline)
-                    Text("Provision a new container machine from an image")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "desktopcomputer",
+                title: "Create Machine",
+                subtitle: "Provision a new container machine from an image"
+            )
 
             Divider()
 
@@ -90,41 +84,25 @@ struct MachineCreateSheet: View {
 
             Divider()
 
-            HStack {
-                Spacer()
-                switch state.result {
-                case .success:
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                case .failure:
-                    Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
-                        .buttonStyle(.bordered)
-                case nil:
-                    if state.isRunning {
-                        Button("Cancel") { cancelRun() }.keyboardShortcut(.cancelAction)
-                        Button {} label: {
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.small)
-                                Text("Creating…")
-                            }
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(true)
-                    } else {
-                        Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                        Button("Create") { startSubmit() }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(!canCreate)
-                            .keyboardShortcut(.return)
-                            .accessibilityIdentifier("machineCreateSubmitButton")
-                    }
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: footerPhase,
+                submitLabel: "Create",
+                busyLabel: "Creating…",
+                canSubmit: canCreate,
+                submitIdentifier: "machineCreateSubmitButton",
+                onCancel: cancelRun,
+                onSubmit: startSubmit
+            )
         }
         .frame(width: 520)
+    }
+
+    private var footerPhase: SheetSubmitFooter.Phase {
+        switch state.result {
+        case .success: return .done
+        case .failure: return .failed
+        case nil:      return state.isRunning ? .working : .idle
+        }
     }
 
     private var canCreate: Bool {
@@ -197,16 +175,7 @@ struct MachineCreateSheet: View {
                 Toggle("Set as default machine", isOn: $setDefault)
                     .toggleStyle(.checkbox)
 
-                Toggle(isOn: $insecureRegistry) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Allow insecure registry")
-                            .font(.caption.weight(.medium))
-                        Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .toggleStyle(.checkbox)
+                InsecureRegistryToggle(isOn: $insecureRegistry)
             }
             .padding(.top, 10)
         }
@@ -220,38 +189,22 @@ struct MachineCreateSheet: View {
     private var activeContent: some View {
         switch state.result {
         case .success(let ref):
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Machine created")
-                        .font(.callout.weight(.semibold))
-                    Text(ref)
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
-                }
+            SheetStatusCallout(symbol: "checkmark.circle.fill", tint: .green, title: "Machine created", alignment: .center) {
+                SheetCalloutDetail(text: ref)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
 
         case .failure(let msg):
-            HStack(spacing: 12) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.title3)
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(6)
+            SheetCallout(tint: .red, padding: 14) {
+                HStack(spacing: 12) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.title3)
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(6)
+                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
 
         case nil:
             HStack(spacing: 8) {

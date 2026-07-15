@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 // MARK: - Tag Image Sheet
@@ -37,20 +40,11 @@ struct TagImageSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "tag")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Tag Image")
-                        .font(.headline)
-                    Text("Creates an additional name for this image")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "tag",
+                title: "Tag Image",
+                subtitle: "Creates an additional name for this image"
+            )
 
             Divider()
 
@@ -61,68 +55,33 @@ struct TagImageSheet: View {
                     idleContent
                 }
                 if let error = errorMessage {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "xmark.octagon.fill")
-                            .foregroundStyle(.red)
-                            .font(.title3)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Tag failed")
-                                .font(.callout.weight(.semibold))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(4)
-                        }
+                    SheetStatusCallout(symbol: "xmark.octagon.fill", tint: .red, title: "Tag failed") {
+                        SheetCalloutDetail(text: error, monospaced: false, lineLimit: 4)
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
                 }
             }
             .padding(20)
 
             Divider()
 
-            HStack {
-                Spacer()
-                if createdReference != nil {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                } else {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Button("Tag") { startTag() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canTag)
-                        .keyboardShortcut(.return)
-                        .accessibilityIdentifier("tagSubmitButton")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: createdReference != nil ? .done : .idle,
+                submitLabel: "Tag",
+                canSubmit: canTag,
+                submitIdentifier: "tagSubmitButton",
+                onSubmit: startTag
+            )
         }
         .frame(width: 480)
     }
 
     @ViewBuilder
     private var idleContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Source")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-            Text(image.fullName)
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
+        SheetField("Source") {
+            SheetMonospacedValue(text: image.fullName)
         }
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("New reference")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+        SheetField("New reference") {
             TextField("team/web:2.0", text: $target)
                 .accessibilityIdentifier("tagTargetField")
                 .textFieldStyle(.roundedBorder)
@@ -146,41 +105,24 @@ struct TagImageSheet: View {
     }
 
     private func issueHint(_ text: String, color: Color, symbol: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: symbol)
-                .foregroundStyle(color)
-                .imageScale(.small)
-                .padding(.top, 1)
-            Text(text)
-                .fixedSize(horizontal: false, vertical: true)
+        SheetCallout(tint: color) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: symbol)
+                    .foregroundStyle(color)
+                    .imageScale(.small)
+                    .padding(.top, 1)
+                Text(text)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(color.opacity(0.2), lineWidth: 0.5))
     }
 
     private func doneContent(_ reference: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Image tagged")
-                    .font(.callout.weight(.semibold))
-                Text(reference)
-                    .font(.caption)
-                    .fontDesign(.monospaced)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-            }
+        SheetStatusCallout(symbol: "checkmark.circle.fill", tint: .green, title: "Image tagged", alignment: .center) {
+            SheetCalloutDetail(text: reference, selectable: true)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
     }
 
     private func startTag() {

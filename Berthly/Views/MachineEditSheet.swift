@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// Edit an existing machine's boot settings — `container machine set` as a form. Follows
@@ -24,20 +27,11 @@ struct MachineEditSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "slider.horizontal.3")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Edit \(machine.name)")
-                        .font(.headline)
-                    Text("Currently \(machine.resources)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "slider.horizontal.3",
+                title: "Edit \(machine.name)",
+                subtitle: "Currently \(machine.resources)"
+            )
 
             Divider()
 

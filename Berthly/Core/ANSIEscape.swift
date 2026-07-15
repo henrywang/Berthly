@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import Foundation
 
 /// Strips ANSI/VT terminal escape sequences and stray control characters out of a line of log

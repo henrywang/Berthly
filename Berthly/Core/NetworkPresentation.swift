@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import Foundation
 
 /// Pure presentation logic for the Networks list/detail views, kept out of the view layer so

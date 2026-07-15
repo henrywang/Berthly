@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -39,79 +42,40 @@ struct SaveImageSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.and.arrow.down")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Save Image to Disk")
-                        .font(.headline)
-                    Text("Exports an OCI tar archive that container image load can import")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "square.and.arrow.down",
+                title: "Save Image to Disk",
+                subtitle: "Exports an OCI tar archive that container image load can import"
+            )
 
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Image")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text(request.reference)
-                        .font(.system(.callout, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
+                SheetField("Image") {
+                    SheetMonospacedValue(text: request.reference)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Destination")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text(request.destination.path(percentEncoded: false))
-                        .font(.system(.callout, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
+                SheetField("Destination") {
+                    SheetMonospacedValue(text: request.destination.path(percentEncoded: false))
                 }
 
                 if isDone {
-                    HStack(spacing: 12) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.title3)
-                        Text("Image saved")
-                            .font(.callout.weight(.semibold))
-                        Spacer()
-                        Button("Reveal in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([request.destination])
-                        }
-                    }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
-                } else if let error = errorMessage {
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "xmark.octagon.fill")
-                            .foregroundStyle(.red)
-                            .font(.title3)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Save failed")
+                    SheetCallout(tint: .green, padding: 14) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.title3)
+                            Text("Image saved")
                                 .font(.callout.weight(.semibold))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(4)
+                            Spacer()
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([request.destination])
+                            }
                         }
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
+                } else if let error = errorMessage {
+                    SheetStatusCallout(symbol: "xmark.octagon.fill", tint: .red, title: "Save failed") {
+                        SheetCalloutDetail(text: error, monospaced: false, lineLimit: 4)
+                    }
                 } else {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Writing archive…")
@@ -124,22 +88,16 @@ struct SaveImageSheet: View {
 
             Divider()
 
-            HStack {
-                Spacer()
-                if isDone || errorMessage != nil {
-                    Button(isDone ? "Done" : "Close") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                } else {
-                    // Best-effort: the XPC save call doesn't observe cancellation, so this
-                    // abandons the wait rather than stopping the daemon-side write — the archive
-                    // may still appear. Matches the push sheet's cancel semantics.
-                    Button("Cancel") { saveTask?.cancel(); dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            // done/error collapse to a prominent dismiss; while writing, offer only a best-effort
+            // Cancel (the XPC save call doesn't observe cancellation, so this abandons the wait
+            // rather than stopping the daemon-side write — the archive may still appear).
+            SheetSubmitFooter(
+                phase: (isDone || errorMessage != nil) ? .done : .working,
+                submitLabel: "",
+                doneLabel: isDone ? "Done" : "Close",
+                showsBusyButton: false,
+                onCancel: { saveTask?.cancel(); dismiss() }
+            )
         }
         .frame(width: 480)
         .task { await performSave() }

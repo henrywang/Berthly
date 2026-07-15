@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import MachineAPIClient
 import SwiftUI
 
@@ -127,6 +130,7 @@ private struct MachineDetailContent: View {
                 Image(systemName: "slider.horizontal.3")
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("machineEditButton")
             .help("Edit CPU, memory, and home mount…")
             .hoverScale()
             // No Copy Files button here (unlike ContainerDetailView): `copyIn`/`copyOut` write to the

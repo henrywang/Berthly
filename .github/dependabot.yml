@@ -1,0 +1,12 @@
+# Keep GitHub Actions current (checkout is SHA-pinned; Dependabot bumps the pin).
+#
+# Swift dependencies (Sparkle, SwiftTerm, apple/container) are NOT covered:
+# Dependabot's `swift` ecosystem only understands Package.swift manifests, and
+# Berthly declares its packages in the Xcode project. Review those manually
+# when bumping ContainerCompatibility.requiredVersion or on Sparkle releases.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"

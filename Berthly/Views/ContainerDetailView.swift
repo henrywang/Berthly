@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import Charts
 import ContainerAPIClient
 import ContainerResource
@@ -131,6 +134,7 @@ private struct ContainerDetailContent: View {
                 Image(systemName: "folder")
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("copyFilesButton")
             // The copy API rejects a non-running container ("container is not running"), so the
             // action is only offered while running — same gate the Terminal tab uses.
             .disabled(container.status != .running)

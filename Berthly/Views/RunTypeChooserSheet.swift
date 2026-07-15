@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// The chooser that opens from the toolbar's Run button — replaces a plain text menu since

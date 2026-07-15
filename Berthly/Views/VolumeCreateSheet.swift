@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// "Create volume" form — the GUI equivalent of `container volume create`: a named volume on the
@@ -25,50 +28,34 @@ struct VolumeCreateSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "cylinder")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Create Volume")
-                        .font(.headline)
-                    Text("A named volume on the local driver")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "cylinder",
+                title: "Create Volume",
+                subtitle: "A named volume on the local driver"
+            )
 
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Name")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                SheetField("Name") {
                     TextField("my-volume", text: $name)
                         .accessibilityIdentifier("volumeNameField")
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Size")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                SheetField("Size") {
                     TextField("10G", text: $size)
                         .textFieldStyle(.roundedBorder)
                         .frame(width: 140)
                         .accessibilityIdentifier("volumeSizeField")
+                } footer: {
                     if let sizeError {
                         Text(sizeError)
                             .font(.caption2)
                             .foregroundStyle(.red)
                     } else {
-                        Text("Optional — blank uses the 512 GB default. Accepts K, M, G, T, P suffixes.")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                        SheetFieldHint("Optional — blank uses the 512 GB default. Accepts K, M, G, T, P suffixes.")
                     }
                 }
 
@@ -81,28 +68,14 @@ struct VolumeCreateSheet: View {
 
             Divider()
 
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                if isSubmitting {
-                    Button {} label: {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Creating…")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(true)
-                } else {
-                    Button("Create") { submit() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canSubmit)
-                        .keyboardShortcut(.return)
-                        .accessibilityIdentifier("volumeCreateSubmitButton")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: isSubmitting ? .working : .idle,
+                submitLabel: "Create",
+                busyLabel: "Creating…",
+                canSubmit: canSubmit,
+                submitIdentifier: "volumeCreateSubmitButton",
+                onSubmit: submit
+            )
         }
         .frame(width: 440)
     }

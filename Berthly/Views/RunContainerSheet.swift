@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 // MARK: - Run state
@@ -119,21 +122,11 @@ struct RunContainerSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "shippingbox")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Run Container")
-                        .font(.headline)
-                    Text("Start a new container from an image")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "shippingbox",
+                title: "Run Container",
+                subtitle: "Start a new container from an image"
+            )
 
             Divider()
 
@@ -555,16 +548,7 @@ struct RunContainerSheet: View {
                 .font(.system(.callout, design: .monospaced))
         }
 
-        Toggle(isOn: $insecureRegistry) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Allow insecure registry")
-                    .font(.caption.weight(.medium))
-                Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .toggleStyle(.checkbox)
+        InsecureRegistryToggle(isOn: $insecureRegistry)
     }
 
     // MARK: - Active / done
@@ -573,49 +557,42 @@ struct RunContainerSheet: View {
     private var activeContent: some View {
         switch state.result {
         case .success(let ref, let output, _):
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                        .font(.title3)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(successLabel)
-                            .font(.callout.weight(.semibold))
-                        Text(ref)
-                            .font(.caption)
-                            .fontDesign(.monospaced)
-                            .foregroundStyle(.secondary)
+            SheetCallout(tint: .green, padding: 14) {
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.title3)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(successLabel)
+                                .font(.callout.weight(.semibold))
+                            SheetCalloutDetail(text: ref)
+                        }
+                    }
+                    if !output.isEmpty {
+                        Text(output)
+                            .font(.system(size: 11, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(10)
+                            .background(.background, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator, lineWidth: 0.5))
                     }
                 }
-                if !output.isEmpty {
-                    Text(output)
-                        .font(.system(size: 11, design: .monospaced))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(.background, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(.separator, lineWidth: 0.5))
-                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
 
         case .failure(let msg):
-            HStack(spacing: 12) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(.red)
-                    .font(.title3)
-                Text(msg)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(6)
+            SheetCallout(tint: .red, padding: 14) {
+                HStack(spacing: 12) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.red)
+                        .font(.title3)
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(6)
+                }
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
 
         case nil:
             HStack(spacing: 8) {

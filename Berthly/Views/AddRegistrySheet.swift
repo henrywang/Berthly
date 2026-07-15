@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// "Add a registry" sign-in form — the GUI equivalent of `container registry login`: enter a
@@ -22,20 +25,11 @@ struct AddRegistrySheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "globe")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Add a Registry")
-                        .font(.headline)
-                    Text("Add a host, then sign in — stored in the Keychain")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "globe",
+                title: "Add a Registry",
+                subtitle: "Add a host, then sign in — stored in the Keychain"
+            )
 
             Divider()
 

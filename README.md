@@ -53,12 +53,16 @@ xcodebuild test -scheme Berthly -destination 'platform=macOS'
 
 Berthly is a local tool, and it behaves like one:
 
-- **Everything stays on your Mac.** Berthly talks only to the local
-  `container` daemon over XPC. There is no telemetry, no analytics, no
-  crash reporting, and no calls home.
-- **The only network traffic is yours.** Image pulls, pushes, and registry
-  sign-ins go to the registries *you* configure — the same ones the
-  `container` CLI would contact.
+- **Everything stays on your Mac.** Berthly talks to the local `container`
+  daemon over XPC. There is no telemetry, no analytics, and no crash
+  reporting.
+- **Network traffic is limited to what you can see.** Image pulls, pushes,
+  and registry sign-ins go to the registries *you* configure — the same ones
+  the `container` CLI would contact. Beyond that, Berthly contacts GitHub in
+  exactly two cases: checking for Berthly updates (Sparkle fetches the
+  release feed from this repo's GitHub Releases — disable it in Settings if
+  you prefer), and downloading Apple's signed `container` installer when you
+  use the guided install/upgrade flow.
 - **Registry credentials live in your macOS Keychain**, in the very same
   Keychain items `container registry login` uses. Berthly never stores
   credentials anywhere else.

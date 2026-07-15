@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 import TerminalProgress
 
@@ -21,21 +24,11 @@ struct PullImageSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "globe")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Pull Image")
-                        .font(.headline)
-                    Text("Pulls from Docker Hub or any public registry — no sign-in")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "globe",
+                title: "Pull Image",
+                subtitle: "Pulls from Docker Hub or any public registry — no sign-in"
+            )
 
             Divider()
 
@@ -54,44 +47,21 @@ struct PullImageSheet: View {
 
             Divider()
 
-            // Footer
-            HStack {
-                Spacer()
-                if isDone {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                } else if isPulling {
-                    Button("Cancel") { cancelPull() }.keyboardShortcut(.cancelAction)
-                    Button {} label: {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Working…")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(true)
-                } else {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Button("Pull") { startPull() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(reference.trimmingCharacters(in: .whitespaces).isEmpty)
-                        .keyboardShortcut(.return)
-                        .accessibilityIdentifier("pullSubmitButton")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: isDone ? .done : (isPulling ? .working : .idle),
+                submitLabel: "Pull",
+                canSubmit: !reference.trimmingCharacters(in: .whitespaces).isEmpty,
+                submitIdentifier: "pullSubmitButton",
+                onCancel: cancelPull,
+                onSubmit: startPull
+            )
         }
         .frame(width: 480)
     }
 
     @ViewBuilder
     private var idleContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Image reference")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+        SheetField("Image reference") {
             TextField("ubuntu:24.04", text: $reference)
                 .accessibilityIdentifier("pullImageField")
                 .textFieldStyle(.roundedBorder)
@@ -99,126 +69,49 @@ struct PullImageSheet: View {
                 .onSubmit { startPull() }
         }
 
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "lock.fill")
-                .foregroundStyle(.green)
-                .imageScale(.small)
-                .padding(.top, 1)
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Anonymous pull — no sign-in needed. Short names resolve against \(Text("docker.io/library").fontDesign(.monospaced)).")
-                    .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 3) {
-                    Text("For a private image,")
-                    Button { onOpenRegistries() } label: {
-                        Text("sign in via Registries.").underline()
-                    }
-                    .buttonStyle(.link)
-                    .onHover { hovering in
-                        if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        SheetCallout(tint: .green) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "lock.fill")
+                    .foregroundStyle(.green)
+                    .imageScale(.small)
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Anonymous pull — no sign-in needed. Short names resolve against \(Text("docker.io/library").fontDesign(.monospaced)).")
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 3) {
+                        Text("For a private image,")
+                        Button { onOpenRegistries() } label: {
+                            Text("sign in via Registries.").underline()
+                        }
+                        .buttonStyle(.link)
+                        .onHover { hovering in
+                            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                     }
                 }
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
 
-        DisclosureGroup(isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 12) {
-                PlatformPicker(title: "Platform", selection: $platformChoice)
-                Toggle(isOn: $allowInsecure) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Allow insecure registry")
-                            .font(.caption.weight(.medium))
-                        Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-            }
-            .padding(.top, 10)
-        } label: {
-            Text("Advanced")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+        SheetAdvancedSection(isExpanded: $showAdvanced) {
+            PlatformPicker(title: "Platform", selection: $platformChoice)
+            InsecureRegistryToggle(isOn: $allowInsecure)
         }
     }
 
     @ViewBuilder
     private var activeContent: some View {
-        // Progress bar — visible while pulling, hidden when done
         if isPulling {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Pulling image")
-                        .font(.callout.weight(.semibold))
-                    Spacer()
-                    Text(pullProgress.percentText)
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                if let fraction = pullProgress.fraction {
-                    ProgressView(value: fraction)
-                } else {
-                    ProgressView().progressViewStyle(.linear)
-                }
-            }
+            TransferProgressHeader(title: "Pulling image", progress: pullProgress)
         }
 
-        // Log output box
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(pullProgress.logLines) { line in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(line.tag)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 36, alignment: .leading)
-                            Text(line.text)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(line.tag == "DONE" ? Color.green : Color.primary)
-                        }
-                        .id(line.id)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 130)
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
-            .onChange(of: pullProgress.logLines.count) { _, _ in
-                if let last = pullProgress.logLines.last {
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
-        }
+        TransferLogView(lines: pullProgress.logLines)
 
-        // Success box — visible when done
         if isDone {
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Image pulled")
-                        .font(.callout.weight(.semibold))
-                    Text(reference)
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
-                }
+            SheetStatusCallout(symbol: "checkmark.circle.fill", tint: .green, title: "Image pulled", alignment: .center) {
+                SheetCalloutDetail(text: reference)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
         }
     }
 

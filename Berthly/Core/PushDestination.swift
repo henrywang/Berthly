@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import Foundation
 
 /// The registry host of an image reference, or `nil` if the reference carries no explicit host

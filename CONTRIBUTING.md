@@ -130,3 +130,8 @@ Please use the issue templates — they ask for the environment details
 ## Security issues
 
 Please **do not** open a public issue — see [SECURITY.md](SECURITY.md).
+
+## Code of conduct
+
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md).
+By participating you agree to uphold it.
