@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 import TerminalProgress
 
@@ -113,6 +116,70 @@ final class TransferProgressState {
         { [weak self] events in
             guard let self else { return }
             await self.handle(events)
+        }
+    }
+}
+
+// MARK: - Transfer progress views (pull / push / load sheets)
+
+/// Verb headline with a live percentage and progress bar. Falls back to an indeterminate bar
+/// until the daemon reports totals (e.g. load's silent archive-read phase).
+struct TransferProgressHeader: View {
+    let title: LocalizedStringKey
+    let progress: TransferProgressState
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(title)
+                    .font(.callout.weight(.semibold))
+                Spacer()
+                Text(progress.percentText)
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            if let fraction = progress.fraction {
+                ProgressView(value: fraction)
+            } else {
+                ProgressView().progressViewStyle(.linear)
+            }
+        }
+    }
+}
+
+/// Auto-scrolling tag-gutter log box fed by `TransferProgressState.logLines`.
+struct TransferLogView: View {
+    let lines: [TransferProgressState.LogLine]
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(lines) { line in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text(line.tag)
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                                .frame(width: 36, alignment: .leading)
+                            Text(line.text)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(line.tag == "DONE" ? Color.green : Color.primary)
+                        }
+                        .id(line.id)
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 130)
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
+            .onChange(of: lines.count) { _, _ in
+                if let last = lines.last {
+                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
+            }
         }
     }
 }

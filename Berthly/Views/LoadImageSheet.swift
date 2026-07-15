@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -41,184 +44,89 @@ struct LoadImageSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.and.arrow.down.on.square")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Load Image from Disk")
-                        .font(.headline)
-                    Text("Imports images from an OCI tar archive into the local store")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "square.and.arrow.down.on.square",
+                title: "Load Image from Disk",
+                subtitle: "Imports images from an OCI tar archive into the local store"
+            )
 
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Archive")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Text(archiveURL.path(percentEncoded: false))
-                        .font(.system(.callout, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                        .textSelection(.enabled)
+                SheetField("Archive") {
+                    SheetMonospacedValue(text: archiveURL.path(percentEncoded: false))
                 }
 
                 if isLoading {
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Loading image")
-                                .font(.callout.weight(.semibold))
-                            Spacer()
-                            Text(loadProgress.percentText)
-                                .font(.callout.monospacedDigit())
-                                .foregroundStyle(.secondary)
-                        }
-                        // No fraction until the unpack phase starts reporting; indeterminate
-                        // covers the silent archive-read phase.
-                        if let fraction = loadProgress.fraction {
-                            ProgressView(value: fraction)
-                        } else {
-                            ProgressView().progressViewStyle(.linear)
-                        }
-                    }
+                    // No fraction until the unpack phase starts reporting; indeterminate covers
+                    // the silent archive-read phase.
+                    TransferProgressHeader(title: "Loading image", progress: loadProgress)
                 }
 
-                logView
+                TransferLogView(lines: loadProgress.logLines)
 
                 if let summary {
                     doneContent(summary)
                 }
 
                 if let error = errorMessage {
-                    VStack(alignment: .leading, spacing: 10) {
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: "xmark.octagon.fill")
-                                .foregroundStyle(.red)
-                                .font(.title3)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Load failed")
-                                    .font(.callout.weight(.semibold))
-                                Text(error)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(4)
-                            }
+                    SheetStatusCallout(symbol: "xmark.octagon.fill", tint: .red, title: "Load failed") {
+                        VStack(alignment: .leading, spacing: 10) {
+                            SheetCalloutDetail(text: error, monospaced: false, lineLimit: 4)
+                            // The client rejects archives with invalid member paths outright
+                            // unless asked to skip them — offer that retry here, when it's
+                            // relevant, instead of a scary up-front checkbox.
+                            Button("Load Anyway, Skipping Invalid Files") { startLoad(force: true) }
+                                .buttonStyle(.link)
+                                .font(.caption.weight(.medium))
                         }
-                        // The client rejects archives with invalid member paths outright unless
-                        // asked to skip them — offer that retry here, when it's relevant, instead
-                        // of a scary up-front checkbox.
-                        Button("Load Anyway, Skipping Invalid Files") { startLoad(force: true) }
-                            .buttonStyle(.link)
-                            .font(.caption.weight(.medium))
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
                 }
             }
             .padding(20)
 
             Divider()
 
-            HStack {
-                Spacer()
-                if summary != nil || errorMessage != nil {
-                    Button(summary != nil ? "Done" : "Close") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                } else {
-                    // Best-effort, like the save sheet: the XPC load/unpack calls don't observe
-                    // cancellation, so this abandons the wait; the image may still land.
-                    Button("Cancel") { loadTask?.cancel(); dismiss() }
-                        .keyboardShortcut(.cancelAction)
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            // done/error collapse to a single prominent dismiss button; loading offers only a
+            // best-effort Cancel (the XPC load/unpack calls don't observe cancellation, so this
+            // abandons the wait — the image may still land), so no disabled spinner button.
+            SheetSubmitFooter(
+                phase: (summary != nil || errorMessage != nil) ? .done : .working,
+                submitLabel: "",
+                doneLabel: summary != nil ? "Done" : "Close",
+                showsBusyButton: false,
+                onCancel: { loadTask?.cancel(); dismiss() }
+            )
         }
         .frame(width: 480)
         .onAppear { startLoad(force: false) }
     }
 
     @ViewBuilder
-    private var logView: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(loadProgress.logLines) { line in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(line.tag)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 36, alignment: .leading)
-                            Text(line.text)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(line.tag == "DONE" ? Color.green : Color.primary)
-                        }
-                        .id(line.id)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 130)
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
-            .onChange(of: loadProgress.logLines.count) { _, _ in
-                if let last = loadProgress.logLines.last {
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
     private func doneContent(_ summary: ImageLoadSummary) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
-                .font(.title3)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(summary.loadedReferences.count == 1 ? "Image loaded" : "\(summary.loadedReferences.count) images loaded")
-                    .font(.callout.weight(.semibold))
-                ForEach(summary.loadedReferences, id: \.self) { reference in
-                    Text(reference)
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+        SheetStatusCallout(
+            symbol: "checkmark.circle.fill",
+            tint: .green,
+            title: summary.loadedReferences.count == 1 ? "Image loaded" : "\(summary.loadedReferences.count) images loaded"
+        ) {
+            ForEach(summary.loadedReferences, id: \.self) { reference in
+                SheetCalloutDetail(text: reference, selectable: true)
             }
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
 
         if !summary.rejectedMembers.isEmpty {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(Color.statusPaused)
-                    .imageScale(.small)
-                    .padding(.top, 1)
-                Text("Skipped \(summary.rejectedMembers.count) invalid archive member\(summary.rejectedMembers.count == 1 ? "" : "s") (unsafe paths).")
-                    .fixedSize(horizontal: false, vertical: true)
+            SheetCallout(tint: .statusPaused) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Color.statusPaused)
+                        .imageScale(.small)
+                        .padding(.top, 1)
+                    Text("Skipped \(summary.rejectedMembers.count) invalid archive member\(summary.rejectedMembers.count == 1 ? "" : "s") (unsafe paths).")
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
             }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.statusPaused.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.statusPaused.opacity(0.2), lineWidth: 0.5))
         }
     }
 

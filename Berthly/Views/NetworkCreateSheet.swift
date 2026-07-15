@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// "Create network" form — the GUI equivalent of `container network create`: a NAT or host-only
@@ -20,38 +23,23 @@ struct NetworkCreateSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "arrow.triangle.branch")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Create Network")
-                        .font(.headline)
-                    Text("A NAT or host-only network for containers")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "arrow.triangle.branch",
+                title: "Create Network",
+                subtitle: "A NAT or host-only network for containers"
+            )
 
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Name")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                SheetField("Name") {
                     TextField("my-network", text: $name)
                         .accessibilityIdentifier("networkNameField")
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Mode")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                SheetField("Mode") {
                     Picker("Mode", selection: $mode) {
                         Text("NAT").tag(Mode.nat)
                         Text("Host-only").tag(Mode.hostOnly)
@@ -59,24 +47,17 @@ struct NetworkCreateSheet: View {
                     .pickerStyle(.segmented)
                     .labelsHidden()
                     .fixedSize()
-                    Text(mode == .nat
-                         ? "Containers reach the internet through the host (NAT)."
-                         : "Isolated to the host — no outbound internet access.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
+                } footer: {
+                    SheetFieldHint(mode == .nat
+                        ? "Containers reach the internet through the host (NAT)."
+                        : "Isolated to the host — no outbound internet access.")
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Subnet")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                SheetField("Subnet", hint: "Optional — the daemon auto-assigns one if left blank.") {
                     TextField("192.168.70.0/24", text: $subnet)
                         .textFieldStyle(.roundedBorder)
                         .fontDesign(.monospaced)
                         .frame(width: 220)
-                    Text("Optional — the daemon auto-assigns one if left blank.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
                 }
 
                 if let errorMessage {
@@ -88,28 +69,14 @@ struct NetworkCreateSheet: View {
 
             Divider()
 
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                if isSubmitting {
-                    Button {} label: {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Creating…")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(true)
-                } else {
-                    Button("Create") { submit() }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(!canSubmit)
-                        .keyboardShortcut(.return)
-                        .accessibilityIdentifier("networkCreateSubmitButton")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: isSubmitting ? .working : .idle,
+                submitLabel: "Create",
+                busyLabel: "Creating…",
+                canSubmit: canSubmit,
+                submitIdentifier: "networkCreateSubmitButton",
+                onSubmit: submit
+            )
         }
         .frame(width: 440)
     }

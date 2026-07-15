@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 import TerminalProgress
 
@@ -34,20 +37,11 @@ struct PushImageSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(alignment: .top, spacing: 12) {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.title2)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Push Image")
-                        .font(.headline)
-                    Text("Uploads a local image to a registry")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer()
-            }
-            .padding(20)
+            SheetHeader(
+                systemImage: "square.and.arrow.up",
+                title: "Push Image",
+                subtitle: "Uploads a local image to a registry"
+            )
 
             Divider()
 
@@ -62,58 +56,25 @@ struct PushImageSheet: View {
                     // behind (retagging and the network upload are separate steps — the same as
                     // `docker tag && docker push`), so the failure needs to be impossible to miss,
                     // or a stray successful-looking row with no matching remote push reads as a bug.
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "xmark.octagon.fill")
-                            .foregroundStyle(.red)
-                            .font(.title3)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Push failed")
-                                .font(.callout.weight(.semibold))
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .lineLimit(4)
-                        }
+                    SheetStatusCallout(symbol: "xmark.octagon.fill", tint: .red, title: "Push failed") {
+                        SheetCalloutDetail(text: error, monospaced: false, lineLimit: 4)
                     }
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.red.opacity(0.2), lineWidth: 0.5))
                 }
             }
             .padding(20)
 
             Divider()
 
-            HStack {
-                Spacer()
-                if isDone {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .keyboardShortcut(.return)
-                } else if isPushing {
-                    Button("Cancel") { cancelPush() }.keyboardShortcut(.cancelAction)
-                    Button {} label: {
-                        HStack(spacing: 6) {
-                            ProgressView().controlSize(.small)
-                            Text("Working…")
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(true)
-                } else {
-                    Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
-                    Button("Push") { startPush() }
-                        .buttonStyle(.borderedProminent)
-                        // `host == nil` is a guaranteed failure, not a soft warning — see
-                        // `registryHint`'s doc comment for why this tool never infers Docker Hub.
-                        .disabled(trimmedDestination.isEmpty || host == nil)
-                        .keyboardShortcut(.return)
-                        .accessibilityIdentifier("pushSubmitButton")
-                }
-            }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            SheetSubmitFooter(
+                phase: isDone ? .done : (isPushing ? .working : .idle),
+                submitLabel: "Push",
+                // `host == nil` is a guaranteed failure, not a soft warning — see `registryHint`'s
+                // doc comment for why this tool never infers Docker Hub.
+                canSubmit: !trimmedDestination.isEmpty && host != nil,
+                submitIdentifier: "pushSubmitButton",
+                onCancel: cancelPush,
+                onSubmit: startPush
+            )
         }
         .frame(width: 480)
         // `service.registries` is lazily loaded — only `RegistriesListView`'s own `.task` and
@@ -125,22 +86,11 @@ struct PushImageSheet: View {
 
     @ViewBuilder
     private var idleContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Source")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
-            Text(image.fullName)
-                .font(.system(.callout, design: .monospaced))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .textSelection(.enabled)
+        SheetField("Source") {
+            SheetMonospacedValue(text: image.fullName)
         }
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Destination")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+        SheetField("Destination") {
             TextField("registry.example.com/team/web:1.0", text: $destination)
                 .accessibilityIdentifier("pushDestinationField")
                 .textFieldStyle(.roundedBorder)
@@ -150,25 +100,9 @@ struct PushImageSheet: View {
 
         registryHint
 
-        DisclosureGroup(isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 12) {
-                PlatformPicker(title: "Platform", selection: $platformChoice)
-                Toggle(isOn: $allowInsecure) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Allow insecure registry")
-                            .font(.caption.weight(.medium))
-                        Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .toggleStyle(.checkbox)
-            }
-            .padding(.top, 10)
-        } label: {
-            Text("Advanced")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(.secondary)
+        SheetAdvancedSection(isExpanded: $showAdvanced) {
+            PlatformPicker(title: "Platform", selection: $platformChoice)
+            InsecureRegistryToggle(isOn: $allowInsecure)
         }
     }
 
@@ -183,29 +117,27 @@ struct PushImageSheet: View {
     private var registryHint: some View {
         let signedIn = isSignedIn
         let color: Color = host == nil ? Color.statusPaused : (signedIn ? .green : Color.statusPaused)
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: host == nil ? "exclamationmark.triangle.fill" : (signedIn ? "lock.open.fill" : "exclamationmark.triangle.fill"))
-                    .foregroundStyle(color)
-                    .imageScale(.small)
-                    .padding(.top, 1)
-                Text(hintText)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if host == nil {
-                Button("Use docker.io/\(trimmedDestination)") {
-                    destination = "docker.io/\(trimmedDestination)"
+        SheetCallout(tint: color) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: host == nil ? "exclamationmark.triangle.fill" : (signedIn ? "lock.open.fill" : "exclamationmark.triangle.fill"))
+                        .foregroundStyle(color)
+                        .imageScale(.small)
+                        .padding(.top, 1)
+                    Text(hintText)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-                .buttonStyle(.link)
-                .font(.caption.weight(.medium))
+                if host == nil {
+                    Button("Use docker.io/\(trimmedDestination)") {
+                        destination = "docker.io/\(trimmedDestination)"
+                    }
+                    .buttonStyle(.link)
+                    .font(.caption.weight(.medium))
+                }
             }
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(color.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        .overlay(RoundedRectangle(cornerRadius: 8).stroke(color.opacity(0.2), lineWidth: 0.5))
     }
 
     private var hintText: String {
@@ -221,71 +153,15 @@ struct PushImageSheet: View {
     @ViewBuilder
     private var activeContent: some View {
         if isPushing {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text("Pushing image")
-                        .font(.callout.weight(.semibold))
-                    Spacer()
-                    Text(pushProgress.percentText)
-                        .font(.callout.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-                if let fraction = pushProgress.fraction {
-                    ProgressView(value: fraction)
-                } else {
-                    ProgressView().progressViewStyle(.linear)
-                }
-            }
+            TransferProgressHeader(title: "Pushing image", progress: pushProgress)
         }
 
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(pushProgress.logLines) { line in
-                        HStack(alignment: .top, spacing: 12) {
-                            Text(line.tag)
-                                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 36, alignment: .leading)
-                            Text(line.text)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(line.tag == "DONE" ? Color.green : Color.primary)
-                        }
-                        .id(line.id)
-                    }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: 130)
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
-            .onChange(of: pushProgress.logLines.count) { _, _ in
-                if let last = pushProgress.logLines.last {
-                    withAnimation { proxy.scrollTo(last.id, anchor: .bottom) }
-                }
-            }
-        }
+        TransferLogView(lines: pushProgress.logLines)
 
         if isDone {
-            HStack(spacing: 12) {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .font(.title3)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Image pushed")
-                        .font(.callout.weight(.semibold))
-                    Text(trimmedDestination)
-                        .font(.caption)
-                        .fontDesign(.monospaced)
-                        .foregroundStyle(.secondary)
-                }
+            SheetStatusCallout(symbol: "checkmark.circle.fill", tint: .green, title: "Image pushed", alignment: .center) {
+                SheetCalloutDetail(text: trimmedDestination)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.green.opacity(0.2), lineWidth: 0.5))
         }
     }
 

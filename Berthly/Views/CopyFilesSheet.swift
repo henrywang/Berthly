@@ -54,20 +54,11 @@ struct CopyFilesSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "folder")
-                .font(.title2)
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Copy Files")
-                    .font(.headline)
-                Text("Move a file or folder between your Mac and \(targetName)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(20)
+        SheetHeader(
+            systemImage: "folder",
+            title: "Copy Files",
+            subtitle: "Move a file or folder between your Mac and \(targetName)"
+        )
     }
 
     // MARK: - Fields
