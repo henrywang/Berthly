@@ -52,6 +52,9 @@
         }
       }
     },
+    "%@ is running — changes take effect after you stop and start it." : {
+
+    },
     "%@, %@" : {
       "localizations" : {
         "en" : {
@@ -77,6 +80,9 @@
           }
         }
       }
+    },
+    "%lld properties" : {
+
     },
     "%lld%%" : {
 
@@ -114,6 +120,9 @@
     "192.168.70.0/24" : {
 
     },
+    "A local domain lets this Mac resolve containers by name under it (e.g. web.test). Adding or removing one modifies /etc/resolver, so macOS asks for an administrator password." : {
+
+    },
     "A named volume on the local driver" : {
 
     },
@@ -132,6 +141,9 @@
     "Add a host, then sign in — stored in the Keychain" : {
 
     },
+    "Add a local DNS domain" : {
+
+    },
     "Add a network, or one created for a container will appear here." : {
 
     },
@@ -147,6 +159,9 @@
     "Add capabilities" : {
 
     },
+    "Add Domain…" : {
+
+    },
     "Add Network…" : {
 
     },
@@ -154,6 +169,9 @@
 
     },
     "Add Volume…" : {
+
+    },
+    "Adding domain…" : {
 
     },
     "Advanced" : {
@@ -172,6 +190,12 @@
 
     },
     "Anonymous pull — no sign-in needed. Short names resolve against %@." : {
+
+    },
+    "Apply" : {
+
+    },
+    "Applying…" : {
 
     },
     "Architecture" : {
@@ -255,6 +279,9 @@
     "Capacity" : {
 
     },
+    "Changes take effect the next time the machine boots." : {
+
+    },
     "Check for Updates…" : {
 
     },
@@ -322,6 +349,9 @@
 
     },
     "Container is not installed" : {
+
+    },
+    "Container names under %@ will stop resolving on this Mac. You'll be asked for an administrator password." : {
 
     },
     "Container not found" : {
@@ -429,7 +459,13 @@
     "Credentials for pushing & pulling images" : {
 
     },
+    "Currently %@" : {
+
+    },
     "Daemon Logs" : {
+
+    },
+    "DEFAULT" : {
 
     },
     "Defaults to Dockerfile or Containerfile in the build context." : {
@@ -441,7 +477,13 @@
     "Delete %@?" : {
 
     },
+    "Delete Builder" : {
+
+    },
     "Delete Container" : {
+
+    },
+    "Delete Domain" : {
 
     },
     "Delete failed" : {
@@ -456,10 +498,16 @@
     "Delete Network" : {
 
     },
+    "Delete the %@ domain?" : {
+
+    },
     "Delete Volume" : {
 
     },
     "Delete…" : {
+
+    },
+    "Deletes every network no container is attached to. The default network is never removed." : {
 
     },
     "Destination" : {
@@ -513,6 +561,9 @@
     "Dockerfile (auto-detected)" : {
 
     },
+    "Domain (e.g. test)" : {
+
+    },
     "Done" : {
 
     },
@@ -520,6 +571,12 @@
 
     },
     "Drop capabilities" : {
+
+    },
+    "Edit %@" : {
+
+    },
+    "Edit CPU, memory, and home mount…" : {
 
     },
     "Enable Rosetta" : {
@@ -544,6 +601,15 @@
 
     },
     "Error" : {
+
+    },
+    "Every network is attached to a container" : {
+
+    },
+    "Everything `container system property list` reports, defaults included. To change a value, edit config.toml (revealed above) and restart the daemon." : {
+
+    },
+    "Export Filesystem…" : {
 
     },
     "Exports an OCI tar archive that container image load can import" : {
@@ -580,6 +646,9 @@
 
     },
     "For one-shot commands that exit, e.g. pwd — waits for the command to finish and shows what it printed. Don't use with a long-running service." : {
+
+    },
+    "Force Kill" : {
 
     },
     "Force re-install" : {
@@ -733,6 +802,9 @@
     "Loading…" : {
 
     },
+    "Local DNS" : {
+
+    },
     "local/myapp:1.0" : {
 
     },
@@ -817,6 +889,9 @@
     "No Images" : {
 
     },
+    "No local domains — containers are reachable by IP only." : {
+
+    },
     "No logs" : {
 
     },
@@ -895,6 +970,9 @@
     "Pre-filled from config.toml's recommended kernel — edit to install a different one." : {
 
     },
+    "Properties" : {
+
+    },
     "Protocol" : {
 
     },
@@ -905,6 +983,9 @@
 
     },
     "Prune" : {
+
+    },
+    "Prune Unused Networks…" : {
 
     },
     "Pull" : {
@@ -976,10 +1057,16 @@
     "Remove from list" : {
 
     },
+    "Remove networks with no container connections" : {
+
+    },
     "Remove when stopped" : {
 
     },
-    "Removes unused images and stopped containers in one step. Volumes are never touched — delete those individually if you're sure you don't need their data." : {
+    "Removes the builder container and its build cache. Your next build recreates it automatically, but starts without cached layers." : {
+
+    },
+    "Removes unused images and stopped containers in one step. Volumes are never touched here — use the Volumes row's own Prune if you're sure you don't need their data." : {
 
     },
     "Required" : {
@@ -1070,6 +1157,9 @@
 
     },
     "Select a section" : {
+
+    },
+    "Set as Default" : {
 
     },
     "Set as default machine" : {
@@ -1357,6 +1447,9 @@
     "ubuntu:24.04" : {
 
     },
+    "Unchanged" : {
+
+    },
     "Unpin" : {
 
     },
@@ -1445,6 +1538,9 @@
 
     },
     "You may be asked for your admin password. This can take a few minutes." : {
+
+    },
+    "You'll be asked for an administrator password." : {
 
     }
   },

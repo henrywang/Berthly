@@ -23,6 +23,7 @@ private struct MachineDetailContent: View {
     @Environment(MenuBarBridge.self) private var bridge
     @State private var tab: DetailTab    = .overview
     @State private var isWorking         = false
+    @State private var showEditSheet     = false
     @State private var errorMessage: String?
 
     private var machine: Machine? {
@@ -72,6 +73,9 @@ private struct MachineDetailContent: View {
                 .frame(maxHeight: .infinity)
             }
             .navigationTitle(machine.name)
+            .sheet(isPresented: $showEditSheet) {
+                MachineEditSheet(machine: machine, service: service)
+            }
             .errorAlert($errorMessage)
             // Palette "Open Shell" routing — see the matching comment in ContainerDetailView.
             .onAppear { consumeTerminalRequestIfRequested() }
@@ -95,6 +99,9 @@ private struct MachineDetailContent: View {
                         .font(.title2.weight(.bold))
                         .lineLimit(1)
                     StatusBadge(status: machine.status)
+                    if machine.isDefault {
+                        DefaultChip()
+                    }
                 }
                 Text(machine.image)
                     .font(.caption)
@@ -111,6 +118,16 @@ private struct MachineDetailContent: View {
             }
             .buttonStyle(.bordered)
             .help(service.isMachinePinned(machine.id) ? "Unpin" : "Pin")
+            .hoverScale()
+
+            // `container machine set` as a form. Enabled regardless of status — the daemon
+            // accepts config changes any time; they simply apply on the next boot (the sheet
+            // says so for a running machine).
+            Button { showEditSheet = true } label: {
+                Image(systemName: "slider.horizontal.3")
+            }
+            .buttonStyle(.bordered)
+            .help("Edit CPU, memory, and home mount…")
             .hoverScale()
             // No Copy Files button here (unlike ContainerDetailView): `copyIn`/`copyOut` write to the
             // container-agent rootfs staging path (`/run/container/<id>/rootfs`), but a machine boots

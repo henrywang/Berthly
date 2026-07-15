@@ -45,7 +45,7 @@ final class MockContainerService: ContainerServiceBase {
             Network(id: "default",  name: "default",  driver: .nat,      subnet: "192.168.64.0/24", gateway: "192.168.64.1", isDefault: true,  scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e3", name: "dev",        ipv4: "192.168.64.3", kind: "MACHINE",   isRunning: true,  aliases: ["machine"]), NetworkEndpoint(id: "e4", name: "ci-runner", ipv4: "192.168.64.4", kind: "MACHINE", isRunning: false, aliases: ["machine"]), NetworkEndpoint(id: "e5", name: "default", ipv4: "192.168.64.2", kind: "MACHINE", isRunning: true, aliases: ["machine", "utility VM"]), NetworkEndpoint(id: "e10", name: "edge-proxy", ipv4: "192.168.64.10", kind: "CONTAINER", isRunning: false, aliases: ["edge", "proxy"])]),
         ]
         machines = [
-            Machine(id: "dev",       name: "dev",       image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite),
+            Machine(id: "dev",       name: "dev",       image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite, isDefault: true),
             Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22",  status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–",      kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
             Machine(id: "default",   name: "default",   image: "debian:12",    status: .running, isUtility: true,  diskUsedGB: 1.2,  diskTotalGB: 4.0, uptimeString: "6d 4h",  kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none),
         ]
@@ -113,6 +113,13 @@ final class MockContainerService: ContainerServiceBase {
         try await startContainer(id)
     }
 
+    override func killContainer(_ id: String) async throws {
+        // No simulated latency, unlike stopContainer: SIGKILL is immediate — that's its point.
+        guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
+        let c = containers[i]
+        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
+    }
+
     override func deleteContainer(_ id: String) async throws {
         containers.removeAll { $0.id == id }
         pinnedContainerIDs.remove(id)
@@ -126,6 +133,18 @@ final class MockContainerService: ContainerServiceBase {
         lastCopy = (direction, containerID, hostPath, containerPath)
     }
 
+    /// Mirrors the daemon's stopped-only rule and writes a placeholder file, so the export flow
+    /// is exercised end to end in mock mode (panel → service → file at the chosen path).
+    override func exportContainer(_ id: String, to path: String) async throws {
+        guard let container = containers.first(where: { $0.id == id }) else {
+            throw ContainerCLIError(exitCode: 1, message: "container \(id) not found")
+        }
+        guard container.status == .stopped else {
+            throw ContainerCLIError(exitCode: 1, message: "container is not stopped")
+        }
+        try Data("mock rootfs export of \(id)\n".utf8).write(to: URL(fileURLWithPath: path))
+    }
+
     override func startMachine(_ id: String) async throws {
         try? await Task.sleep(for: .milliseconds(600))
         guard let i = machines.firstIndex(where: { $0.id == id }) else { return }
@@ -134,7 +153,7 @@ final class MockContainerService: ContainerServiceBase {
                               isUtility: m.isUtility, diskUsedGB: m.diskUsedGB,
                               diskTotalGB: m.diskTotalGB, uptimeString: "0m",
                               kernel: m.kernel, resources: m.resources, created: m.created,
-                              homeMount: m.homeMount)
+                              homeMount: m.homeMount, isDefault: m.isDefault)
     }
 
     override func stopMachine(_ id: String) async throws {
@@ -145,7 +164,37 @@ final class MockContainerService: ContainerServiceBase {
                               isUtility: m.isUtility, diskUsedGB: m.diskUsedGB,
                               diskTotalGB: m.diskTotalGB, uptimeString: "–",
                               kernel: m.kernel, resources: m.resources, created: m.created,
-                              homeMount: m.homeMount)
+                              homeMount: m.homeMount, isDefault: m.isDefault)
+    }
+
+    override func setDefaultMachine(_ id: String) async throws {
+        // Exactly one holder: granting the badge revokes it everywhere else, same as the daemon.
+        for i in machines.indices {
+            machines[i].isDefault = machines[i].id == id
+        }
+    }
+
+    override func updateMachine(_ id: String, options: MachineUpdateOptions) async throws {
+        guard let i = machines.firstIndex(where: { $0.id == id }) else { return }
+        let m = machines[i]
+        // The mock's `resources` is a display string ("4 vCPU · 4 GB") — patch only the parts
+        // the options set, mirroring the live merge-over-current semantics.
+        let parts = m.resources.components(separatedBy: " · ")
+        let cpuPart = options.cpus.map { "\($0) CPU" } ?? (parts.first ?? "")
+        let memoryTrimmed = options.memory?.trimmingCharacters(in: .whitespaces)
+        let memPart = (memoryTrimmed?.isEmpty == false ? memoryTrimmed! : (parts.count > 1 ? parts[1] : ""))
+        let homeMount: MachineHomeMount = switch options.homeMount {
+        case "ro":   .readOnly
+        case "rw":   .readWrite
+        case "none": MachineHomeMount.none
+        default:     m.homeMount
+        }
+        machines[i] = Machine(id: m.id, name: m.name, image: m.image, status: m.status,
+                              isUtility: m.isUtility, diskUsedGB: m.diskUsedGB,
+                              diskTotalGB: m.diskTotalGB, uptimeString: m.uptimeString,
+                              kernel: m.kernel,
+                              resources: [cpuPart, memPart].filter { !$0.isEmpty }.joined(separator: " · "),
+                              created: m.created, homeMount: homeMount, isDefault: m.isDefault)
     }
 
     override func deleteMachine(_ id: String) async throws {
@@ -158,6 +207,10 @@ final class MockContainerService: ContainerServiceBase {
         let b = builders[i]
         builders[i] = Builder(id: b.id, name: b.name, image: b.image, status: .stopped,
                               autoStarted: b.autoStarted, cpus: b.cpus, memoryGB: b.memoryGB)
+    }
+
+    override func deleteBuilder(_ id: String) async throws {
+        builders.removeAll { $0.id == id }
     }
 
     override func deleteImage(_ reference: String) async throws {
@@ -221,10 +274,18 @@ final class MockContainerService: ContainerServiceBase {
     }
 
     override func fetchDiskUsage() async throws {
+        // Volumes derive from the seeded volume list (unlike the static image/container numbers)
+        // so the row's Prune button appears exactly while unmounted volumes exist, and pruning
+        // visibly zeroes the reclaimable figure.
+        let mounted = volumes.filter { !$0.mounts.isEmpty }
+        let volumeBytes = volumes.reduce(UInt64(0)) { $0 + UInt64($1.usedMB) * 1_048_576 }
+        let reclaimableVolumeBytes = volumes.filter(\.mounts.isEmpty)
+            .reduce(UInt64(0)) { $0 + UInt64($1.usedMB) * 1_048_576 }
         diskUsage = DiskUsageSummary(
             images: .init(total: 12, active: 4, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
             containers: .init(total: 6, active: 2, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
-            volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 0)
+            volumes: .init(total: volumes.count, active: mounted.count,
+                           sizeBytes: volumeBytes, reclaimableBytes: reclaimableVolumeBytes)
         )
     }
 
@@ -255,12 +316,74 @@ final class MockContainerService: ContainerServiceBase {
         return PruneResult(containersFreedBytes: freed, deletedContainerCount: 4)
     }
 
+    override func pruneVolumes() async throws -> PruneResult {
+        let unused = volumes.filter(\.mounts.isEmpty)
+        let freed = unused.reduce(UInt64(0)) { $0 + UInt64($1.usedMB) * 1_048_576 }
+        volumes.removeAll(where: \.mounts.isEmpty)
+        try? await fetchDiskUsage()  // re-derives the volumes row from the now-shorter list
+        return PruneResult(volumesFreedBytes: freed, deletedVolumeCount: unused.count)
+    }
+
+    override func pruneNetworks() async throws -> PruneResult {
+        // Same in-use rule as the live selection: a network any container's configuration
+        // references (running or stopped) survives, as does the built-in default.
+        let connected = Set(containers.flatMap(\.networks))
+        let unused = networks.filter { !$0.isDefault && !connected.contains($0.id) }
+        let unusedIDs = Set(unused.map(\.id))
+        networks.removeAll { unusedIDs.contains($0.id) }
+        return PruneResult(deletedNetworkCount: unused.count)
+    }
+
     override func fetchKernelInfo() async throws {
         kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
     }
 
     override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
         kernelInfo = KernelInfo(path: options.binaryPath, platform: "linux/\(options.architecture)")
+    }
+
+    override func fetchSystemProperties() async {
+        systemProperties = [
+            SystemProperty(key: "build.rosetta", value: "true"),
+            SystemProperty(key: "build.cpus", value: "2"),
+            SystemProperty(key: "build.memory", value: "2 GB"),
+            SystemProperty(key: "build.image", value: "ghcr.io/apple/container-builder-shim/builder:latest"),
+            SystemProperty(key: "container.cpus", value: "4"),
+            SystemProperty(key: "container.memory", value: "1 GB"),
+            SystemProperty(key: "dns.domain", value: "test"),
+            SystemProperty(key: "kernel.binaryPath", value: "opt/kata/share/kata-containers/vmlinux-6.18.15-186"),
+            SystemProperty(key: "kernel.url", value: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"),
+            SystemProperty(key: "machine.cpus", value: "4"),
+            SystemProperty(key: "machine.memory", value: "8 GB"),
+            SystemProperty(key: "machine.home-mount", value: "rw"),
+            SystemProperty(key: "machine.virtualization", value: "false"),
+            SystemProperty(key: "network.subnet", value: "192.168.64.0/24"),
+            SystemProperty(key: "network.subnetv6", value: "–"),
+            SystemProperty(key: "registry.domain", value: "docker.io"),
+            SystemProperty(key: "vminit.image", value: "ghcr.io/apple/containerization/vminit:latest"),
+        ]
+    }
+
+    override func fetchDNSDomains() async {
+        // Seed only on first fetch, so create/delete mutations survive later refetches.
+        if dnsDomains == nil { dnsDomains = ["test"] }
+    }
+
+    override func createDNSDomain(_ name: String) async throws {
+        let domain = name.trimmingCharacters(in: .whitespaces)
+        if let problem = LiveContainerService.validateDNSDomainName(domain) {
+            throw ContainerCLIError(exitCode: 1, message: problem)
+        }
+        var domains = dnsDomains ?? []
+        guard !domains.contains(domain) else {
+            throw ContainerCLIError(exitCode: 1, message: "domain \(domain) already exists")
+        }
+        domains.append(domain)
+        dnsDomains = domains.sorted()
+    }
+
+    override func deleteDNSDomain(_ name: String) async throws {
+        dnsDomains?.removeAll { $0 == name }
     }
 
     override func fetchSystemConfig() async throws {
@@ -395,6 +518,9 @@ final class MockContainerService: ContainerServiceBase {
             created: "just now",
             homeMount: homeMount
         ))
+        if options.setDefault {
+            try await setDefaultMachine(id)
+        }
     }
 
     override func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {

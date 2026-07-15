@@ -805,6 +805,129 @@ struct MockContainerServiceTests {
         #expect(weakRef == nil)
     }
 
+    @Test func killContainerStopsARunningContainerImmediately() async throws {
+        let mock = MockContainerService()
+        let running = try #require(mock.containers.first(where: { $0.status == .running }))
+        try await mock.killContainer(running.id)
+        #expect(mock.containers.first(where: { $0.id == running.id })?.status == .stopped)
+    }
+
+    @Test func killContainerLeavesOtherContainersUntouched() async throws {
+        let mock = MockContainerService()
+        let running = mock.containers.filter { $0.status == .running }
+        try #require(running.count >= 2)
+        try await mock.killContainer(running[0].id)
+        #expect(mock.containers.first(where: { $0.id == running[1].id })?.status == .running)
+    }
+
+    @Test func pruneVolumesRemovesOnlyUnmountedVolumesAndReportsFreedBytes() async throws {
+        let mock = MockContainerService()
+        let unmounted = mock.volumes.filter(\.mounts.isEmpty)
+        let mounted = mock.volumes.filter { !$0.mounts.isEmpty }
+        try #require(!unmounted.isEmpty)
+
+        let result = try await mock.pruneVolumes()
+
+        #expect(result.deletedVolumeCount == unmounted.count)
+        #expect(result.volumesFreedBytes > 0)
+        #expect(mock.volumes.count == mounted.count)
+        #expect(mock.volumes.allSatisfy { !$0.mounts.isEmpty })
+        // The disk-usage row re-derives: nothing reclaimable remains after a prune.
+        #expect(mock.diskUsage?.volumes.reclaimableBytes == 0)
+    }
+
+    @Test func pruneNetworksKeepsDefaultAndConnectedNetworks() async throws {
+        let mock = MockContainerService()
+        // Seed one network nothing references, alongside the in-use seeds.
+        mock.networks.append(Network(id: "stale-net", name: "stale-net", driver: .nat,
+                                     subnet: "192.168.70.0/24", gateway: "192.168.70.1",
+                                     isDefault: false, scope: "local", ipv6Enabled: false,
+                                     egress: "NAT → en0", attachable: true, backend: "vmnet",
+                                     endpoints: []))
+
+        let result = try await mock.pruneNetworks()
+
+        #expect(result.deletedNetworkCount == 1)
+        #expect(!mock.networks.contains(where: { $0.id == "stale-net" }))
+        // Every seeded network is either built-in or referenced by a container — all survive.
+        #expect(mock.networks.contains(where: { $0.id == "default" }))
+        #expect(mock.networks.contains(where: { $0.id == "app-net" }))
+        #expect(mock.networks.contains(where: { $0.id == "data-net" }))
+    }
+
+    @Test func setDefaultMachineMovesTheBadgeExclusively() async throws {
+        let mock = MockContainerService()
+        try #require(mock.machines.first(where: { $0.id == "dev" })?.isDefault == true)
+
+        try await mock.setDefaultMachine("ci-runner")
+
+        // Exactly one holder, like the daemon: granting revokes everywhere else.
+        #expect(mock.machines.first(where: { $0.id == "ci-runner" })?.isDefault == true)
+        #expect(mock.machines.filter(\.isDefault).count == 1)
+    }
+
+    @Test func createMachineWithSetDefaultTakesTheBadge() async throws {
+        let mock = MockContainerService()
+        var options = MachineCreateOptions(reference: "ubuntu:24.04")
+        options.name = "fresh"
+        options.setDefault = true
+        try await mock.createMachine(options: options)
+        #expect(mock.machines.first(where: { $0.id == "fresh" })?.isDefault == true)
+        #expect(mock.machines.filter(\.isDefault).count == 1)
+    }
+
+    @Test func updateMachinePatchesOnlyTheProvidedSettings() async throws {
+        let mock = MockContainerService()
+        // "dev" seeds as "4 vCPU · 4 GB", homeMount .readWrite.
+        try await mock.updateMachine("dev", options: MachineUpdateOptions(cpus: 8, memory: nil, homeMount: "ro"))
+        let dev = try #require(mock.machines.first(where: { $0.id == "dev" }))
+        #expect(dev.resources == "8 CPU · 4 GB")   // memory untouched
+        #expect(dev.homeMount == .readOnly)
+        #expect(dev.isDefault)                     // unrelated fields survive the rebuild
+    }
+
+    @Test func updateMachineWithMemoryOnlyKeepsCPUs() async throws {
+        let mock = MockContainerService()
+        try await mock.updateMachine("dev", options: MachineUpdateOptions(cpus: nil, memory: "16G", homeMount: nil))
+        let dev = try #require(mock.machines.first(where: { $0.id == "dev" }))
+        #expect(dev.resources == "4 vCPU · 16G")
+        #expect(dev.homeMount == .readWrite)
+    }
+
+    @Test func exportArchiveFilenameSanitizesSeparators() {
+        #expect(LiveContainerService.exportArchiveFilename(for: "web-frontend") == "web-frontend-rootfs.tar")
+        // Slashes/colons would otherwise split the filename into path components in a save panel.
+        #expect(LiveContainerService.exportArchiveFilename(for: "local/web:1.4") == "local-web-1.4-rootfs.tar")
+    }
+
+    @Test func exportContainerWritesTheArchiveForAStoppedContainer() async throws {
+        let mock = MockContainerService()
+        let stopped = try #require(mock.containers.first(where: { $0.status == .stopped }))
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("berthly-test-\(UUID().uuidString).tar").path
+        defer { try? FileManager.default.removeItem(atPath: path) }
+
+        try await mock.exportContainer(stopped.id, to: path)
+        #expect(FileManager.default.fileExists(atPath: path))
+    }
+
+    @Test func exportContainerRefusesARunningContainer() async throws {
+        // Mirrors the daemon's stopped-only rule so mock-mode UI behaves like the real one.
+        let mock = MockContainerService()
+        let running = try #require(mock.containers.first(where: { $0.status == .running }))
+        await #expect(throws: (any Error).self) {
+            try await mock.exportContainer(running.id, to: "/tmp/unused.tar")
+        }
+    }
+
+    @Test func deleteBuilderRemovesIt() async throws {
+        let mock = MockContainerService()
+        let builder = try #require(mock.builders.first)
+        try await mock.stopBuilder(builder.id)
+        try await mock.deleteBuilder(builder.id)
+        #expect(!mock.builders.contains(where: { $0.id == builder.id }))
+    }
+
     @Test func startDaemonTransitionsStoppedToConnected() async {
         let mock = MockContainerService()
         mock.daemonState = .installedButStopped

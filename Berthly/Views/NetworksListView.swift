@@ -8,6 +8,9 @@ struct NetworksListView: View {
     @State private var isSearchPresented = false
     @State private var deleteTargetID: String?
     @State private var deleteErrorMessage: String?
+    @State private var showPruneConfirm = false
+    @State private var isPruning = false
+    @State private var pruneResult: PruneResult?
 
     private var filtered: [Network] {
         let query = filterText.trimmingCharacters(in: .whitespaces).lowercased()
@@ -47,6 +50,38 @@ struct NetworksListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or subnet")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Networks")
+        // Section-scoped housekeeping action, next to the section's Add button (which
+        // MainWindowView contributes) — visible only while this pane is showing. Disabled, not
+        // hidden, when nothing is prunable, so the capability stays discoverable.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if isPruning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button { showPruneConfirm = true } label: {
+                        Label("Prune Unused Networks…", systemImage: "trash.slash")
+                    }
+                    .disabled(prunableCount == 0)
+                    .help(prunableCount == 0
+                          ? "Every network is attached to a container"
+                          : "Remove networks with no container connections")
+                }
+            }
+        }
+        .alert(pruneConfirmTitle, isPresented: $showPruneConfirm) {
+            Button("Remove", role: .destructive) { performPrune() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Deletes every network no container is attached to. The default network is never removed.")
+        }
+        .alert("Done", isPresented: Binding(
+            get: { pruneResult != nil },
+            set: { if !$0 { pruneResult = nil } }
+        )) {
+            Button("OK") { pruneResult = nil }
+        } message: {
+            Text(pruneResult?.summaryText ?? "")
+        }
         .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
             get: { deleteTargetID != nil },
             set: { if !$0 { deleteTargetID = nil } }
@@ -57,6 +92,38 @@ struct NetworksListView: View {
             Text(deleteConfirmMessage)
         }
         .errorAlert($deleteErrorMessage)
+    }
+
+    /// How many networks a prune would remove right now — the same pure selection the live
+    /// service's `pruneNetworks()` applies, fed from the observed models, so the button's
+    /// enablement can't drift from what the action would actually do.
+    private var prunableCount: Int {
+        LiveContainerService.prunableNetworkIDs(
+            service.networks.map { PruneNetworkInfo(id: $0.id, isBuiltin: $0.isDefault) },
+            connectedNetworkIDs: service.containers.flatMap(\.networks)
+        ).count
+    }
+
+    private var pruneConfirmTitle: String {
+        "Remove \(prunableCount) unused network\(prunableCount == 1 ? "" : "s")?"
+    }
+
+    private func performPrune() {
+        isPruning = true
+        // A pruned network might be the selected one — clear selection so the detail pane
+        // doesn't strand on "not found" (same reason performDelete clears it).
+        Task {
+            do {
+                let result = try await service.pruneNetworks()
+                if let selectedID, !service.networks.contains(where: { $0.id == selectedID }) {
+                    self.selectedID = nil
+                }
+                pruneResult = result
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
+            isPruning = false
+        }
     }
 
     private var deleteTarget: Network? {

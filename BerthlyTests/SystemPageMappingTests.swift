@@ -8,6 +8,41 @@ import Foundation
 import Testing
 @testable import Berthly
 
+struct SystemPropertyMappingTests {
+
+    @Test func mapsEveryConfigSectionWithResolvedDefaults() {
+        // A default-initialized config resolves every property to its documented default —
+        // the mapping must surface all of them (the CLI's property list shows defaults too).
+        let properties = LiveContainerService.mapSystemProperties(ContainerSystemConfig())
+        let byKey = Dictionary(uniqueKeysWithValues: properties.map { ($0.key, $0.value) })
+
+        #expect(byKey["build.rosetta"] == "true")
+        #expect(byKey["build.cpus"] == "2")
+        #expect(byKey["container.cpus"] == "4")
+        #expect(byKey["registry.domain"] == "docker.io")
+        #expect(byKey["machine.home-mount"] == "rw")
+        #expect(byKey["machine.virtualization"] == "false")
+        // Unset optionals render as an em dash instead of disappearing.
+        #expect(byKey["dns.domain"] == "–")
+        #expect(byKey["network.subnet"] == "–")
+        #expect(byKey["kernel.url"]?.hasPrefix("https://") == true)
+    }
+
+    @Test func rendersConfiguredOptionalsVerbatim() {
+        let config = ContainerSystemConfig(dns: DNSConfig(domain: "test"))
+        let properties = LiveContainerService.mapSystemProperties(config)
+        #expect(properties.first(where: { $0.key == "dns.domain" })?.value == "test")
+    }
+
+    @Test func keyOrderFollowsTheTOMLSectionOrder() {
+        // Stable, CLI-matching order — the view renders rows in array order.
+        let keys = LiveContainerService.mapSystemProperties(ContainerSystemConfig()).map(\.key)
+        #expect(keys.first == "build.rosetta")
+        #expect(keys.last == "vminit.image")
+        #expect(keys.count == Set(keys).count)  // no duplicate keys
+    }
+}
+
 struct DiskUsageMappingTests {
 
     @Test func mapsAllThreeCategories() {

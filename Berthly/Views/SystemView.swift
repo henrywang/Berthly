@@ -15,6 +15,8 @@ struct SystemView: View {
             DiskUsageSection(usage: service.diskUsage)
             KernelSection(kernel: service.kernelInfo)
             SystemConfigSection(config: service.systemConfigInfo)
+            SystemPropertiesSection(properties: service.systemProperties)
+            LocalDNSSection()
             BuilderSection()
             DaemonLogsSection()
         }
@@ -24,7 +26,9 @@ struct SystemView: View {
             async let disk: Void? = try? service.fetchDiskUsage()
             async let kernel: Void? = try? service.fetchKernelInfo()
             async let config: Void? = try? service.fetchSystemConfig()
-            _ = await (disk, kernel, config)
+            async let dns: Void = service.fetchDNSDomains()
+            async let props: Void = service.fetchSystemProperties()
+            _ = await (disk, kernel, config, dns, props)
         }
     }
 }
@@ -201,9 +205,16 @@ private struct DiskUsageSection: View {
                         run: { try await service.pruneStoppedContainers() }
                     ))
                     Divider()
-                    // Volumes: no cleanup action — an unattached volume can hold real data the user
-                    // means to reattach. Delete those individually if you're sure.
-                    DiskUsageGridRow(name: "Volumes", category: usage.volumes)
+                    // Volumes: the most consequential cleanup — an unattached volume can hold real
+                    // data the user means to reattach — so it's deliberately excluded from "Clean
+                    // Up All" below; only this row's own explicitly-confirmed action reaches it.
+                    DiskUsageGridRow(name: "Volumes", category: usage.volumes, cleanup: .init(
+                        confirmTitle: "Remove unused volumes?",
+                        confirmButton: "Remove",
+                        confirmMessage: "Deletes every volume not attached to any container, including all data inside. Volumes a container still references — even a stopped one — are left alone. This can't be undone.",
+                        isDestructive: true,
+                        run: { try await service.pruneVolumes() }
+                    ))
                 }
                 .padding(.vertical, 4)
 
@@ -249,7 +260,7 @@ private struct DiskUsageSection: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Removes unused images and stopped containers in one step. Volumes are never touched — delete those individually if you're sure you don't need their data.")
+            Text("Removes unused images and stopped containers in one step. Volumes are never touched here — use the Volumes row's own Prune if you're sure you don't need their data.")
         }
         .alert("Done", isPresented: Binding(
             get: { allResult != nil },
@@ -425,6 +436,159 @@ private struct SystemConfigSection: View {
     }
 }
 
+// MARK: - System Properties
+
+/// Read-only mirror of `container system property list`: every dotted config key with its
+/// resolved value, defaults included. Deliberately not editable — properties are set via
+/// `config.toml` (the Infrastructure Images section's Reveal button) or the CLI, and a wrong
+/// value here can leave the daemon unbootable, so Berthly only reports.
+private struct SystemPropertiesSection: View {
+    let properties: [SystemProperty]?
+    /// Collapsed by default: 17 rows of raw config is reference material, not at-a-glance
+    /// status — expanded it would dominate the page.
+    @State private var isExpanded = false
+
+    var body: some View {
+        Section {
+            if let properties {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    ForEach(properties) { property in
+                        LabeledContent {
+                            Text(property.value)
+                                .fontDesign(.monospaced)
+                                .textSelection(.enabled)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(property.value)
+                        } label: {
+                            Text(property.key)
+                                .font(.callout)
+                                .fontDesign(.monospaced)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } label: {
+                    Text("\(properties.count) properties")
+                }
+            } else {
+                LabeledContent("Loading…") { EmptyView() }
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            sectionHeader("Properties", systemImage: "list.bullet.rectangle")
+        } footer: {
+            Text("Everything `container system property list` reports, defaults included. To change a value, edit config.toml (revealed above) and restart the daemon.")
+        }
+    }
+}
+
+// MARK: - Local DNS
+
+/// Local DNS domains for containers (`container system dns list/create/delete`). Mutations
+/// touch `/etc/resolver`, which needs root — the service layer shows the standard macOS
+/// administrator-password prompt, so rows stay enabled and the OS handles the authorization UX.
+private struct LocalDNSSection: View {
+    @Environment(ContainerServiceBase.self) private var service
+    @State private var showAddPrompt = false
+    @State private var newDomain = ""
+    @State private var isCreating = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Section {
+            if let domains = service.dnsDomains {
+                if domains.isEmpty {
+                    Text("No local domains — containers are reachable by IP only.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(domains, id: \.self) { domain in
+                    DNSDomainRow(domain: domain)
+                }
+                if isCreating {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Adding domain…").foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button("Add Domain…") {
+                        newDomain = ""
+                        showAddPrompt = true
+                    }
+                }
+            } else {
+                LabeledContent("Loading…") { EmptyView() }
+                    .foregroundStyle(.secondary)
+            }
+        } header: {
+            sectionHeader("Local DNS", systemImage: "globe")
+        } footer: {
+            Text("A local domain lets this Mac resolve containers by name under it (e.g. web.test). Adding or removing one modifies /etc/resolver, so macOS asks for an administrator password.")
+        }
+        .alert("Add a local DNS domain", isPresented: $showAddPrompt) {
+            TextField("Domain (e.g. test)", text: $newDomain)
+            Button("Add") { performCreate() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll be asked for an administrator password.")
+        }
+        .errorAlert($errorMessage)
+    }
+
+    private func performCreate() {
+        let domain = newDomain
+        isCreating = true
+        Task {
+            do { try await service.createDNSDomain(domain) }
+            catch is CancellationError { /* dismissed the admin prompt — not an error */ }
+            catch { errorMessage = error.localizedDescription }
+            isCreating = false
+        }
+    }
+}
+
+private struct DNSDomainRow: View {
+    let domain: String
+    @Environment(ContainerServiceBase.self) private var service
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        LabeledContent {
+            if isDeleting {
+                ProgressView().controlSize(.small)
+            } else {
+                Button(role: .destructive) { showDeleteConfirm = true } label: {
+                    Label("Delete", systemImage: "trash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Delete Domain")
+            }
+        } label: {
+            Text(domain)
+                .fontDesign(.monospaced)
+                .textSelection(.enabled)
+        }
+        .opacity(isDeleting ? 0.4 : 1)
+        .alert("Delete the \(domain) domain?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do { try await service.deleteDNSDomain(domain) }
+                    catch is CancellationError { /* dismissed the admin prompt */ }
+                    catch { errorMessage = error.localizedDescription }
+                    isDeleting = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Container names under \(domain) will stop resolving on this Mac. You'll be asked for an administrator password.")
+        }
+        .errorAlert($errorMessage)
+    }
+}
+
 // MARK: - Builder
 
 private struct BuilderSection: View {
@@ -451,6 +615,8 @@ private struct BuilderRow: View {
     @Environment(ContainerServiceBase.self) private var service
     @State private var showStopConfirm = false
     @State private var isStopping = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
     @State private var errorMessage: String?
 
     private var isRunning: Bool { builder.status == .running }
@@ -474,6 +640,18 @@ private struct BuilderRow: View {
                     .controlSize(.small)
                     .disabled(isStopping)
                     .help("Stop Builder")
+                } else {
+                    // Delete only offered once stopped — same stop-first gate as container rows
+                    // (the CLI needs --force to delete a running builder; the GUI doesn't offer
+                    // that). The next build recreates the builder, so this is the reset path for
+                    // a wedged or cache-bloated builder, not a permanent removal.
+                    Button(role: .destructive) { showDeleteConfirm = true } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isDeleting)
+                    .help("Delete Builder")
                 }
             }
         } label: {
@@ -487,7 +665,7 @@ private struct BuilderRow: View {
                     .truncationMode(.middle)
             }
         }
-        .opacity(isStopping ? 0.4 : 1)
+        .opacity(isStopping || isDeleting ? 0.4 : 1)
         .alert("Stop \(builder.name)?", isPresented: $showStopConfirm) {
             Button("Stop", role: .destructive) {
                 isStopping = true
@@ -500,6 +678,19 @@ private struct BuilderRow: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("The builder container will be shut down.")
+        }
+        .alert("Delete \(builder.name)?", isPresented: $showDeleteConfirm) {
+            Button("Delete", role: .destructive) {
+                isDeleting = true
+                Task {
+                    do { try await service.deleteBuilder(builder.id) }
+                    catch { errorMessage = error.localizedDescription }
+                    isDeleting = false
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Removes the builder container and its build cache. Your next build recreates it automatically, but starts without cached layers.")
         }
         .errorAlert($errorMessage)
     }
@@ -638,8 +829,14 @@ private struct DaemonLogView: View {
     mock.diskUsage = DiskUsageSummary(
         images: .init(total: 12, active: 4, sizeBytes: 3_400_000_000, reclaimableBytes: 1_100_000_000),
         containers: .init(total: 6, active: 2, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
-        volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 0)
+        volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 180_000_000)
     )
+    mock.dnsDomains = ["test"]
+    mock.systemProperties = [
+        SystemProperty(key: "build.rosetta", value: "true"),
+        SystemProperty(key: "dns.domain", value: "test"),
+        SystemProperty(key: "registry.domain", value: "docker.io"),
+    ]
     mock.kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
     mock.systemConfigInfo = SystemConfigInfo(
         vminitImage: "ghcr.io/apple/containerization/vminit:latest",
@@ -649,5 +846,5 @@ private struct DaemonLogView: View {
     )
     return SystemView()
         .environment(mock as ContainerServiceBase)
-        .frame(width: 520, height: 1000)
+        .frame(width: 520, height: 1400)
 }

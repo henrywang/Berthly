@@ -81,6 +81,78 @@ struct PruneSelectionTests {
         #expect(LiveContainerService.deletableStoppedContainerIDs([]).isEmpty)
     }
 
+    // MARK: - Volume selection
+
+    @Test func deletesUnmountedVolumesAndKeepsMountedOnes() {
+        let unused = LiveContainerService.unusedVolumeNames(
+            allVolumeNames: ["pgdata", "model-cache", "scratch"],
+            mountedVolumeNames: ["pgdata"]
+        )
+        #expect(unused == ["model-cache", "scratch"])
+        #expect(!unused.contains("pgdata"))
+    }
+
+    @Test func protectsVolumeMountedOnlyByAStoppedContainer() {
+        // The caller passes mounts from *every* container's configuration, running or stopped —
+        // a volume a stopped container still mounts holds data that becomes reachable again on
+        // start, so it must survive the cleanup.
+        let unused = LiveContainerService.unusedVolumeNames(
+            allVolumeNames: ["stopped-data", "orphan"],
+            mountedVolumeNames: ["stopped-data"]  // mounted by a stopped container
+        )
+        #expect(unused == ["orphan"])
+    }
+
+    @Test func emptyVolumeInputsProduceEmptySelection() {
+        #expect(LiveContainerService.unusedVolumeNames(allVolumeNames: [], mountedVolumeNames: []).isEmpty)
+    }
+
+    // MARK: - Network selection
+
+    @Test func deletesOnlyDisconnectedNonBuiltinNetworks() {
+        let ids = LiveContainerService.prunableNetworkIDs(
+            [
+                PruneNetworkInfo(id: "app-net", isBuiltin: false),
+                PruneNetworkInfo(id: "old-net", isBuiltin: false),
+                PruneNetworkInfo(id: "default", isBuiltin: true),
+            ],
+            connectedNetworkIDs: ["app-net"]
+        )
+        #expect(ids == ["old-net"])
+    }
+
+    @Test func neverDeletesTheBuiltinNetworkEvenWhenUnused() {
+        // The daemon's default network must survive with nothing attached — deleting it breaks
+        // every future `container run` that doesn't name a network.
+        let ids = LiveContainerService.prunableNetworkIDs(
+            [PruneNetworkInfo(id: "default", isBuiltin: true)],
+            connectedNetworkIDs: []
+        )
+        #expect(ids.isEmpty)
+    }
+
+    @Test func protectsNetworkReferencedOnlyByAStoppedContainer() {
+        // In-use comes from every container's *configuration* (the CLI's rule) — a stopped
+        // container's network must still be attachable when that container starts again.
+        let ids = LiveContainerService.prunableNetworkIDs(
+            [PruneNetworkInfo(id: "stopped-net", isBuiltin: false)],
+            connectedNetworkIDs: ["stopped-net"]  // referenced by a stopped container
+        )
+        #expect(ids.isEmpty)
+    }
+
+    // MARK: - machine set kwargs
+
+    @Test func machineSetKwargsIncludesOnlyProvidedFields() {
+        let kwargs = LiveContainerService.machineSetKwargs(
+            for: MachineUpdateOptions(cpus: 8, memory: "  16G ", homeMount: "ro"))
+        #expect(kwargs == ["cpus": "8", "memory": "16G", "home-mount": "ro"])
+
+        let partial = LiveContainerService.machineSetKwargs(
+            for: MachineUpdateOptions(cpus: nil, memory: "", homeMount: nil))
+        #expect(partial.isEmpty)  // nothing set → live updateMachine skips the daemon round-trip
+    }
+
     // MARK: - Result aggregation
 
     @Test func resultAggregatesTotalsAndCounts() {
@@ -134,6 +206,36 @@ struct PruneSelectionTests {
     @Test func summaryTextAppendsFailureCountAlongsidePartialSuccess() {
         let r = PruneResult(imagesFreedBytes: 100_000_000, deletedImageCount: 1, failedCount: 1)
         #expect(r.summaryText == "Reclaimed 95.4 MB — removed 1 image. 1 couldn't be removed.")
+    }
+
+    @Test func summaryTextReportsVolumeCleanup() {
+        let r = PruneResult(volumesFreedBytes: 512_000_000, deletedVolumeCount: 2)
+        #expect(r.summaryText == "Reclaimed 488.3 MB — removed 2 unused volumes.")
+    }
+
+    @Test func summaryTextForNetworksOnlySkipsTheBytesPhrase() {
+        // Networks free no disk space — "Reclaimed 0 B" would read like a bug.
+        let r = PruneResult(deletedNetworkCount: 3)
+        #expect(r.summaryText == "Removed 3 unused networks.")
+    }
+
+    @Test func summaryTextListsThreeCategoriesReadably() {
+        let r = PruneResult(imagesFreedBytes: 1_048_576, containersFreedBytes: 1_048_576,
+                            volumesFreedBytes: 1_048_576, deletedImageCount: 1,
+                            deletedContainerCount: 1, deletedVolumeCount: 1)
+        #expect(r.summaryText == "Reclaimed 3.0 MB — removed 1 image, 1 stopped container and 1 unused volume.")
+    }
+
+    @Test func combiningResultsSumsVolumeAndNetworkFields() {
+        let volumes = PruneResult(volumesFreedBytes: 100, deletedVolumeCount: 1)
+        let networks = PruneResult(deletedNetworkCount: 2, failedCount: 1)
+        let combined = volumes + networks
+        #expect(combined.volumesFreedBytes == 100)
+        #expect(combined.deletedVolumeCount == 1)
+        #expect(combined.deletedNetworkCount == 2)
+        #expect(combined.failedCount == 1)
+        #expect(combined.deletedCount == 3)
+        #expect(combined.totalFreedBytes == 100)
     }
 
     // Regression: orphaned-blob GC can free real bytes on a run where nothing was freshly

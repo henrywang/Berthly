@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Typed entry wrappers carry the section+type-prefixed ForEach identity so that:
 // (a) a container and machine sharing the same underlying id never collide in the list, and
@@ -253,6 +255,10 @@ private struct ContainerComputeRow: View {
             if container.status == .running {
                 Button("Stop") { perform { try await service.stopContainer(container.id) } }
                 Button("Restart") { perform { try await service.restartContainer(container.id) } }
+                // The unwedge path when Stop's graceful SIGTERM is ignored. No confirmation —
+                // like Stop/Restart it doesn't destroy the container (confirmations here are
+                // reserved for Delete); "Force" in the label carries the abruptness.
+                Button("Force Kill") { perform { try await service.killContainer(container.id) } }
             } else {
                 Button("Start") { perform { try await service.startContainer(container.id) } }
             }
@@ -260,6 +266,11 @@ private struct ContainerComputeRow: View {
             Button("Copy Name") { copyToPasteboard(container.name) }
             Button("Copy Container ID") { copyToPasteboard(container.id) }
             Button("Copy Image Reference") { copyToPasteboard(container.image) }
+            Divider()
+            // The daemon exports only a *stopped* container's rootfs — disabled (not hidden)
+            // otherwise, so the capability stays discoverable with the gate implied.
+            Button("Export Filesystem…") { exportFilesystem() }
+                .disabled(container.status != .stopped)
             Divider()
             // No accessibilityIdentifier: it doesn't survive the SwiftUI→NSMenu bridge for
             // context-menu items — tests query menuItems["Delete…"] by label instead.
@@ -295,6 +306,19 @@ private struct ContainerComputeRow: View {
             isWorking = false
         }
     }
+
+    /// `container export -o` behind a save panel. The panel owns overwrite confirmation; the
+    /// export itself runs through `perform`, so the row shows the same in-flight spinner as
+    /// start/stop and failures land in the standard error alert.
+    private func exportFilesystem() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = LiveContainerService.exportArchiveFilename(for: container.name)
+        panel.allowedContentTypes = [UTType(filenameExtension: "tar") ?? .archive]
+        panel.canCreateDirectories = true
+        panel.message = "Export \(container.name)'s filesystem as a tar archive"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        perform { try await service.exportContainer(container.id, to: url.path) }
+    }
 }
 
 // MARK: - Machine row
@@ -319,12 +343,17 @@ private struct MachineComputeRow: View {
                 .frame(width: computeGlyphWidth, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(machine.name)
-                    .font(.system(.body, design: .default, weight: .medium))
-                    // Stopped rows recede into the background — see ContainerComputeRow.
-                    .foregroundStyle(isRunning ? Color.primary : Color.secondary)
-                    // Same rationale as computeRow-: the detail view repeats the name.
-                    .accessibilityIdentifier("machineRow-\(machine.name)")
+                HStack(spacing: 6) {
+                    Text(machine.name)
+                        .font(.system(.body, design: .default, weight: .medium))
+                        // Stopped rows recede into the background — see ContainerComputeRow.
+                        .foregroundStyle(isRunning ? Color.primary : Color.secondary)
+                        // Same rationale as computeRow-: the detail view repeats the name.
+                        .accessibilityIdentifier("machineRow-\(machine.name)")
+                    if machine.isDefault {
+                        DefaultChip()
+                    }
+                }
                 Text(machine.image)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -378,6 +407,10 @@ private struct MachineComputeRow: View {
             } else {
                 Button("Start") { perform { try await service.startMachine(machine.id) } }
             }
+            // Which machine `container machine run` targets with no ID. Disabled (not hidden)
+            // on the current holder, so the menu explains itself instead of an item vanishing.
+            Button("Set as Default") { perform { try await service.setDefaultMachine(machine.id) } }
+                .disabled(machine.isDefault)
             Divider()
             Button("Copy Name") { copyToPasteboard(machine.name) }
             Button("Copy Machine ID") { copyToPasteboard(machine.id) }

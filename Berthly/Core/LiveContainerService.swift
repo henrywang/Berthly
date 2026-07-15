@@ -746,7 +746,8 @@ final class LiveContainerService: ContainerServiceBase {
             containers = []
         }
         let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
-        machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName) }
+        let defaultMachineID = ((try? await MachineClient().getDefault()) ?? nil)
+        machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName, defaultMachineID: defaultMachineID) }
         builders  = builderSnaps.map { mapBuilder($0) }
 
         images = ContainerImage.resolvingUsage(
@@ -794,7 +795,9 @@ final class LiveContainerService: ContainerServiceBase {
         // A missing/failed default kernel degrades to a dash rather than failing
         // the whole list fetch.
         let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
-        return try await MachineClient().list().map { mapMachine($0, kernelName: kernelName) }
+        let client = MachineClient()
+        let defaultMachineID = ((try? await client.getDefault()) ?? nil)
+        return try await client.list().map { mapMachine($0, kernelName: kernelName, defaultMachineID: defaultMachineID) }
     }
 
     /// Display name for a machine's kernel: the default kernel binary's filename
@@ -983,7 +986,7 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    private func mapMachine(_ snap: MachineSnapshot, kernelName: String) -> Machine {
+    private func mapMachine(_ snap: MachineSnapshot, kernelName: String, defaultMachineID: String?) -> Machine {
         let diskGB = Double(snap.diskSize ?? 0) / 1_073_741_824
         let created = snap.createdDate.map {
             $0.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
@@ -1005,7 +1008,8 @@ final class LiveContainerService: ContainerServiceBase {
             kernel: kernelName,
             resources: resources,
             created: created,
-            homeMount: Self.mapHomeMount(snap.bootConfig.homeMount)
+            homeMount: Self.mapHomeMount(snap.bootConfig.homeMount),
+            isDefault: snap.id == defaultMachineID
         )
     }
 
@@ -1080,6 +1084,39 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    // Fixed SIGKILL (the CLI's `container kill` default): the UI offers force-kill as the
+    // unwedge action, not a general signal sender — other signals stay a CLI affair.
+    override func killContainer(_ id: String) async throws {
+        try await ContainerClient().kill(id: id, signal: "KILL")
+        await refresh()
+    }
+
+    /// Default filename the export save panel suggests: `<name>-rootfs.tar` distinguishes a
+    /// container filesystem dump from the image archives `saveImages` writes (`<name>.tar`).
+    nonisolated static func exportArchiveFilename(for containerName: String) -> String {
+        let sanitized = containerName
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+        return "\(sanitized)-rootfs.tar"
+    }
+
+    /// Native replication of `container export -o`: the daemon writes the archive to a private
+    /// temp path first, which is moved into place only on success — a failed export never leaves
+    /// a truncated tar at the user's chosen destination.
+    override func exportContainer(_ id: String, to path: String) async throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let archive = tempDir.appendingPathComponent("archive.tar")
+        try await ContainerClient().export(id: id, archive: archive)
+
+        // The save panel already confirmed replacement — a leftover file would fail the move.
+        let destination = URL(fileURLWithPath: path)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: archive, to: destination)
+    }
+
     override func deleteContainer(_ id: String) async throws {
         try await ContainerClient().delete(id: id)
         if pinnedContainerIDs.remove(id) != nil { savePinnedItems() }
@@ -1148,8 +1185,48 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
+    override func setDefaultMachine(_ id: String) async throws {
+        try await MachineClient().setDefault(id: id)
+        await refresh()
+    }
+
+    /// The `key=value` settings `container machine set` would receive for `options` — only
+    /// fields the user actually set are included, so untouched settings keep their current
+    /// values (`MachineConfig.with` merges over the machine's existing boot config).
+    nonisolated static func machineSetKwargs(for options: MachineUpdateOptions) -> [String: String] {
+        var kwargs: [String: String] = [:]
+        if let cpus = options.cpus {
+            kwargs["cpus"] = String(cpus)
+        }
+        if let memory = options.memory?.trimmingCharacters(in: .whitespaces), !memory.isEmpty {
+            kwargs["memory"] = memory
+        }
+        if let homeMount = options.homeMount, !homeMount.isEmpty {
+            kwargs["home-mount"] = homeMount
+        }
+        return kwargs
+    }
+
+    /// Native replication of `container machine set`: merges the changed settings over the
+    /// machine's current boot config and persists it. The daemon applies the new config on the
+    /// machine's next boot — a running machine is deliberately left running.
+    override func updateMachine(_ id: String, options: MachineUpdateOptions) async throws {
+        let kwargs = Self.machineSetKwargs(for: options)
+        guard !kwargs.isEmpty else { return }
+        let client = MachineClient()
+        let snapshot = try await client.inspect(id: id)
+        let newConfig = try snapshot.bootConfig.with(kwargs)
+        try await client.setConfig(id: id, bootConfig: newConfig)
+        await refresh()
+    }
+
     override func stopBuilder(_ id: String) async throws {
         try await ContainerClient().stop(id: id)
+        await refresh()
+    }
+
+    override func deleteBuilder(_ id: String) async throws {
+        try await ContainerClient().delete(id: id)
         await refresh()
     }
 
@@ -1367,6 +1444,86 @@ final class LiveContainerService: ContainerServiceBase {
         return result
     }
 
+    /// Pure unused-volume selection, same shape as `unusedImageReferences`: the caller passes
+    /// mounted-volume names from the *full* container list (running or stopped), so a volume a
+    /// stopped container still mounts is protected — matching both the CLI's `volume prune` and
+    /// the daemon's volume `reclaimable` definition.
+    nonisolated static func unusedVolumeNames(allVolumeNames: [String], mountedVolumeNames: [String]) -> [String] {
+        let mounted = Set(mountedVolumeNames)
+        return allVolumeNames.filter { !mounted.contains($0) }
+    }
+
+    /// Pure unused-network selection. A network is prunable only when no container's configuration
+    /// references it *and* it isn't the daemon's built-in default (which must survive even with
+    /// nothing attached) — mirroring the CLI's `network prune`.
+    nonisolated static func prunableNetworkIDs(_ networks: [PruneNetworkInfo], connectedNetworkIDs: [String]) -> [String] {
+        let connected = Set(connectedNetworkIDs)
+        return networks.filter { !$0.isBuiltin && !connected.contains($0.id) }.map(\.id)
+    }
+
+    /// Native replication of `container volume prune`: deletes every volume no container mounts.
+    /// In-use is judged from every container's *configuration* (running or stopped), so a volume a
+    /// stopped container still references survives — its data becomes reachable again the moment
+    /// that container starts.
+    override func pruneVolumes() async throws -> PruneResult {
+        let allVolumes = try await ClientVolume.list()
+        let allContainers = try await ContainerClient().list()
+        let mounted = allContainers.flatMap { snap in
+            snap.configuration.mounts.compactMap { $0.isVolume ? $0.volumeName : nil }
+        }
+        let names = Self.unusedVolumeNames(
+            allVolumeNames: allVolumes.map(\.name),
+            mountedVolumeNames: mounted
+        )
+
+        var result = PruneResult()
+        for name in names {
+            do {
+                let size = try await ClientVolume.volumeDiskUsage(name: name)  // tally before deleting
+                try await ClientVolume.delete(name: name)
+                result.volumesFreedBytes += size
+                result.deletedVolumeCount += 1
+            } catch {
+                result.failedCount += 1
+                Self.log.warning("pruneVolumes: failed to delete volume", metadata: ["name": "\(name)", "error": "\(error)"])
+            }
+        }
+
+        await refresh()
+        try? await fetchDiskUsage()
+        return result
+    }
+
+    /// Native replication of `container network prune`: deletes every non-builtin network no
+    /// container's configuration references. Frees no disk space — networks are vmnet state, not
+    /// storage — so the result carries only a count.
+    override func pruneNetworks() async throws -> PruneResult {
+        let networkClient = NetworkClient()
+        let allNetworks = try await networkClient.list()
+        let allContainers = try await ContainerClient().list()
+        let connected = allContainers.flatMap { $0.configuration.networks.map(\.network) }
+        let ids = Self.prunableNetworkIDs(
+            allNetworks.map { PruneNetworkInfo(id: $0.id, isBuiltin: $0.isBuiltin) },
+            connectedNetworkIDs: connected
+        )
+
+        var result = PruneResult()
+        for id in ids {
+            do {
+                try await networkClient.delete(id: id)
+                result.deletedNetworkCount += 1
+            } catch {
+                // Can race a concurrent `container run` attaching to a network selected above —
+                // the daemon refuses the delete, which is the safe outcome; report, don't fail.
+                result.failedCount += 1
+                Self.log.warning("pruneNetworks: failed to delete network", metadata: ["id": "\(id)", "error": "\(error)"])
+            }
+        }
+
+        await refresh()
+        return result
+    }
+
     override func pruneAll() async -> CleanUpAllResult {
         let allContainers: [ContainerSnapshot]
         do {
@@ -1452,6 +1609,106 @@ final class LiveContainerService: ContainerServiceBase {
             kernelURL: config.kernel.url.absoluteString,
             builderImage: config.build.image
         )
+    }
+
+    /// Flattens the resolved system configuration into the dotted key/value rows `container
+    /// system property list` prints — every key, defaults included, in the CLI's TOML section
+    /// order. Unset optionals render as an em dash rather than being omitted, so the list always
+    /// shows the full settable surface.
+    nonisolated static func mapSystemProperties(_ config: ContainerSystemConfig) -> [SystemProperty] {
+        [
+            SystemProperty(key: "build.rosetta", value: String(config.build.rosetta)),
+            SystemProperty(key: "build.cpus", value: String(config.build.cpus)),
+            SystemProperty(key: "build.memory", value: String(describing: config.build.memory)),
+            SystemProperty(key: "build.image", value: config.build.image),
+            SystemProperty(key: "container.cpus", value: String(config.container.cpus)),
+            SystemProperty(key: "container.memory", value: String(describing: config.container.memory)),
+            SystemProperty(key: "dns.domain", value: config.dns.domain ?? "–"),
+            SystemProperty(key: "kernel.binaryPath", value: config.kernel.binaryPath),
+            SystemProperty(key: "kernel.url", value: config.kernel.url.absoluteString),
+            SystemProperty(key: "machine.cpus", value: String(config.machine.cpus)),
+            SystemProperty(key: "machine.memory", value: String(describing: config.machine.memory)),
+            SystemProperty(key: "machine.home-mount", value: config.machine.homeMount.rawValue),
+            SystemProperty(key: "machine.virtualization", value: String(config.machine.virtualization)),
+            SystemProperty(key: "network.subnet", value: config.network.subnet.map { String(describing: $0) } ?? "–"),
+            SystemProperty(key: "network.subnetv6", value: config.network.subnetv6.map { String(describing: $0) } ?? "–"),
+            SystemProperty(key: "registry.domain", value: config.registry.domain),
+            SystemProperty(key: "vminit.image", value: config.vminit.image),
+        ]
+    }
+
+    override func fetchSystemProperties() async {
+        systemProperties = Self.mapSystemProperties(await resolvedSystemConfig())
+    }
+
+    // MARK: - Local DNS domains
+
+    /// `HostDNSResolver`'s resolver directory. The type's `defaultConfigPath` constant can't be
+    /// referenced here (its `FilePath` type comes from SystemPackage, which Berthly doesn't
+    /// import), but the path is a decades-stable macOS resolver(5) convention.
+    private nonisolated static let resolverConfigDirectory = "/etc/resolver"
+
+    /// Domain names recovered from `/etc/resolver` filenames — the same filename convention
+    /// `HostDNSResolver.listDomains()` reads (`containerization.<domain>`). Only entries with
+    /// that prefix are containers' domains; anything else there (VPN split-DNS files, etc.) is
+    /// someone else's and ignored. Sorted for a stable display order.
+    nonisolated static func dnsDomains(fromResolverFilenames filenames: [String]) -> [String] {
+        let prefix = HostDNSResolver.containerizationPrefix
+        return filenames
+            .filter { $0.hasPrefix(prefix) && $0.count > prefix.count }
+            .map { String($0.dropFirst(prefix.count)) }
+            .sorted()
+    }
+
+    /// Pre-flight validation for a new local DNS domain, mirroring RFC-1035 label rules (what
+    /// the CLI's `DNSName` enforces). Returns a user-facing problem, or `nil` when valid — run
+    /// *before* the admin-password prompt so a typo doesn't cost the user an authentication.
+    nonisolated static func validateDNSDomainName(_ raw: String) -> String? {
+        let name = raw.trimmingCharacters(in: .whitespaces)
+        if name.isEmpty { return "Enter a domain name." }
+        if name.count > 253 { return "Domain names can be at most 253 characters." }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
+        for label in name.split(separator: ".", omittingEmptySubsequences: false) {
+            if label.isEmpty { return "Domain labels can't be empty — check for stray dots." }
+            if label.count > 63 { return "Each dot-separated label can be at most 63 characters." }
+            if label.hasPrefix("-") || label.hasSuffix("-") { return "Labels can't start or end with a hyphen." }
+            if label.unicodeScalars.contains(where: { !allowed.contains($0) }) {
+                return "Only letters, digits, hyphens, and dots are allowed."
+            }
+        }
+        return nil
+    }
+
+    nonisolated static func dnsCreateShellCommand(domain: String) -> String {
+        "container system dns create \(shellQuoted(domain))"
+    }
+
+    nonisolated static func dnsDeleteShellCommand(domain: String) -> String {
+        "container system dns delete \(shellQuoted(domain))"
+    }
+
+    override func fetchDNSDomains() async {
+        // A missing /etc/resolver directory (never created any domain) reads as "no domains".
+        let filenames = (try? FileManager.default.contentsOfDirectory(atPath: Self.resolverConfigDirectory)) ?? []
+        dnsDomains = Self.dnsDomains(fromResolverFilenames: filenames)
+    }
+
+    /// Runs the CLI (`container system dns create`) under the elevated-shell machinery rather
+    /// than calling `HostDNSResolver` in-process: the write to `/etc/resolver` requires root,
+    /// and the CLI also owns the follow-up steps (pf rules, mDNSResponder reload) that make the
+    /// domain actually resolve.
+    override func createDNSDomain(_ name: String) async throws {
+        let domain = name.trimmingCharacters(in: .whitespaces)
+        if let problem = Self.validateDNSDomainName(domain) {
+            throw ContainerizationError(.invalidArgument, message: problem)
+        }
+        try await runPrivilegedShellCommand(Self.dnsCreateShellCommand(domain: domain)) { _ in }
+        await fetchDNSDomains()
+    }
+
+    override func deleteDNSDomain(_ name: String) async throws {
+        try await runPrivilegedShellCommand(Self.dnsDeleteShellCommand(domain: name)) { _ in }
+        await fetchDNSDomains()
     }
 
     // MARK: - Registries

@@ -330,13 +330,20 @@ struct Machine: Identifiable, Hashable {
     let resources: String
     let created: String
     let homeMount: MachineHomeMount
+    /// Whether this is the daemon's default machine — the one `container machine run` targets
+    /// when no ID is given. Exactly one machine holds it; set at create time or via Set as Default.
+    var isDefault: Bool = false
 
     var diskUsagePercent: Double {
         guard diskTotalGB > 0 else { return 0 }
         return diskUsedGB / diskTotalGB
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.status == rhs.status }
+    // isDefault participates so a Set as Default action re-renders both affected rows (the
+    // newly-default machine and the one that lost the badge), same reason status participates.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.status == rhs.status && lhs.isDefault == rhs.isDefault
+    }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -417,20 +424,31 @@ struct PruneContainerInfo: Sendable, Equatable {
     let isInfrastructure: Bool
 }
 
-/// Outcome of a cleanup action — what it actually freed. Each disk category has its own action, so
+/// A network reduced to the fields the network cleanup needs, extracted at the service boundary so
+/// the selection stays a pure, testable function (mirrors `PruneContainerInfo`). `isBuiltin` marks
+/// the daemon's own default network, which must never be deleted even when nothing is attached.
+struct PruneNetworkInfo: Sendable, Equatable {
+    let id: String
+    let isBuiltin: Bool
+}
+
+/// Outcome of a cleanup action — what it actually freed. Each category has its own action, so
 /// a given result populates only its own fields (image cleanup fills the image fields, etc.).
-/// Volumes have no cleanup action at all, by design.
+/// Networks occupy no disk, so network cleanup reports only a count, never bytes.
 struct PruneResult: Sendable, Equatable {
     var imagesFreedBytes: UInt64 = 0
     var containersFreedBytes: UInt64 = 0
+    var volumesFreedBytes: UInt64 = 0
     var deletedImageCount: Int = 0
     var deletedContainerCount: Int = 0
+    var deletedVolumeCount: Int = 0
+    var deletedNetworkCount: Int = 0
     /// Per-item delete failures (logged and skipped, not fatal). Lets the UI distinguish
     /// "nothing to remove" from "everything failed" when `deletedCount` is 0.
     var failedCount: Int = 0
 
-    var totalFreedBytes: UInt64 { imagesFreedBytes + containersFreedBytes }
-    var deletedCount: Int { deletedImageCount + deletedContainerCount }
+    var totalFreedBytes: UInt64 { imagesFreedBytes + containersFreedBytes + volumesFreedBytes }
+    var deletedCount: Int { deletedImageCount + deletedContainerCount + deletedVolumeCount + deletedNetworkCount }
 
     /// Combines two independent cleanup outcomes into one — used by "Clean Up All", which runs
     /// image and container cleanup as two separate calls (each keeping its own safety logic) but
@@ -439,8 +457,11 @@ struct PruneResult: Sendable, Equatable {
         PruneResult(
             imagesFreedBytes: lhs.imagesFreedBytes + rhs.imagesFreedBytes,
             containersFreedBytes: lhs.containersFreedBytes + rhs.containersFreedBytes,
+            volumesFreedBytes: lhs.volumesFreedBytes + rhs.volumesFreedBytes,
             deletedImageCount: lhs.deletedImageCount + rhs.deletedImageCount,
             deletedContainerCount: lhs.deletedContainerCount + rhs.deletedContainerCount,
+            deletedVolumeCount: lhs.deletedVolumeCount + rhs.deletedVolumeCount,
+            deletedNetworkCount: lhs.deletedNetworkCount + rhs.deletedNetworkCount,
             failedCount: lhs.failedCount + rhs.failedCount
         )
     }
@@ -469,8 +490,24 @@ struct PruneResult: Sendable, Equatable {
         if deletedContainerCount > 0 {
             parts.append("\(deletedContainerCount) stopped container\(deletedContainerCount == 1 ? "" : "s")")
         }
-        var text = "Reclaimed \(formatDiskBytes(totalFreedBytes))"
-        text += parts.isEmpty ? " of unused disk space." : " — removed \(parts.joined(separator: " and "))."
+        if deletedVolumeCount > 0 {
+            parts.append("\(deletedVolumeCount) unused volume\(deletedVolumeCount == 1 ? "" : "s")")
+        }
+        if deletedNetworkCount > 0 {
+            parts.append("\(deletedNetworkCount) unused network\(deletedNetworkCount == 1 ? "" : "s")")
+        }
+        // Oxford-less list: "a and b", "a, b, and c" reads worse in an alert than "a, b and c".
+        let removed = parts.count > 2
+            ? parts.dropLast().joined(separator: ", ") + " and " + parts[parts.count - 1]
+            : parts.joined(separator: " and ")
+        var text: String
+        if totalFreedBytes == 0 {
+            // A networks-only cleanup frees no disk space — "Reclaimed 0 B" would read like a bug.
+            text = "Removed \(removed)."
+        } else {
+            text = "Reclaimed \(formatDiskBytes(totalFreedBytes))"
+            text += parts.isEmpty ? " of unused disk space." : " — removed \(removed)."
+        }
         if failedCount > 0 {
             text += " \(failedCount) couldn't be removed."
         }
@@ -501,6 +538,14 @@ struct CleanUpAllResult: Sendable, Equatable {
 struct KernelInfo: Hashable {
     let path: String
     let platform: String
+}
+
+/// One row of `container system property list` — a dotted TOML key (as it appears in
+/// `config.toml`) and its resolved display value, defaults included.
+struct SystemProperty: Identifiable, Hashable {
+    let key: String
+    let value: String
+    var id: String { key }
 }
 
 /// Full set of arguments for installing/switching the default kernel — mirrors
@@ -691,6 +736,14 @@ nonisolated struct MachineCreateOptions {
     var boot: Bool = true
     var setDefault: Bool = false
     var insecureRegistry: Bool = false
+}
+
+/// Arguments for `container machine set` — reconfigure an existing machine's boot settings.
+/// `nil` (or blank) leaves a setting unchanged; changes take effect on the machine's next boot.
+nonisolated struct MachineUpdateOptions {
+    var cpus: Int?
+    var memory: String?     // e.g. "8G", parsed by the daemon's MemorySize
+    var homeMount: String?  // "ro" | "rw" | "none"
 }
 
 // MARK: - Create volume / network

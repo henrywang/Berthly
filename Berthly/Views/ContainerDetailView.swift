@@ -474,6 +474,21 @@ struct StatusBadge: View {
     }
 }
 
+/// Small "DEFAULT" tag for the machine `container machine run` targets when no ID is given —
+/// same visual treatment as the networks list's chip for the built-in default network, so
+/// "default-ness" reads identically across resource kinds. Shared by the compute list row and
+/// the machine detail header.
+struct DefaultChip: View {
+    var body: some View {
+        Text("DEFAULT")
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
 // MARK: - Detail Tab Picker
 
 /// Segmented switcher for the detail panes (Overview/Logs/Terminal), shared by the container

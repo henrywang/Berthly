@@ -41,6 +41,12 @@ class ContainerServiceBase {
     var diskUsage: DiskUsageSummary? = nil
     var kernelInfo: KernelInfo? = nil
     var systemConfigInfo: SystemConfigInfo? = nil
+    /// Local DNS domains registered for containers (like `container system dns list`).
+    /// `nil` until the first `fetchDNSDomains()`, so the UI can show a loading state.
+    var dnsDomains: [String]? = nil
+    /// Resolved system properties (like `container system property list`), defaults included.
+    /// Read-only in Berthly — editing stays a `config.toml` / CLI affair.
+    var systemProperties: [SystemProperty]? = nil
 
     func buildContext(for reference: String) -> BuildContext? { buildContexts[reference] }
     func saveBuildContext(_ ctx: BuildContext, for reference: String) { buildContexts[reference] = ctx }
@@ -64,7 +70,15 @@ class ContainerServiceBase {
     func startContainer(_ id: String) async throws {}
     func stopContainer(_ id: String) async throws {}
     func restartContainer(_ id: String) async throws {}
+    /// Send SIGKILL to a running container (like `container kill`) — the unwedge path for a
+    /// container that ignores `stopContainer`'s graceful SIGTERM. The process gets no chance to
+    /// flush or clean up; the container itself remains, stopped.
+    func killContainer(_ id: String) async throws {}
     func deleteContainer(_ id: String) async throws {}
+    /// Export a stopped container's filesystem as a tar archive at `path` (like `container
+    /// export -o`). The daemon refuses a non-stopped container, so callers gate the action on
+    /// stopped status. No progress reporting — the export API offers none.
+    func exportContainer(_ id: String, to path: String) async throws {}
 
     /// Copy a file or directory between the host and container `containerID`'s filesystem.
     /// `hostPath` is a path on the Mac, `containerPath` a path inside the container; `direction`
@@ -75,10 +89,22 @@ class ContainerServiceBase {
     func startMachine(_ id: String) async throws {}
     func stopMachine(_ id: String) async throws {}
     func deleteMachine(_ id: String) async throws {}
+    /// Make `id` the default machine (like `container machine set-default`) — the target of
+    /// `container machine run` with no ID. Reflected in `Machine.isDefault` on the next refresh.
+    func setDefaultMachine(_ id: String) async throws {}
+    /// Reconfigure an existing machine's boot settings (like `container machine set`). Changes
+    /// apply the next time the machine boots — a running machine keeps its current resources
+    /// until stopped and started again.
+    func updateMachine(_ id: String, options: MachineUpdateOptions) async throws {}
     func deleteImage(_ reference: String) async throws {}
     func deleteVolume(_ name: String) async throws {}
     func deleteNetwork(_ id: String) async throws {}
     func stopBuilder(_ id: String) async throws {}
+    /// Delete the (stopped) builder container and its build cache — like `container builder
+    /// delete`. The next build recreates the builder automatically, so this is the "reset a
+    /// wedged/bloated builder" action, not a permanent removal. Callers gate on stopped status
+    /// (the CLI requires `--force` to delete a running builder; the GUI just doesn't offer it).
+    func deleteBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
     /// Create an additional local reference for an existing image (like `container image tag`).
     /// Returns the reference actually created: normalization can add a default registry host,
@@ -116,6 +142,13 @@ class ContainerServiceBase {
     /// Delete stopped containers (never machines or builders). More consequential than image
     /// cleanup — removes the container and its writable layer. Returns what was freed.
     func pruneStoppedContainers() async throws -> PruneResult { PruneResult() }
+    /// Delete volumes not mounted by any container (like `container volume prune`). The most
+    /// consequential cleanup of all — an unattached volume can hold real data — so it never runs
+    /// as part of `pruneAll()`; only its own explicitly-confirmed action calls it.
+    func pruneVolumes() async throws -> PruneResult { PruneResult() }
+    /// Delete networks with no container connections (like `container network prune`). Never
+    /// deletes the built-in default network. Frees no disk space, only tidies the network list.
+    func pruneNetworks() async throws -> PruneResult { PruneResult() }
     /// "Clean Up All": runs image and stopped-container cleanup independently so a failure in one
     /// doesn't skip or discard a successful result from the other. Subclasses with a live daemon
     /// connection can override this to share a single container-list fetch between the two phases
@@ -137,6 +170,16 @@ class ContainerServiceBase {
     }
     func fetchKernelInfo() async throws {}
     func fetchSystemConfig() async throws {}
+    /// Refreshes `dnsDomains` from the host's resolver configuration. Read-only, no elevation.
+    func fetchDNSDomains() async {}
+    /// Refreshes `systemProperties` from the resolved system configuration.
+    func fetchSystemProperties() async {}
+    /// Register a local DNS domain for containers (like `container system dns create`). Writes
+    /// `/etc/resolver`, so the live implementation shows the macOS administrator-password prompt;
+    /// dismissing it surfaces as `CancellationError`.
+    func createDNSDomain(_ name: String) async throws {}
+    /// Remove a local DNS domain (like `container system dns delete`). Elevated like create.
+    func deleteDNSDomain(_ name: String) async throws {}
     func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
     func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
 
