@@ -130,6 +130,7 @@ private struct MachineDetailContent: View {
                 Image(systemName: "slider.horizontal.3")
             }
             .buttonStyle(.bordered)
+            .accessibilityIdentifier("machineEditButton")
             .help("Edit CPU, memory, and home mount…")
             .hoverScale()
             // No Copy Files button here (unlike ContainerDetailView): `copyIn`/`copyOut` write to the

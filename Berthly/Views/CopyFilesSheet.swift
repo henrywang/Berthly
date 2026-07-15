@@ -111,6 +111,7 @@ struct CopyFilesSheet: View {
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 TextField(placeholder, text: $hostPath)
+                    .accessibilityIdentifier("copyHostPathField")
                     .textFieldStyle(.roundedBorder)
                     .font(.system(.callout, design: .monospaced))
                     .disabled(isCopying)
@@ -126,6 +127,7 @@ struct CopyFilesSheet: View {
                 .font(.caption.weight(.medium))
                 .foregroundStyle(.secondary)
             TextField(placeholder, text: $containerPath)
+                .accessibilityIdentifier("copyContainerPathField")
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.callout, design: .monospaced))
                 .disabled(isCopying)
@@ -185,6 +187,7 @@ struct CopyFilesSheet: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(!canCopy)
                     .keyboardShortcut(.return)
+                    .accessibilityIdentifier("copyFilesSubmitButton")
             }
         }
         .padding(.horizontal, 20)
