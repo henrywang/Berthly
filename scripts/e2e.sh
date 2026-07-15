@@ -5,14 +5,28 @@
 # `xcodebuild test`, Xcode's ⌘U, and CI can never mutate real daemon state by accident.
 #
 # Usage:
-#   scripts/e2e.sh                 # whole E2E suite
-#   scripts/e2e.sh TestClass/test  # one test, e.g. RunContainerJourneyTests/testRunContainerFromSheet_containerExistsWithCorrectImage
+#   scripts/e2e.sh                            # whole E2E suite
+#   scripts/e2e.sh TestClass/test              # one test, e.g. RunContainerJourneyTests/testRunContainerFromSheet_containerExistsWithCorrectImage
+#   scripts/e2e.sh --coverage                  # whole suite, instrumented for code coverage
+#   scripts/e2e.sh --coverage TestClass/test   # one test, instrumented for code coverage
+#
+# Coverage is opt-in (off by default): -enableCodeCoverage instruments the binary at
+# build time, which is a slower build and not something every local run needs.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONTAINER="${BERTHLY_CONTAINER_CLI:-/usr/local/bin/container}"
 FIXTURE_IMAGE="alpine:latest"
+
+COVERAGE=0
+ONLY_FILTER=""
+for arg in "$@"; do
+  case "$arg" in
+    --coverage) COVERAGE=1 ;;
+    *) ONLY_FILTER="$arg" ;;
+  esac
+done
 
 # ── Preflight ────────────────────────────────────────────────────────────────
 if [[ ! -x "$CONTAINER" ]]; then
@@ -49,10 +63,14 @@ fi
 # on the test target is ignored for xctrunners. The only working approach:
 # build first, strip the entitlement, re-sign ad-hoc (CI already proves ad-hoc
 # runners work with CODE_SIGN_IDENTITY=-), then test-without-building.
-xcodebuild build-for-testing \
-  -project Berthly.xcodeproj \
-  -scheme Berthly \
-  -destination 'platform=macOS'
+BUILD_ARGS=(-project Berthly.xcodeproj -scheme Berthly -destination 'platform=macOS')
+if [[ "$COVERAGE" -eq 1 ]]; then
+  # Coverage instrumentation is baked in at compile time — enabling it only on the
+  # later `test-without-building` step would be a no-op, so it has to go here.
+  BUILD_ARGS+=(-enableCodeCoverage YES)
+fi
+
+xcodebuild build-for-testing "${BUILD_ARGS[@]}"
 
 PRODUCTS=$(xcodebuild -project Berthly.xcodeproj -scheme Berthly -destination 'platform=macOS' \
   -showBuildSettings build-for-testing 2>/dev/null | awk '/ BUILT_PRODUCTS_DIR =/ {print $3; exit}')
@@ -73,15 +91,35 @@ rm -f "$ENTITLEMENTS"
 
 # ── Run ──────────────────────────────────────────────────────────────────────
 ONLY="BerthlyE2ETests"
-if [[ $# -ge 1 ]]; then
-  ONLY="BerthlyE2ETests/$1"
+if [[ -n "$ONLY_FILTER" ]]; then
+  ONLY="BerthlyE2ETests/$ONLY_FILTER"
+fi
+
+TEST_ARGS=(test-without-building -project Berthly.xcodeproj -scheme Berthly \
+  -destination 'platform=macOS' -only-testing:"$ONLY")
+
+RESULT_BUNDLE=""
+if [[ "$COVERAGE" -eq 1 ]]; then
+  RESULT_BUNDLE="$(mktemp -d -t berthly-e2e-coverage)/e2e.xcresult"
+  TEST_ARGS+=(-enableCodeCoverage YES -resultBundlePath "$RESULT_BUNDLE")
 fi
 
 # TEST_RUNNER_ prefix forwards the variable into the test-runner process, where
 # BerthlyE2ETestCase checks it as the opt-in gate. test-without-building keeps
 # the desandboxed runner intact (a plain `xcodebuild test` would re-sign it).
-exec env TEST_RUNNER_BERTHLY_E2E=1 xcodebuild test-without-building \
-  -project Berthly.xcodeproj \
-  -scheme Berthly \
-  -destination 'platform=macOS' \
-  -only-testing:"$ONLY"
+# Not `exec`'d (unlike before) — coverage reporting below needs to run after.
+set +e
+env TEST_RUNNER_BERTHLY_E2E=1 xcodebuild "${TEST_ARGS[@]}"
+STATUS=$?
+set -e
+
+if [[ "$COVERAGE" -eq 1 ]]; then
+  echo
+  echo "── Code coverage ────────────────────────────────────────────────────────────"
+  xcrun xccov view --report --only-targets "$RESULT_BUNDLE" || true
+  echo
+  echo "Result bundle: $RESULT_BUNDLE"
+  echo "File-level detail: xcrun xccov view --report --files-for-target Berthly.app $RESULT_BUNDLE"
+fi
+
+exit "$STATUS"
