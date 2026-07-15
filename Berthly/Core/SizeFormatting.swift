@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import Foundation
 
 /// Human-readable byte size (B/KB/MB/GB), picking the largest unit that keeps the number ≥ 1.

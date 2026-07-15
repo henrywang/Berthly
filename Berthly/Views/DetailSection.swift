@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// Title-above-content wrapper for a detail-pane section. `.caption2`/`.tertiary`/`.semibold`

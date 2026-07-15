@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// The shape-coded lifecycle-status indicator badged onto a compute row's type glyph (and onto

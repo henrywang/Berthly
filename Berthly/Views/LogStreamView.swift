@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// Container Logs' viewer: a follow/filter/wrap/clear toolbar over a scrolling, colorized line

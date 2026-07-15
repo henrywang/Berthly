@@ -760,10 +760,6 @@ final class LiveContainerService: ContainerServiceBase {
 
     // MARK: - Fetch
 
-    private func fetchContainers() async throws -> [Container] {
-        try await ContainerClient().list().map { snap in mapContainer(snap) }
-    }
-
     private func fetchImages() async throws -> [ContainerImage] {
         let config = await resolvedSystemConfig()
         let builderImage = config.build.image
@@ -787,17 +783,6 @@ final class LiveContainerService: ContainerServiceBase {
 
     private func fetchNetworks() async throws -> [Network] {
         try await NetworkClient().list().map { r in Self.mapNetwork(r) }
-    }
-
-    private func fetchMachines() async throws -> [Machine] {
-        // Machines all boot the system default kernel — the snapshot records no
-        // per-machine kernel — so resolve it once and thread it into every row.
-        // A missing/failed default kernel degrades to a dash rather than failing
-        // the whole list fetch.
-        let kernelName = Self.kernelName(try? await ClientKernel.getDefaultKernel(for: .current))
-        let client = MachineClient()
-        let defaultMachineID = ((try? await client.getDefault()) ?? nil)
-        return try await client.list().map { mapMachine($0, kernelName: kernelName, defaultMachineID: defaultMachineID) }
     }
 
     /// Display name for a machine's kernel: the default kernel binary's filename

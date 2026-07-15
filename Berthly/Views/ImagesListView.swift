@@ -1,3 +1,6 @@
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
+
 import SwiftUI
 
 /// Sort order for library lists (Images, Volumes). `created` is deliberately absent: the model

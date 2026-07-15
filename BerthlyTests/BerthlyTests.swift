@@ -1,9 +1,5 @@
-//
-//  BerthlyTests.swift
-//  BerthlyTests
-//
-//  Created by Henry Wang on 6/28/26.
-//
+// Copyright 2026 Berthly Contributors
+// Licensed under the Apache License, Version 2.0
 
 import ContainerAPIClient
 import ContainerPersistence
