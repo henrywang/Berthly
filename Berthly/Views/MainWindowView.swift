@@ -34,19 +34,41 @@ struct MainWindowView: View {
     /// no delete is in flight.
     @State private var pendingDelete: ComputeItem?
     @State private var deleteErrorMessage: String?
+    /// User-dragged width of the list column while a detail pane is open (the list is otherwise
+    /// full-width). AppStorage, not SceneStorage: like Mail's column widths, it's one preference
+    /// shared by every section and window, surviving relaunches.
+    @AppStorage("detailListPaneWidth") private var listPaneWidth = 300.0
+
+    /// Narrowest the list column can be dragged; below this the rows are unreadable.
+    private static let listPaneMinWidth: CGFloat = 220
+    /// Narrowest the detail pane can be squeezed by dragging — matches the `minWidth` on the
+    /// detail views below, so the clamp and the layout agree.
+    private static let detailPaneMinWidth: CGFloat = 320
 
     var body: some View {
         NavigationSplitView {
             SidebarView(selection: $sidebarSelection)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 260)
         } detail: {
+            // GeometryReader so the divider's drag clamp knows the real available width — a fixed
+            // upper bound would let the user push the detail pane out of a narrow window.
+            GeometryReader { geo in
+            let resizeRange = Self.listPaneMinWidth
+                ... max(Self.listPaneMinWidth, geo.size.width - Self.detailPaneMinWidth - 1)
             HStack(spacing: 0) {
                 DaemonGateView { contentPane }
                     .id(sidebarSelection)
-                    .frame(minWidth: 200, idealWidth: 260, maxWidth: detailVisible ? 300 : .infinity)
+                    // Two stacked frames instead of an if/else around the view: branching would
+                    // change the list's identity when a detail opens, resetting its scroll
+                    // position. With no detail the list stays flexible/full-width; with one open
+                    // the outer rigid frame pins it to the user-dragged width.
+                    .frame(minWidth: detailVisible ? nil : 200,
+                           idealWidth: detailVisible ? nil : 260,
+                           maxWidth: detailVisible ? nil : .infinity)
+                    .frame(width: detailVisible ? CGFloat(listPaneWidth).clamped(to: resizeRange) : nil)
 
                 if let item = selectedCompute {
-                    Divider()
+                    PaneResizeHandle(width: $listPaneWidth, range: resizeRange)
                     Group {
                         switch item {
                         case .container(let id):
@@ -55,40 +77,41 @@ struct MainWindowView: View {
                             MachineDetailView(machineID: id)
                         }
                     }
-                    .frame(minWidth: 320, idealWidth: 480)
+                    .frame(minWidth: Self.detailPaneMinWidth, idealWidth: 480)
                     .transition(.asymmetric(
                         insertion: .move(edge: .trailing),
                         removal: .move(edge: .leading)
                     ))
                 }
                 if let id = selectedImageID, sidebarSelection == .images {
-                    Divider()
+                    PaneResizeHandle(width: $listPaneWidth, range: resizeRange)
                     ImageDetailView(imageID: id)
-                        .frame(minWidth: 320, idealWidth: 480)
+                        .frame(minWidth: Self.detailPaneMinWidth, idealWidth: 480)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing),
                             removal: .move(edge: .leading)
                         ))
                 }
                 if let id = selectedVolumeID, sidebarSelection == .volumes {
-                    Divider()
+                    PaneResizeHandle(width: $listPaneWidth, range: resizeRange)
                     VolumeDetailView(volumeID: id, onDelete: { selectedVolumeID = nil })
-                        .frame(minWidth: 320, idealWidth: 480)
+                        .frame(minWidth: Self.detailPaneMinWidth, idealWidth: 480)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing),
                             removal: .move(edge: .leading)
                         ))
                 }
                 if let id = selectedNetworkID, sidebarSelection == .networks {
-                    Divider()
+                    PaneResizeHandle(width: $listPaneWidth, range: resizeRange)
                     NetworkDetailView(networkID: id, onDelete: { selectedNetworkID = nil })
-                        .frame(minWidth: 320, idealWidth: 480)
+                        .frame(minWidth: Self.detailPaneMinWidth, idealWidth: 480)
                         .transition(.asymmetric(
                             insertion: .move(edge: .trailing),
                             removal: .move(edge: .leading)
                         ))
                 }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
             .animation(.easeInOut(duration: 0.25), value: selectedCompute)
             .animation(.easeInOut(duration: 0.25), value: selectedImageID)
             .animation(.easeInOut(duration: 0.25), value: selectedVolumeID)
@@ -112,6 +135,7 @@ struct MainWindowView: View {
             // covers the window-already-open case where a later menu bar action changes it.
             .onAppear { handlePendingIntent() }
             .onChange(of: bridge.pendingIntent) { _, _ in handlePendingIntent() }
+            } // end GeometryReader
         }
         .navigationTitle("Berthly")
         // ⎋ backs out one level: close the palette if it's up, else collapse the detail pane by
@@ -505,6 +529,58 @@ struct MainWindowView: View {
         }
     }
 
+}
+
+// MARK: - Pane resize handle
+
+private extension CGFloat {
+    func clamped(to range: ClosedRange<CGFloat>) -> CGFloat {
+        Swift.min(Swift.max(self, range.lowerBound), range.upperBound)
+    }
+}
+
+/// The draggable divider between the list column and an open detail pane. Hand-rolled because
+/// this split lives *inside* the NavigationSplitView's detail area: NSV only makes its own
+/// column dividers draggable, and `HSplitView` neither persists its sizes nor plays well with
+/// the slide-in transitions used here. Double-click restores the default width, mirroring
+/// NSSplitView's divider double-click.
+private struct PaneResizeHandle: View {
+    @Binding var width: Double
+    let range: ClosedRange<CGFloat>
+
+    /// Width at drag start, so the drag applies its translation to a stable base instead of
+    /// compounding deltas on every update.
+    @State private var dragBaseWidth: CGFloat?
+
+    var body: some View {
+        Divider()
+            // Above its HStack siblings in hit-test order: the 9pt grab strip overlaps both
+            // neighbors' bounds, and later siblings (the detail pane) otherwise win the hit,
+            // leaving only the divider's left half draggable.
+            .zIndex(1)
+            // The visible hairline stays 1pt; the overlay widens the grab/hover target to 9pt.
+            .overlay {
+                Color.clear
+                    .frame(width: 9)
+                    .contentShape(Rectangle())
+                    .onHover { inside in
+                        if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+                    .onTapGesture(count: 2) { width = 300 }
+                    .gesture(
+                        DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                            .onChanged { value in
+                                let base = dragBaseWidth ?? CGFloat(width)
+                                dragBaseWidth = base
+                                width = Double((base + value.translation.width).clamped(to: range))
+                                // The pointer outruns the 9pt hover strip mid-drag; keep the
+                                // resize cursor for the whole gesture.
+                                NSCursor.resizeLeftRight.set()
+                            }
+                            .onEnded { _ in dragBaseWidth = nil }
+                    )
+            }
+    }
 }
 
 #Preview {
