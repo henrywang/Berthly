@@ -333,6 +333,16 @@ class BerthlyE2ETestCase: XCTestCase {
         field.click(); field.typeText(text)
     }
 
+    /// Expands `SheetAdvancedSection` (`sheetAdvancedDisclosure` in the pull/push sheets) and
+    /// waits for `identifier` — one of its revealed controls — to appear.
+    @MainActor
+    func expandAdvancedSection(_ app: XCUIApplication, revealing identifier: String, timeout: TimeInterval = 5) {
+        app.buttons["sheetAdvancedDisclosure"].click()
+        let revealed = app.checkBoxes[identifier]
+        XCTAssertTrue(revealed.waitForExistence(timeout: timeout),
+                      "\(identifier) should appear after expanding Advanced; sheet:\n\(app.windows.firstMatch.debugDescription)")
+    }
+
     /// Opens the Terminal tab on the currently-selected container and types `command` into
     /// SwiftTerm's view, retrying focus-type until `file` appears inside `container` (the
     /// exec'd shell connects async with no queryable ready signal; the command must be

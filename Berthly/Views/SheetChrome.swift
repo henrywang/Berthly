@@ -268,22 +268,45 @@ struct InsecureRegistryToggle: View {
             }
         }
         .toggleStyle(.checkbox)
+        .accessibilityIdentifier("allowInsecureRegistryToggle")
     }
 }
 
 /// Collapsed-by-default "Advanced" options group used by the pull/push sheets.
+///
+/// A hand-built toggle `Button` + chevron, not `DisclosureGroup`: the `isExpanded:content:label:`
+/// initializer (needed here for a styled `SheetFieldLabel` instead of a plain string) turned out
+/// not to be reliably clickable — driving it through the accessibility API (as XCUITest does)
+/// never toggled its `value` or revealed its content, across both a default-center click and an
+/// offset click nearer the triangle glyph. Since that's the same input path assistive technology
+/// (and, per the flakiness this produced, possibly some real trackpad clicks) uses, this mirrors
+/// the already-proven manual expand/collapse pattern from `MenuBarRunSubmenu`.
 struct SheetAdvancedSection<Content: View>: View {
     @Binding var isExpanded: Bool
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        DisclosureGroup(isExpanded: $isExpanded) {
-            VStack(alignment: .leading, spacing: 12) {
-                content()
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    SheetFieldLabel("Advanced")
+                }
+                .contentShape(Rectangle())
             }
-            .padding(.top, 10)
-        } label: {
-            SheetFieldLabel("Advanced")
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("sheetAdvancedDisclosure")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    content()
+                }
+                .padding(.top, 10)
+            }
         }
     }
 }

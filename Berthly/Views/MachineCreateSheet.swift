@@ -156,28 +156,43 @@ struct MachineCreateSheet: View {
         Toggle("Boot immediately", isOn: $bootImmediately)
             .toggleStyle(.checkbox)
 
-        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("Home directory mount")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    Picker("Home directory mount", selection: $homeMountChoice) {
-                        ForEach(HomeMountChoice.allCases, id: \.self) {
-                            Text($0.label).tag($0)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize()
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showAdvanced.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text("Advanced")
                 }
-
-                Toggle("Set as default machine", isOn: $setDefault)
-                    .toggleStyle(.checkbox)
-
-                InsecureRegistryToggle(isOn: $insecureRegistry)
+                .contentShape(Rectangle())
             }
-            .padding(.top, 10)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("machineAdvancedDisclosure")
+
+            if showAdvanced {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        Text("Home directory mount")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        Picker("Home directory mount", selection: $homeMountChoice) {
+                            ForEach(HomeMountChoice.allCases, id: \.self) {
+                                Text($0.label).tag($0)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                        .fixedSize()
+                    }
+
+                    Toggle("Set as default machine", isOn: $setDefault)
+                        .toggleStyle(.checkbox)
+
+                    InsecureRegistryToggle(isOn: $insecureRegistry)
+                }
+                .padding(.top, 10)
+            }
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)

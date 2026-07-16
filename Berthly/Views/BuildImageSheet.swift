@@ -233,49 +233,65 @@ struct BuildImageSheet: View {
         Toggle("Disable build cache", isOn: $noCache)
             .toggleStyle(.checkbox)
 
-        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-            VStack(alignment: .leading, spacing: 14) {
-                KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", pairs: $labels)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Target stage")
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
-                    TextField("Stage name in a multi-stage build", text: $target)
-                        .textFieldStyle(.roundedBorder)
-                        .font(.system(.callout, design: .monospaced))
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                showAdvanced.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text("Advanced")
                 }
-
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("CPUs")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("4", text: $cpus)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Memory")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("2g", text: $memory)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                }
-
-                StringListEditor(
-                    title: "Secrets",
-                    placeholder: "id=mysecret,src=/path/to/file",
-                    helpText: "Format: id=<key>[,env=ENV_VAR|,src=/local/path]",
-                    entries: $secrets
-                )
-
-                Toggle("Pull latest base images", isOn: $pull)
-                    .toggleStyle(.checkbox)
+                .contentShape(Rectangle())
             }
-            .padding(.top, 10)
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("buildAdvancedDisclosure")
+
+            if showAdvanced {
+                VStack(alignment: .leading, spacing: 14) {
+                    KeyValueEditor(title: "Labels", keyPlaceholder: "key", valuePlaceholder: "value", pairs: $labels)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Target stage")
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
+                        TextField("Stage name in a multi-stage build", text: $target)
+                            .accessibilityIdentifier("buildTargetField")
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.callout, design: .monospaced))
+                    }
+
+                    HStack(spacing: 20) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("CPUs")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            TextField("4", text: $cpus)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 100)
+                        }
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Memory")
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                            TextField("2g", text: $memory)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 100)
+                        }
+                    }
+
+                    StringListEditor(
+                        title: "Secrets",
+                        placeholder: "id=mysecret,src=/path/to/file",
+                        helpText: "Format: id=<key>[,env=ENV_VAR|,src=/local/path]",
+                        entries: $secrets
+                    )
+
+                    Toggle("Pull latest base images", isOn: $pull)
+                        .toggleStyle(.checkbox)
+                }
+                .padding(.top, 10)
+            }
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)

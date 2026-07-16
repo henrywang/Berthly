@@ -444,6 +444,16 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
         nameField.click()
         nameField.typeText(machineName)
 
+        // Regression coverage for a real accessibility-click bug (2026-07-16): the "Advanced"
+        // disclosure used to never toggle when driven through the accessibility API. Existence-
+        // only check via the insecure-registry toggle — never click "Set as default machine",
+        // also revealed here, per the comment below about not repointing the developer's real
+        // default machine.
+        app.buttons["machineAdvancedDisclosure"].click()
+        XCTAssertTrue(app.checkBoxes["allowInsecureRegistryToggle"].waitForExistence(timeout: 5),
+                      "Advanced section should expand")
+        app.buttons["machineAdvancedDisclosure"].click() // collapse again
+
         // Boot OFF: create the machine config without booting a VM (a Berthly-native path).
         // Keeps the journey fast and off the VM-boot flakiness; booting is out of scope here.
         // Never touch "Set as default machine" — it would repoint the developer's real default.
@@ -763,6 +773,15 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
         let ctxField = app.windows.textFields["buildContextField"]
         ctxField.click(); ctxField.typeText(dir.path)
 
+        // Regression coverage for a real accessibility-click bug (2026-07-16): the "Advanced"
+        // disclosure used to never toggle when driven through the accessibility API — same input
+        // path assistive technology uses — because of a DisclosureGroup initializer quirk. Expand
+        // it and confirm a field inside actually appears.
+        app.buttons["buildAdvancedDisclosure"].click()
+        XCTAssertTrue(app.windows.textFields["buildTargetField"].waitForExistence(timeout: 5),
+                      "Advanced section should expand")
+        app.buttons["buildAdvancedDisclosure"].click() // collapse again
+
         app.buttons["buildSubmitButton"].click()
         let done = app.buttons["Done"]
         XCTAssertTrue(done.waitForExistence(timeout: 300),
@@ -780,5 +799,190 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(out.output.contains("built-by-e2e"),
                       "the built image should carry what the Dockerfile baked in:\n\(out.output)")
         // image (berthly-e2e/…) swept by prefix in tearDown.
+    }
+}
+
+/// Registry journey (user-suggested, 2026-07-16): stands up a real, self-hosted, *anonymous*
+/// registry (`registry:latest`) as fixture infra, then drives build → push → pull through the
+/// UI against it. This closes two real gaps: Push had zero E2E coverage before this, and
+/// PLAN/E2E-TEST.md's Tier 3 had descoped "Registries" entirely because a credentialed test
+/// needs real secrets — a local, unauthenticated registry sidesteps that specific objection for
+/// the anonymous push/pull case (credentialed sign-in stays descoped for the same reason: it
+/// would need real secrets in a local test suite).
+final class RegistryJourneyTests: BerthlyE2ETestCase {
+    private static let fixtureImage = "alpine:latest"
+    private static let registryImage = "registry:latest"
+    /// Arbitrary, uncommon high port — avoids macOS's own AirPlay Receiver (5000/7000) and
+    /// anything else plausibly already listening on a dev machine.
+    private static let registryPort = 18581
+
+    private var registryName: String { "\(Self.resourcePrefix)-registry" }
+
+    /// Build a marker image → push it to the local registry (Advanced → Allow insecure registry,
+    /// never signing in anywhere) → delete every local copy → pull it back the same way → run it
+    /// and read the marker back out. Each half also proves the insecure toggle is *causally*
+    /// required, not cosmetic: submitting first with the toggle off is left to run against the
+    /// HTTP-only registry, which a CLI spike confirmed fails deterministically (~43s, a real TLS
+    /// protocol mismatch — "bad protocol version" — not a stall), before retrying with it on.
+    @MainActor
+    func testBuildPushPullRoundTripThroughLocalInsecureRegistry() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        try ContainerCLI.ensureImage(Self.registryImage)
+
+        // ── 1. Stand up the registry — fixture infra via CLI, not the feature under test
+        // (matches the create-via-CLI precedent used elsewhere in this suite). ──
+        let run = try ContainerCLI.run(
+            ["run", "-d", "--name", registryName, "-p", "\(Self.registryPort):5000", Self.registryImage],
+            timeout: 60
+        )
+        XCTAssertEqual(run.status, 0, "starting the local registry failed:\n\(run.output)")
+        try waitForRegistryReady()
+
+        let ref = "localhost:\(Self.registryPort)/berthly-e2e/regtest:1"
+
+        // ── 2. Build a marker image through the Build sheet (same pattern as
+        // testBuildImageFromDockerfileThenRun). ──
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-regctx-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dockerfile = """
+        FROM alpine:latest
+        RUN echo registry-round-trip > /berthly-e2e-marker
+        """
+        try dockerfile.write(to: dir.appendingPathComponent("Dockerfile"),
+                             atomically: true, encoding: .utf8)
+        let localTag = "\(Self.resourcePrefix)/regtest-\(UUID().uuidString.prefix(8).lowercased()):1"
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Build Image"))
+        let tagField = app.windows.textFields["buildTagField"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 5), "Build sheet should appear")
+        tagField.click(); tagField.typeText(localTag)
+        let ctxField = app.windows.textFields["buildContextField"]
+        ctxField.click(); ctxField.typeText(dir.path)
+        app.buttons["buildSubmitButton"].click()
+        let buildDone = app.buttons["Done"]
+        XCTAssertTrue(buildDone.waitForExistence(timeout: 300),
+                      "build should succeed; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        buildDone.click()
+
+        // ── 3. Open the built image's Push sheet from the Images sidebar. ──
+        let imagesTab = app.staticTexts["Images"]
+        XCTAssertTrue(imagesTab.waitForExistence(timeout: 10))
+        imagesTab.click()
+        let imageRow = app.staticTexts[localTag]
+        XCTAssertTrue(imageRow.waitForExistence(timeout: 15), "built image should appear in the sidebar")
+        imageRow.click()
+        let pushButton = app.buttons["Push"]
+        XCTAssertTrue(pushButton.waitForExistence(timeout: 10))
+        pushButton.click()
+
+        let destField = app.windows.textFields["pushDestinationField"]
+        XCTAssertTrue(destField.waitForExistence(timeout: 5), "Push sheet should appear")
+        // Field arrives pre-filled with the local reference; select all and replace.
+        destField.click()
+        app.typeKey("a", modifierFlags: .command)
+        destField.typeText(ref)
+
+        expandAdvancedSection(app, revealing: "allowInsecureRegistryToggle")
+        let pushInsecureToggle = app.checkBoxes["allowInsecureRegistryToggle"]
+
+        // ── 4. Negative: plain HTTPS push against an HTTP-only registry must fail. ──
+        let pushSubmit = app.buttons["pushSubmitButton"]
+        XCTAssertTrue(pushSubmit.waitForExistence(timeout: 5))
+        pushSubmit.click()
+        XCTAssertTrue(pushSubmit.waitForNonExistence(timeout: 10), "push should leave idle once submitted")
+        XCTAssertTrue(pushSubmit.waitForExistence(timeout: 90),
+                      "push without the insecure toggle should fail and return to idle")
+        XCTAssertFalse(app.buttons["Done"].exists, "push should not succeed without the insecure toggle")
+
+        // ── 5. Positive: toggle on, never having signed in anywhere — proves anonymous push
+        // against an unauthenticated registry needs zero credentials. ──
+        pushInsecureToggle.click()
+        pushSubmit.click()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 60),
+                      "push should succeed with the insecure toggle on and no registry credentials")
+        app.buttons["Done"].click()
+
+        // ── 6. Force a real network pull: delete every local copy of the pushed reference. ──
+        _ = try ContainerCLI.run(["image", "delete", ref])
+        _ = try ContainerCLI.run(["image", "delete", localTag])
+
+        // ── 7. Pull it back — same negative-then-positive proof, on the Pull sheet. ──
+        XCTAssertTrue(app.openViaPalette("Pull Image"))
+        let pullField = app.windows.textFields["pullImageField"]
+        XCTAssertTrue(pullField.waitForExistence(timeout: 5), "Pull sheet should appear")
+        pullField.click(); pullField.typeText(ref)
+
+        expandAdvancedSection(app, revealing: "allowInsecureRegistryToggle")
+        let pullInsecureToggle = app.checkBoxes["allowInsecureRegistryToggle"]
+
+        let pullSubmit = app.buttons["pullSubmitButton"]
+        pullSubmit.click()
+        XCTAssertTrue(pullSubmit.waitForNonExistence(timeout: 10), "pull should leave idle once submitted")
+        XCTAssertTrue(pullSubmit.waitForExistence(timeout: 90),
+                      "pull without the insecure toggle should fail and return to idle")
+        XCTAssertFalse(app.buttons["Done"].exists, "pull should not succeed without the insecure toggle")
+
+        pullInsecureToggle.click()
+        pullSubmit.click()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 60),
+                      "pull should succeed with the insecure toggle on")
+
+        // ── Oracle: the pulled bytes are the SAME image that was built and pushed — a genuine
+        // round trip through the registry, not just "a pull succeeded". ──
+        let out = try ContainerCLI.run(
+            ["run", "--rm", "--name", containerName, ref, "cat", "/berthly-e2e-marker"],
+            timeout: 120
+        )
+        XCTAssertTrue(out.output.contains("registry-round-trip"),
+                      "the pulled image should carry what the build baked in:\n\(out.output)")
+        // registry container and berthly-e2e/… images swept by prefix in tearDown.
+    }
+
+    /// Polls the freshly-started registry until it accepts pushes. `container run -d` returning
+    /// doesn't mean the distribution server inside has bound its port yet; retries a real (cheap,
+    /// already-local) push rather than an HTTP probe, since that's the exact path the journey
+    /// itself exercises.
+    private func waitForRegistryReady(timeout: TimeInterval = 30) throws {
+        let probeRef = "localhost:\(Self.registryPort)/berthly-e2e/ready-probe:1"
+        _ = try ContainerCLI.run(["image", "tag", Self.fixtureImage, probeRef])
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        repeat {
+            if (try? ContainerCLI.run(["image", "push", "--scheme", "http", probeRef], timeout: 10))?.status == 0 {
+                return
+            }
+            Thread.sleep(forTimeInterval: 1)
+        } while Date() < deadline
+        throw XCTSkip("local registry on port \(Self.registryPort) never became ready")
+    }
+}
+
+/// Regression coverage for the same "Advanced"-style accessibility-click bug (2026-07-16, see
+/// `SheetAdvancedSection` in SheetChrome.swift) in `SystemPropertiesSection`'s own hand-rolled
+/// disclosure — a `Section` inside a `Form`, not a sheet, so it's covered separately here rather
+/// than folded into one of the sheet journeys above.
+final class SystemViewJourneyTests: BerthlyE2ETestCase {
+    @MainActor
+    func testSystemPropertiesDisclosureExpands() throws {
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        let systemTab = app.staticTexts["System"]
+        XCTAssertTrue(systemTab.waitForExistence(timeout: 15))
+        systemTab.click()
+        let disclosure = app.buttons["systemPropertiesDisclosure"]
+        XCTAssertTrue(disclosure.waitForExistence(timeout: 15), "Properties disclosure should exist")
+        disclosure.click()
+        // Rows render their key as the row's accessibility *value*, not label (LabeledContent's
+        // label closure carries "value" semantics here) — see ContainerCLI oracles elsewhere in
+        // this file for the same label-OR-value pattern.
+        let anyRow = app.staticTexts
+            .matching(NSPredicate(format: "value CONTAINS 'container.'"))
+            .firstMatch
+        XCTAssertTrue(anyRow.waitForExistence(timeout: 5), "expanding should reveal property rows")
     }
 }

@@ -454,7 +454,25 @@ private struct SystemPropertiesSection: View {
     var body: some View {
         Section {
             if let properties {
-                DisclosureGroup(isExpanded: $isExpanded) {
+                // A hand-built toggle, not `DisclosureGroup` — the closure-label initializer
+                // isn't reliably clickable through the accessibility API (see `SheetAdvancedSection`
+                // in SheetChrome.swift for the fuller writeup of the underlying bug).
+                Button {
+                    isExpanded.toggle()
+                } label: {
+                    HStack {
+                        Text("\(properties.count) properties")
+                        Spacer()
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("systemPropertiesDisclosure")
+
+                if isExpanded {
                     ForEach(properties) { property in
                         LabeledContent {
                             Text(property.value)
@@ -470,8 +488,6 @@ private struct SystemPropertiesSection: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
-                } label: {
-                    Text("\(properties.count) properties")
                 }
             } else {
                 LabeledContent("Loading…") { EmptyView() }

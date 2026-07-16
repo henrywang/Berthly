@@ -18,6 +18,7 @@ cd "$(dirname "$0")/.."
 
 CONTAINER="${BERTHLY_CONTAINER_CLI:-/usr/local/bin/container}"
 FIXTURE_IMAGE="alpine:latest"
+REGISTRY_IMAGE="registry:latest"
 
 COVERAGE=0
 ONLY_FILTER=""
@@ -40,10 +41,14 @@ if ! "$CONTAINER" system status >/dev/null 2>&1; then
   exit 1
 fi
 
-# Pre-pull the fixture so pull latency lands here, once, instead of inside a test timeout.
+# Pre-pull the fixtures so pull latency lands here, once, instead of inside a test timeout.
 if ! "$CONTAINER" image ls 2>/dev/null | grep -q alpine; then
   echo "Pulling fixture image $FIXTURE_IMAGE …"
   "$CONTAINER" image pull "$FIXTURE_IMAGE"
+fi
+if ! "$CONTAINER" image ls 2>/dev/null | grep -q registry; then
+  echo "Pulling fixture image $REGISTRY_IMAGE …"
+  "$CONTAINER" image pull "$REGISTRY_IMAGE"
 fi
 
 # Sweep debris from previous crashed runs before starting (tests also sweep per-test).
