@@ -81,6 +81,9 @@
         }
       }
     },
+    "%lld points wide" : {
+
+    },
     "%lld properties" : {
 
     },
@@ -1088,6 +1091,9 @@
 
     },
     "Required" : {
+
+    },
+    "Resize list column" : {
 
     },
     "Resource limits (ulimit)" : {

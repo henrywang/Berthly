@@ -588,6 +588,18 @@ private struct PaneResizeHandle: View {
                             .onEnded { _ in dragBaseWidth = nil }
                     )
             }
+            // The drag gesture is pointer-only; VoiceOver users adjust the split with the
+            // standard increment/decrement rotor actions instead.
+            .accessibilityElement()
+            .accessibilityLabel("Resize list column")
+            .accessibilityValue("\(Int(width)) points wide")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: width = Double(min(range.upperBound, CGFloat(width) + 40))
+                case .decrement: width = Double(max(range.lowerBound, CGFloat(width) - 40))
+                @unknown default: break
+                }
+            }
     }
 }
 

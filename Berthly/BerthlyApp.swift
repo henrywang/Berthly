@@ -5,8 +5,25 @@ import SwiftUI
 
 @main
 struct BerthlyApp: App {
+    /// UI-test launches disable animations app-wide: animations are the #1 source of the
+    /// suite's timing races (coordinate clicks landing on mid-transition controls, measure
+    /// loops re-entering before a sheet settles — see CLAUDE.md's CI-flake notes). Piggybacks
+    /// on `UITEST_USE_MOCK_SERVICE` so every existing mock-mode test gets it without launch
+    /// changes; `UITEST_DISABLE_ANIMATIONS` lets the real-daemon E2E suite opt in separately.
+    static let disableAnimations: Bool = {
+        let env = ProcessInfo.processInfo.environment
+        return env["UITEST_USE_MOCK_SERVICE"] != nil || env["UITEST_DISABLE_ANIMATIONS"] != nil
+    }()
+
     init() {
         StatusButtonImageDedupe.install()
+        if Self.disableAnimations {
+            // SwiftUI transactions are handled per-scene below; these AppKit-level defaults
+            // cover what transactions can't reach — window/sheet present-dismiss slides and
+            // window resize easing, the exact animations the coordinate-click races hit.
+            UserDefaults.standard.set(false, forKey: "NSAutomaticWindowAnimationsEnabled")
+            UserDefaults.standard.set(0.001, forKey: "NSWindowResizeTime")
+        }
     }
 
     @State private var service: ContainerServiceBase = Self.makeService()
@@ -46,6 +63,7 @@ struct BerthlyApp: App {
                 .environment(service)
                 .environment(menuBarBridge)
                 .environment(buildJobManager)
+                .disableAnimationsInUITests()
         }
         .defaultSize(width: 1200, height: 780)
         .windowStyle(.titleBar)
@@ -60,6 +78,7 @@ struct BerthlyApp: App {
             MenuBarContentShell()
                 .environment(service)
                 .environment(menuBarBridge)
+                .disableAnimationsInUITests()
         } label: {
             // Must stay render-stable: any label change makes SwiftUI call
             // NSStatusBarButton.setImage, which invalidates the status window's constraints —
@@ -76,6 +95,21 @@ struct BerthlyApp: App {
         Settings {
             SettingsView()
                 .environment(updaterService)
+        }
+    }
+}
+
+private extension View {
+    /// Strips animation from every transaction in this subtree when the app was launched by UI
+    /// tests (`BerthlyApp.disableAnimations`) — sheets' *content*, the detail-pane slide,
+    /// refresh spinners. A no-op in normal launches. Window-level AppKit animations are
+    /// disabled separately in `BerthlyApp.init` (transactions don't reach those).
+    func disableAnimationsInUITests() -> some View {
+        transaction { t in
+            if BerthlyApp.disableAnimations {
+                t.animation = nil
+                t.disablesAnimations = true
+            }
         }
     }
 }
