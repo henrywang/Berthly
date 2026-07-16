@@ -22,8 +22,26 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 
 ![The command palette (⌘K) matching lifecycle actions for a container](design/screenshots/command-palette.png)
 
-Berthly covers the `container` CLI's full feature surface — see [PARITY.md](PARITY.md)
-for the subcommand-by-subcommand mapping and the few expert flags left to the CLI.
+## Beyond the CLI
+
+A GUI that only mirrored commands wouldn't be worth installing. Berthly is built
+around the *workflow*, with a tier of features the CLI doesn't have:
+
+- **Rebuild in one click** — every image build's context and flags are
+  remembered, so re-running a build never means re-entering anything.
+- **Watch without watching** — live CPU/memory/network charts per container,
+  pinned favorites in the menu bar, and a notification when a pinned container
+  or machine changes state while you're elsewhere.
+- **Builds keep going** — close the build sheet and keep working; the toolbar
+  indicator tracks progress and surfaces failures.
+- **Zero to running** — Berthly can install Apple's signed `container`
+  toolchain, then start and monitor the daemon for you.
+- **Disk hygiene at a glance** — reclaimable-space badges on Images and
+  Volumes, with confirmed one-click pruning.
+
+And yes — Berthly also covers the `container` CLI's full feature surface — see
+[PARITY.md](PARITY.md) for the subcommand-by-subcommand mapping and the few
+expert flags left to the CLI.
 
 ## Requirements
 
