@@ -6,7 +6,10 @@ on:
   pull_request:
     branches: [main]
 
-# The workflow only checks out and tests code; the token never needs write access.
+# Test jobs only check out and test code, so the default token stays read-only.
+# The one exception is the badge job below, which elevates itself to
+# contents: write at the job level to force-push the single-file `badges`
+# branch that the README's coverage badge reads.
 permissions:
   contents: read
 
@@ -27,9 +30,13 @@ jobs:
       matrix:
         include:
           # The merge gate. Mark only this job as a required check in branch
-          # protection.
+          # protection. Also measures logic-layer coverage for the README
+          # badge (unit suite only: the advisory UI job is too flaky to feed
+          # a published number, and its line coverage measures execution, not
+          # assertions).
           - name: Unit tests
             only-testing: BerthlyTests
+            coverage: true
           # Advisory: mock-mode UI tests (UITEST_USE_MOCK_SERVICE) run fine
           # on hosted runners, but XCUITest on shared macOS runners can flake
           # on timing/focus. Real-daemon integration tests XCTSkip themselves
@@ -67,6 +74,72 @@ jobs:
             -scheme Berthly \
             -destination 'platform=macOS' \
             -only-testing:${{ matrix.only-testing }} \
+            ${{ matrix.coverage && '-enableCodeCoverage YES -resultBundlePath TestResults.xcresult' || '' }} \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM=
+
+      # Shields.io endpoint JSON for the README's "logic coverage" badge —
+      # the same Core-minus-I/O number release notes report (see
+      # scripts/release.sh for why the I/O files are excluded: the real-daemon
+      # E2E suite covers them, and it can't run on hosted runners).
+      - name: Compute coverage badge data
+        if: matrix.coverage && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          PCT=$(xcrun xccov view --report --json TestResults.xcresult | /usr/bin/python3 -c '
+          import json, sys
+          IO_FILES = {"LiveContainerService.swift", "TerminalSession.swift", "AppNotifier.swift", "UpdaterService.swift"}
+          report = json.load(sys.stdin)
+          covered = total = 0
+          for target in report.get("targets", []):
+              for f in target.get("files", []):
+                  path = f.get("path", "")
+                  if "/Berthly/Core/" in path and path.split("/")[-1] not in IO_FILES:
+                      covered += f.get("coveredLines", 0)
+                      total += f.get("executableLines", 0)
+          print(round(100 * covered / total) if total else 0)
+          ')
+          if   [ "$PCT" -ge 85 ]; then COLOR=brightgreen
+          elif [ "$PCT" -ge 70 ]; then COLOR=green
+          elif [ "$PCT" -ge 50 ]; then COLOR=yellow
+          else COLOR=orange; fi
+          mkdir -p badge
+          printf '{"schemaVersion":1,"label":"logic coverage","message":"%s%%","color":"%s"}\n' "$PCT" "$COLOR" > badge/coverage.json
+          cat badge/coverage.json
+
+      - name: Upload coverage badge data
+        if: matrix.coverage && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-badge
+          path: badge/coverage.json
+
+  # Publishes badge/coverage.json to the single-file `badges` branch that the
+  # README's shields.io endpoint badge reads. A separate ubuntu job so the
+  # contents: write elevation never touches the jobs that build and run code,
+  # and a force-pushed orphan branch so badge updates add no history anywhere.
+  badge:
+    name: Publish coverage badge
+    needs: test
+    # always(): the advisory UI-test leg failing must not block the badge; the
+    # download step below still fails this job if the unit leg produced no data.
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: coverage-badge
+
+      - name: Force-push badges branch
+        run: |
+          git init -b badges badge-repo
+          cp coverage.json badge-repo/
+          cd badge-repo
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add coverage.json
+          git commit -m "chore: update coverage badge data"
+          git push --force "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" badges
