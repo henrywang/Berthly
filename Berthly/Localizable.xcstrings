@@ -453,7 +453,7 @@
     "Creating…" : {
 
     },
-    "Credentials are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart." : {
+    "Credentials are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart. While signed in, macOS may confirm Keychain access on pulls from that host too, even for public images — sign out below to stop it." : {
 
     },
     "Credentials for pushing & pulling images" : {
@@ -1523,6 +1523,9 @@
 
     },
     "What do you want to run?" : {
+
+    },
+    "While signed in, macOS may also confirm Keychain access on pulls from this host — even public images. Sign out from Registries when you're done to stop it." : {
 
     },
     "With the menu bar icon shown, Berthly keeps monitoring containers while the main window is closed." : {
