@@ -37,7 +37,7 @@ interactive/tty, ssh, shm-size, Rosetta, virtualization.
 | `pull` / `push` | Pull/Push sheets with progress; per-platform and insecure-registry options |
 | `save` / `load` | Save/Load OCI tar archive sheets |
 | `tag` | Tag sheet |
-| `delete` / `prune` | Row/detail Delete; System → Clean Up |
+| `delete` / `prune` | Row/detail Delete; Prune… in the Images toolbar; System → Clean Up |
 | `list` / `inspect` | Images list + detail view (variants, config, history) |
 
 Berthly additionally persists each image's build context and settings, so
@@ -63,7 +63,9 @@ entries as the CLI.
 ## Volumes & networks
 
 `create`, `delete`, `list`, `inspect`, `prune` — dedicated pages, create
-sheets, and System → Clean Up for both.
+sheets, and Prune… in the Networks toolbar. Volume pruning stays behind its
+own explicitly-confirmed action (System → Disk Usage): an unattached volume
+can hold real data, so it never rides along with bulk cleanup.
 
 ## Builder
 

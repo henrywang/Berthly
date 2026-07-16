@@ -6,6 +6,8 @@ A native macOS app for [Apple's `container`](https://github.com/apple/container)
 
 Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's container tooling the Docker Desktop-style experience it's missing.
 
+![Berthly's main window: the Compute list with a container's live CPU, memory, and network charts](design/screenshots/main-window.png)
+
 ## Features
 
 - **Images** — list, pull from a registry, build from a Dockerfile, and inspect layers and metadata.
@@ -16,6 +18,9 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 - **Integrated terminal** — a real terminal attached to your containers, built on SwiftTerm.
 - **Command palette** — jump to any action with a keystroke.
 - **Menu-bar presence** — quick status and controls without leaving what you're doing.
+- **Keyboard-first** — ⌘K palette, ⌘1–6 section switching, ⌘⌥1–3 detail tabs, and full menu shortcuts for every action.
+
+![The command palette (⌘K) matching lifecycle actions for a container](design/screenshots/command-palette.png)
 
 Berthly covers the `container` CLI's full feature surface — see [PARITY.md](PARITY.md)
 for the subcommand-by-subcommand mapping and the few expert flags left to the CLI.
