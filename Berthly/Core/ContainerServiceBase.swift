@@ -152,6 +152,15 @@ class ContainerServiceBase {
     func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
     func refresh() async {}
 
+    /// Live resource samples for a running container, one every couple of seconds, already in
+    /// display units (see `ContainerStatsSample`). The stream runs until the consuming task is
+    /// cancelled (the detail view ties it to `.task`); a stopped or missing container simply
+    /// yields nothing further. Base yields nothing at all — the detail view then stays in its
+    /// "Collecting…" placeholder.
+    func containerStatsStream(id: String) -> AsyncStream<ContainerStatsSample> {
+        AsyncStream { $0.finish() }
+    }
+
     func fetchDiskUsage() async throws {}
     /// Remove images not used by any container. Safe/re-pullable cache cleanup. Returns what was freed.
     func pruneImages() async throws -> PruneResult { PruneResult() }

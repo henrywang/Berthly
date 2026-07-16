@@ -70,6 +70,14 @@ struct ContainerCommands: Commands {
                 paneItem("Registries", .registries, "5")
                 paneItem("System",     .system,     "6")
             }
+
+            Divider()
+
+            // ⌘⌥1/2/3 switch the open detail's Overview/Logs/Terminal panes. In a child View
+            // (not inline) for the same reason as CheckForUpdatesButton: reading the
+            // @Observable bridge from a View body is what re-evaluates the items' enabled
+            // state when a detail opens or closes.
+            DetailTabItems(bridge: bridge)
         }
 
         // Two domain menus, named for what they act on (Mail's Mailbox/Message split). The old
@@ -112,6 +120,28 @@ struct ContainerCommands: Commands {
     private func paneItem(_ title: LocalizedStringKey, _ section: SidebarSelection, _ key: KeyEquivalent) -> some View {
         Button(title) { send(.navigate(section)) }
             .keyboardShortcut(key, modifiers: .command)
+    }
+
+    /// The ⌘⌥1/2/3 detail-pane items. Disabled until a container/machine detail is showing —
+    /// the request targets "whatever detail is open", so with none open there'd be nothing to
+    /// consume it (and a stale request must not fire on the next detail; see
+    /// `MenuBarBridge.detailTabRequest`).
+    private struct DetailTabItems: View {
+        let bridge: MenuBarBridge
+
+        var body: some View {
+            Group {
+                tabItem("Show Overview", .overview, "1")
+                tabItem("Show Logs",     .logs,     "2")
+                tabItem("Show Terminal", .terminal, "3")
+            }
+            .disabled(!bridge.isComputeDetailOpen)
+        }
+
+        private func tabItem(_ title: LocalizedStringKey, _ pane: DetailPaneTab, _ key: KeyEquivalent) -> some View {
+            Button(title) { bridge.detailTabRequest = pane }
+                .keyboardShortcut(key, modifiers: [.command, .option])
+        }
     }
 
     private func send(_ intent: MenuBarBridge.Intent) {

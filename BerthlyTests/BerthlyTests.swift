@@ -787,6 +787,46 @@ struct MockContainerServiceTests {
         #expect(mock.buildContexts["local/web:1.4"]?.contextPath == "/Users/dev/projects/web")
     }
 
+    /// The Overview cards chart whatever `containerStatsStream` yields — the mock must feed them
+    /// (before this stream existed the view polled the real daemon directly, so mock mode sat on
+    /// "Collecting…" forever). Two samples is the charts' minimum to draw a line.
+    @Test func statsStreamYieldsPlausibleSamples() async {
+        let mock = MockContainerService()
+        var received: [ContainerStatsSample] = []
+        for await sample in mock.containerStatsStream(id: mock.containers[0].id) {
+            received.append(sample)
+            if received.count == 2 { break }
+        }
+        #expect(received.count == 2)
+        #expect(received.allSatisfy {
+            $0.cpuPercent >= 0 && $0.memoryMB > 0 && $0.networkMBPerSecond >= 0
+        })
+    }
+
+    /// Same container id → same seed → identical first sample: the synthetic data is
+    /// deterministic across launches (deliberately not `hashValue`, which is salted per process).
+    @Test func statsStreamIsDeterministicPerContainer() async {
+        let mock = MockContainerService()
+        let id = mock.containers[0].id
+        var firsts: [ContainerStatsSample] = []
+        for _ in 0..<2 {
+            for await sample in mock.containerStatsStream(id: id) {
+                firsts.append(sample)
+                break
+            }
+        }
+        #expect(firsts.count == 2)
+        #expect(firsts[0] == firsts[1])
+    }
+
+    /// The base class yields nothing (and finishes) — the detail view then just stays in its
+    /// "Collecting…" placeholder rather than hanging on a never-ending empty stream.
+    @Test func baseServiceStatsStreamFinishesEmpty() async {
+        var count = 0
+        for await _ in ContainerServiceBase().containerStatsStream(id: "any") { count += 1 }
+        #expect(count == 0)
+    }
+
     /// Catches retain cycles (e.g. a Task or closure capturing `self` strongly instead of
     /// weakly): if nothing outside this scope holds a reference, ARC deallocates `service` the
     /// moment the `do` block ends, so `weakRef` reads nil. Scoped to the mock rather than

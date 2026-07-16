@@ -686,4 +686,29 @@ final class MockContainerService: ContainerServiceBase {
                                          created: "just now", source: source?.source ?? .built, usage: .unused))
         }
     }
+
+    /// Synthetic live metrics so the Overview cards and sparklines behave in mock mode (they
+    /// previously sat on "Collecting…" forever, because the view polled the real daemon
+    /// directly). Values wander on slow sine curves from a per-container seed: alive-looking
+    /// charts, deterministic across launches (no randomness — the seed is derived from the id's
+    /// scalar sum, not `hashValue`, which is salted per process).
+    override func containerStatsStream(id: String) -> AsyncStream<ContainerStatsSample> {
+        let seed = Double(id.unicodeScalars.reduce(0) { $0 + Int($1.value) } % 40)
+        return AsyncStream { continuation in
+            let task = Task {
+                var tick = 0.0
+                while !Task.isCancelled {
+                    continuation.yield(ContainerStatsSample(
+                        cpuPercent: max(0, 8 + seed / 4 + 6 * sin(tick / 3)),
+                        memoryMB: 120 + seed * 4 + 20 * sin(tick / 5),
+                        networkMBPerSecond: max(0, 0.8 + 0.6 * sin(tick / 2))
+                    ))
+                    tick += 1
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
 }

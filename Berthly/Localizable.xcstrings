@@ -84,6 +84,9 @@
     "%lld properties" : {
 
     },
+    "%lld running" : {
+
+    },
     "%lld%%" : {
 
     },
@@ -889,6 +892,9 @@
     "No Compute Resources" : {
 
     },
+    "No containers or machines running" : {
+
+    },
     "No endpoints attached" : {
 
     },
@@ -1192,7 +1198,16 @@
     "Show Container" : {
 
     },
+    "Show Logs" : {
+
+    },
     "Show menu bar icon" : {
+
+    },
+    "Show Overview" : {
+
+    },
+    "Show Terminal" : {
 
     },
     "Show token" : {

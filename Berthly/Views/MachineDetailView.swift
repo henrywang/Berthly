@@ -83,6 +83,12 @@ private struct MachineDetailContent: View {
             // Palette "Open Shell" routing — see the matching comment in ContainerDetailView.
             .onAppear { consumeTerminalRequestIfRequested() }
             .onChange(of: bridge.terminalRequest) { _, _ in consumeTerminalRequestIfRequested() }
+            // View-menu ⌘⌥1/2/3 — see the matching comment in ContainerDetailView.
+            .onChange(of: bridge.detailTabRequest) { _, request in
+                guard let request, let mapped = DetailTab(rawValue: request.rawValue) else { return }
+                tab = mapped
+                bridge.detailTabRequest = nil
+            }
         }
     }
 

@@ -200,12 +200,20 @@ struct MainWindowView: View {
         // `WindowGroup`, so calling it unconditionally opens a duplicate window every time.
         .onAppear {
             bridge.isMainWindowOpen = true
+            bridge.isComputeDetailOpen = selectedCompute != nil
             // Catch a ⌘K that arrived *before* this window mounted (menu shortcut with no window
             // open): the token was already bumped, so `.onChange` won't fire for it — mirrors the
             // `.onAppear { handlePendingIntent() }` above for `pendingIntent`.
             presentPaletteIfRequested()
         }
-        .onDisappear { bridge.isMainWindowOpen = false }
+        .onDisappear {
+            bridge.isMainWindowOpen = false
+            bridge.isComputeDetailOpen = false
+        }
+        // Keeps the View menu's ⌘⌥1/2/3 items enabled exactly while a compute detail is showing.
+        .onChange(of: selectedCompute) { _, item in
+            bridge.isComputeDetailOpen = item != nil
+        }
         // Command palette (⌘K) — a top-center overlay driven by the bridge token, so the shortcut
         // works from the menu even when it arrives before this window has mounted.
         .overlay {

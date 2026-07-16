@@ -93,6 +93,13 @@ private struct ContainerDetailContent: View {
         // (with the request already set), which `.onChange` would miss.
         .onAppear { consumeTerminalRequestIfRequested() }
         .onChange(of: bridge.terminalRequest) { _, _ in consumeTerminalRequestIfRequested() }
+        // View-menu ⌘⌥1/2/3. Only `.onChange` (no `.onAppear`): the menu items are disabled
+        // while no detail is open, so a request never predates this view's mount.
+        .onChange(of: bridge.detailTabRequest) { _, request in
+            guard let request, let mapped = DetailTab(rawValue: request.rawValue) else { return }
+            tab = mapped
+            bridge.detailTabRequest = nil
+        }
         } // end if let container
     }
 
@@ -195,11 +202,14 @@ private struct ContainerDetailContent: View {
 
 // Overview folds in the live performance metrics that used to be a separate "Stats" tab: the
 // old Overview showed static CPU/Memory cards fed by `container.cpuPercent`/`memoryMB`, which the
-// live service never populates (always 0). Now the CPU/Memory/Network cards and their sparklines
-// come from the same `ContainerClient().stats(id:)` poll loop, over the identity/config Inspect
-// table. Metrics only appear while running; stopped containers show Inspect alone.
+// live service never populates (always 0). The CPU/Memory/Network cards and their sparklines
+// consume `service.containerStatsStream(id:)` — the poll loop and counter math live in the
+// service layer (Live polls the daemon, Mock synthesizes), not here, so mock mode gets live
+// cards and the delta math is unit-testable. Metrics only appear while running; stopped
+// containers show Inspect alone.
 private struct OverviewTab: View {
     let container: Container
+    @Environment(ContainerServiceBase.self) private var service
 
     struct StatsPoint: Identifiable {
         let id    = UUID()
@@ -221,7 +231,18 @@ private struct OverviewTab: View {
             }
             InspectSection(container: container)
         }
-        .task(id: container.id) { await pollStats() }
+        // Keyed on id *and* running state: switching containers must not blend two containers'
+        // histories into one chart (this view's structural identity survives a selection change),
+        // and a container started while its detail is open should begin charting without
+        // requiring a reselect.
+        .task(id: "\(container.id)|\(container.status == .running)") {
+            history.removeAll()
+            guard container.status == .running else { return }
+            for await sample in service.containerStatsStream(id: container.id) {
+                history.append(StatsPoint(cpu: sample.cpuPercent, memMB: sample.memoryMB, netMBs: sample.networkMBPerSecond))
+                if history.count > 150 { history.removeFirst() }
+            }
+        }
     }
 
     // MARK: Live metrics
@@ -267,51 +288,6 @@ private struct OverviewTab: View {
         }
     }
 
-    private func pollStats() async {
-        guard container.status == .running else { return }
-
-        var prevCpuUsec: UInt64?
-        var prevTime:    Date?
-        var prevNetRx:   UInt64?
-        var prevNetTx:   UInt64?
-
-        while !Task.isCancelled {
-            do {
-                let s   = try await ContainerClient().stats(id: container.id)
-                let now = Date()
-                let elapsed = prevTime.map { now.timeIntervalSince($0) } ?? 0
-
-                let cpuPct = ContainerStatsMath.cpuPercent(
-                    previousUsec: prevCpuUsec,
-                    currentUsec: s.cpuUsageUsec,
-                    elapsed: elapsed,
-                    cores: ProcessInfo.processInfo.processorCount
-                )
-                prevCpuUsec = s.cpuUsageUsec
-                prevTime    = now
-
-                let memMB = Double(s.memoryUsageBytes ?? 0) / 1_048_576
-
-                let curRx = s.networkRxBytes ?? 0
-                let curTx = s.networkTxBytes ?? 0
-                let netMBs = ContainerStatsMath.networkRateMBPerSecond(
-                    previousRx: prevNetRx, currentRx: curRx,
-                    previousTx: prevNetTx, currentTx: curTx,
-                    elapsed: elapsed
-                )
-                prevNetRx = curRx
-                prevNetTx = curTx
-
-                history.append(StatsPoint(cpu: cpuPct, memMB: memMB, netMBs: netMBs))
-                if history.count > 150 { history.removeFirst() }
-
-            } catch {
-                // stats temporarily unavailable — keep polling
-            }
-
-            try? await Task.sleep(for: .seconds(2))
-        }
-    }
 }
 
 private struct InspectSection: View {

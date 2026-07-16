@@ -60,3 +60,66 @@ nonisolated enum ContainerStatsMath {
         return .stable
     }
 }
+
+/// One reduced sample of a running container's live resource usage, in display units: CPU as a
+/// percentage of all host cores, memory in MB (mebibytes), network as combined rx+tx MB/s.
+/// What `ContainerServiceBase.containerStatsStream(id:)` yields — the view layer charts these
+/// directly, with no daemon counter math of its own.
+nonisolated struct ContainerStatsSample: Equatable, Sendable {
+    var cpuPercent: Double
+    var memoryMB: Double
+    var networkMBPerSecond: Double
+}
+
+/// Folds the daemon's cumulative stats counters into per-interval `ContainerStatsSample`s.
+/// The daemon reports monotonic totals (`cpu_usage_usec`, rx/tx bytes); rates need the previous
+/// read, and this owns that carry-over so the poll loop stays a dumb fetch-and-yield. Pure and
+/// clock-injected, so the rate math is testable without a live daemon (the poll loop itself is
+/// I/O; this is the logic inside it).
+nonisolated struct ContainerStatsDeltaTracker {
+    private var previousCpuUsec: UInt64?
+    private var previousTime: Date?
+    private var previousRx: UInt64?
+    private var previousTx: UInt64?
+
+    init() {}
+
+    /// Feed one raw stats read; returns the display sample. The first call yields 0% CPU and
+    /// 0 MB/s (no delta to rate yet) with the memory figure real — matching the UI's
+    /// "Collecting…" until a second sample exists.
+    mutating func sample(
+        cpuUsageUsec: UInt64?,
+        memoryUsageBytes: UInt64?,
+        networkRxBytes: UInt64?,
+        networkTxBytes: UInt64?,
+        at now: Date,
+        cores: Int
+    ) -> ContainerStatsSample {
+        let elapsed = previousTime.map { now.timeIntervalSince($0) } ?? 0
+
+        let cpu = ContainerStatsMath.cpuPercent(
+            previousUsec: previousCpuUsec,
+            currentUsec: cpuUsageUsec,
+            elapsed: elapsed,
+            cores: cores
+        )
+        previousCpuUsec = cpuUsageUsec
+        previousTime = now
+
+        let rx = networkRxBytes ?? 0
+        let tx = networkTxBytes ?? 0
+        let net = ContainerStatsMath.networkRateMBPerSecond(
+            previousRx: previousRx, currentRx: rx,
+            previousTx: previousTx, currentTx: tx,
+            elapsed: elapsed
+        )
+        previousRx = rx
+        previousTx = tx
+
+        return ContainerStatsSample(
+            cpuPercent: cpu,
+            memoryMB: Double(memoryUsageBytes ?? 0) / 1_048_576,
+            networkMBPerSecond: net
+        )
+    }
+}

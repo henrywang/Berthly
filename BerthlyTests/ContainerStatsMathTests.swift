@@ -114,3 +114,63 @@ struct ContainerStatsMathTests {
         #expect(ContainerStatsMath.trend(for: [10, 11, 11, 11, 11, 12]) == .stable)
     }
 }
+
+// MARK: - Delta tracker
+
+struct ContainerStatsDeltaTrackerTests {
+    private let t0 = Date(timeIntervalSinceReferenceDate: 1_000)
+
+    @Test func firstSampleHasZeroRatesButRealMemory() {
+        var tracker = ContainerStatsDeltaTracker()
+        let sample = tracker.sample(
+            cpuUsageUsec: 5_000_000, memoryUsageBytes: 256 * 1_048_576,
+            networkRxBytes: 9_999, networkTxBytes: 9_999,
+            at: t0, cores: 4)
+        #expect(sample.cpuPercent == 0)
+        #expect(sample.networkMBPerSecond == 0)
+        #expect(sample.memoryMB == 256)
+    }
+
+    @Test func secondSampleComputesRatesFromCarriedCounters() {
+        var tracker = ContainerStatsDeltaTracker()
+        _ = tracker.sample(
+            cpuUsageUsec: 0, memoryUsageBytes: 0,
+            networkRxBytes: 0, networkTxBytes: 0,
+            at: t0, cores: 2)
+        // +2s wall clock: 2e6 µs CPU on 2 cores = 50%; rx+tx +2 MiB over 2s = 1 MB/s.
+        let sample = tracker.sample(
+            cpuUsageUsec: 2_000_000, memoryUsageBytes: 128 * 1_048_576,
+            networkRxBytes: 1_048_576, networkTxBytes: 1_048_576,
+            at: t0.addingTimeInterval(2), cores: 2)
+        #expect(sample.cpuPercent == 50)
+        #expect(sample.networkMBPerSecond == 1)
+        #expect(sample.memoryMB == 128)
+    }
+
+    @Test func counterResetYieldsZeroRatesThenRecovers() {
+        var tracker = ContainerStatsDeltaTracker()
+        _ = tracker.sample(cpuUsageUsec: 9_000_000, memoryUsageBytes: 0,
+                           networkRxBytes: 9_000_000, networkTxBytes: 0,
+                           at: t0, cores: 1)
+        // Counters went backwards (container restart) — no negative/garbage spike.
+        let reset = tracker.sample(cpuUsageUsec: 1_000, memoryUsageBytes: 0,
+                                   networkRxBytes: 10, networkTxBytes: 0,
+                                   at: t0.addingTimeInterval(2), cores: 1)
+        #expect(reset.cpuPercent == 0)
+        #expect(reset.networkMBPerSecond == 0)
+        // The reset read becomes the new baseline: the next delta computes normally.
+        let recovered = tracker.sample(cpuUsageUsec: 1_001_000, memoryUsageBytes: 0,
+                                       networkRxBytes: 1_048_586, networkTxBytes: 0,
+                                       at: t0.addingTimeInterval(3), cores: 1)
+        #expect(recovered.cpuPercent == 100)
+        #expect(recovered.networkMBPerSecond == 1)
+    }
+
+    @Test func missingCountersAreTreatedAsUnavailableNotCrash() {
+        var tracker = ContainerStatsDeltaTracker()
+        let sample = tracker.sample(cpuUsageUsec: nil, memoryUsageBytes: nil,
+                                    networkRxBytes: nil, networkTxBytes: nil,
+                                    at: t0, cores: 8)
+        #expect(sample == ContainerStatsSample(cpuPercent: 0, memoryMB: 0, networkMBPerSecond: 0))
+    }
+}

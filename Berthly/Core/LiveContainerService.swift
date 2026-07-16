@@ -1341,6 +1341,36 @@ final class LiveContainerService: ContainerServiceBase {
         hostOnly ? .hostOnly : .nat
     }
 
+    // MARK: - Live stats
+
+    /// Polls the daemon's `stats` endpoint every 2s and reduces the cumulative counters to
+    /// display samples via `ContainerStatsDeltaTracker`. A failed read (container stopping,
+    /// stats momentarily unavailable) yields nothing and keeps polling; the consumer's task
+    /// cancellation ends the loop.
+    override func containerStatsStream(id: String) -> AsyncStream<ContainerStatsSample> {
+        AsyncStream { continuation in
+            let task = Task {
+                var tracker = ContainerStatsDeltaTracker()
+                let cores = ProcessInfo.processInfo.processorCount
+                while !Task.isCancelled {
+                    if let stats = try? await ContainerClient().stats(id: id) {
+                        continuation.yield(tracker.sample(
+                            cpuUsageUsec: stats.cpuUsageUsec,
+                            memoryUsageBytes: stats.memoryUsageBytes,
+                            networkRxBytes: stats.networkRxBytes,
+                            networkTxBytes: stats.networkTxBytes,
+                            at: Date(),
+                            cores: cores
+                        ))
+                    }
+                    try? await Task.sleep(for: .seconds(2))
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
     // MARK: - System page
 
     override func fetchDiskUsage() async throws {

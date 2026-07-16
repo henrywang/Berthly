@@ -21,8 +21,16 @@ struct SidebarView: View {
             // Compute and System are lone top-level items, so they sit ungrouped rather than
             // under a one-row section that would just repeat their own name (Finder/Mail do the
             // same). Only the multi-item LIBRARY group keeps a header.
-            SidebarRow(icon: "shippingbox", label: "Compute", badge: runningComputeCount)
+            //
+            // Tinted badge: Compute's count is *running* items (activity, like Mail's unread
+            // count) while the LIBRARY badges are plain totals — the green marks that these are
+            // different kinds of number, so "Compute 2 / Volumes 4" doesn't read as one series.
+            SidebarRow(icon: "shippingbox", label: "Compute",
+                       badge: runningComputeCount, badgeTint: .statusRunning)
                 .tag(SidebarSelection.compute)
+                .help(runningComputeCount > 0
+                      ? "\(runningComputeCount) running"
+                      : "No containers or machines running")
 
             Section("LIBRARY") {
                 SidebarRow(icon: "cylinder",              label: "Volumes",    badge: service.volumes.count)
@@ -63,6 +71,9 @@ private struct SidebarRow: View {
     let label: LocalizedStringKey
     var badge: Int? = nil
     var badgeText: String? = nil
+    /// Colors the badge count (`Text.foregroundColor` survives into `.badge()` rendering).
+    /// Used to mark a badge that means "currently running" rather than "total".
+    var badgeTint: Color? = nil
     var indent: Bool = false
 
     var body: some View {
@@ -75,7 +86,10 @@ private struct SidebarRow: View {
     // overload doesn't get SwiftUI's hide-zero behavior — so map 0 (and absent counts) to nil.
     private var badgeLabel: Text? {
         if let badgeText { return Text(badgeText) }
-        if let badge, badge > 0 { return Text("\(badge)") }
+        if let badge, badge > 0 {
+            let text = Text("\(badge)")
+            return badgeTint.map { text.foregroundColor($0) } ?? text
+        }
         return nil
     }
 }
