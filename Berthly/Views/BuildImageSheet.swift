@@ -418,7 +418,7 @@ struct BuildImageSheet: View {
         job = buildManager.start(options: options, service: service)
         // First build is the natural moment to ask for notification permission — the build
         // may finish while the user is elsewhere, and the grant is settled by then.
-        BuildNotifier.shared.prepare()
+        AppNotifier.shared.prepare()
     }
 
     private func cancelBuild() {

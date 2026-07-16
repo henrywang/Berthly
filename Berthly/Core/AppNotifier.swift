@@ -4,13 +4,15 @@
 import AppKit
 import UserNotifications
 
-/// Posts a macOS user notification when a background build finishes and the user isn't
-/// looking at the app — the Dock bounce alone is a single, easy-to-miss signal, and it
-/// doesn't fire at all when Berthly is still the active app with its window closed (the
-/// exact state clicking the window's red button leaves you in).
+/// Posts macOS user notifications (build finished, pinned container/machine status
+/// changes) when the user isn't looking at the app — the Dock bounce alone is a single,
+/// easy-to-miss signal, and it doesn't fire at all when Berthly is still the active app
+/// with its window closed (the exact state clicking the window's red button leaves you
+/// in). The single owner of `UNUserNotificationCenter`'s delegate and authorization
+/// request: a second independent singleton doing either would silently clobber this one.
 @MainActor
-final class BuildNotifier: NSObject, UNUserNotificationCenterDelegate {
-    static let shared = BuildNotifier()
+final class AppNotifier: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = AppNotifier()
 
     /// UI tests must never trip the system notification-permission dialog — it would hang
     /// mock-mode runs behind a prompt XCUITest can't reliably dismiss.
@@ -48,6 +50,23 @@ final class BuildNotifier: NSObject, UNUserNotificationCenterDelegate {
         content.sound = .default
         UNUserNotificationCenter.current().add(
             UNNotificationRequest(identifier: job.id.uuidString, content: content, trigger: nil)
+        )
+    }
+
+    /// Posts when a pinned container/machine's status changes between polls (see
+    /// `pinnedStatusChanges` in `PinnedStatusChange.swift`). Same suppression rule as
+    /// `postBuildFinished`: skip while the user is actively looking at the app.
+    func postPinnedStatusChanged(_ change: PinnedStatusChange) {
+        guard Self.isEnabled else { return }
+        if NSApp.isActive && NSApp.mainWindow != nil { return }
+
+        let text = pinnedStatusChangeText(change)
+        let content = UNMutableNotificationContent()
+        content.title = text.title
+        content.body = text.body
+        content.sound = .default
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         )
     }
 

@@ -37,7 +37,10 @@ nonisolated enum DaemonState: Equatable {
 
 // MARK: - Container
 
-enum ContainerStatus: Equatable, Hashable {
+/// `nonisolated`: same reason as `DaemonState` above — a pure value type used from
+/// `nonisolated` contexts (e.g. `pinnedStatusChanges` in `PinnedStatusChange.swift`)
+/// needs its `Equatable` conformance to not default to the module's MainActor isolation.
+nonisolated enum ContainerStatus: Equatable, Hashable {
     case running, stopped, error, paused
 }
 

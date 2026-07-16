@@ -731,6 +731,9 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     private func refreshAll() async {
+        let previousContainers = containers
+        let previousMachines = machines
+
         let machineSnaps = (try? await MachineClient().list()) ?? []
         let machineContainerIds = Set(machineSnaps.compactMap { $0.containerId })
 
@@ -749,6 +752,17 @@ final class LiveContainerService: ContainerServiceBase {
         let defaultMachineID = ((try? await MachineClient().getDefault()) ?? nil)
         machines  = machineSnaps.map { mapMachine($0, kernelName: kernelName, defaultMachineID: defaultMachineID) }
         builders  = builderSnaps.map { mapBuilder($0) }
+
+        // Notify on pinned containers/machines whose status changed since the last poll
+        // (e.g. crashed or stopped while the user wasn't looking). Matching old/new by id
+        // makes this a no-op on a transient fetch failure — see `pinnedStatusChanges`.
+        for change in pinnedStatusChanges(
+            oldContainers: previousContainers, newContainers: containers,
+            oldMachines: previousMachines, newMachines: machines,
+            pinnedContainerIDs: pinnedContainerIDs, pinnedMachineIDs: pinnedMachineIDs
+        ) {
+            AppNotifier.shared.postPinnedStatusChanged(change)
+        }
 
         images = ContainerImage.resolvingUsage(
             (try? await fetchImages()) ?? [], containers: containers, machines: machines

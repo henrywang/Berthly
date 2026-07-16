@@ -76,13 +76,13 @@ final class BuildJobManager {
     /// Called when a build finishes while its job is still listed (i.e. not cancelled).
     /// Default bounces the Dock icon if the app is in the background, and posts a user
     /// notification when the user isn't looking at the app (window closed or app inactive
-    /// — see `BuildNotifier.postBuildFinished`). Replaceable so unit tests don't poke
+    /// — see `AppNotifier.postBuildFinished`). Replaceable so unit tests don't poke
     /// `NSApp` or the notification center.
     var notifyFinished: @MainActor (BuildJob) -> Void = { job in
         if !NSApp.isActive {
             NSApp.requestUserAttention(.informationalRequest)
         }
-        BuildNotifier.shared.postBuildFinished(job)
+        AppNotifier.shared.postBuildFinished(job)
     }
 
     var activeCount: Int { jobs.filter { !$0.isFinished }.count }

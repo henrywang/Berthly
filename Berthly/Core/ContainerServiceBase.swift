@@ -54,11 +54,23 @@ class ContainerServiceBase {
     func isContainerPinned(_ id: String) -> Bool { pinnedContainerIDs.contains(id) }
     func isMachinePinned(_ id: String) -> Bool { pinnedMachineIDs.contains(id) }
 
+    /// Pinning is the natural moment to ask for notification permission — it's the
+    /// declared "notify me if this changes while I'm away" gesture, and the grant is
+    /// settled well before any status-change notification would fire. Only requested on
+    /// the transition into pinned, not on unpin.
     func togglePinContainer(_ id: String) {
-        if !pinnedContainerIDs.insert(id).inserted { pinnedContainerIDs.remove(id) }
+        if !pinnedContainerIDs.insert(id).inserted {
+            pinnedContainerIDs.remove(id)
+        } else {
+            AppNotifier.shared.prepare()
+        }
     }
     func togglePinMachine(_ id: String) {
-        if !pinnedMachineIDs.insert(id).inserted { pinnedMachineIDs.remove(id) }
+        if !pinnedMachineIDs.insert(id).inserted {
+            pinnedMachineIDs.remove(id)
+        } else {
+            AppNotifier.shared.prepare()
+        }
     }
     func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {}
     @discardableResult
