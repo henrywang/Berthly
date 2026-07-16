@@ -20,9 +20,10 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 - **Menu-bar presence** — quick status and controls without leaving what you're doing.
 - **Keyboard-first** — ⌘K palette, ⌘1–6 section switching, ⌘⌥1–3 detail tabs, and full menu shortcuts for every action.
 
-<p>
-  <img src="design/screenshots/command-palette.png" width="67%" alt="The command palette (⌘K) matching lifecycle actions for a container" />
-  <img src="design/screenshots/menu-bar.png" width="31%" alt="The menu-bar popover: running containers and machines with quick actions and daemon control" />
+![The command palette (⌘K) matching lifecycle actions for a container](design/screenshots/command-palette.png)
+
+<p align="center">
+  <img src="design/screenshots/menu-bar.png" width="380" alt="The menu-bar popover: running containers and machines with quick actions and daemon control" />
 </p>
 
 Berthly covers the `container` CLI's full feature surface — see [PARITY.md](PARITY.md)
