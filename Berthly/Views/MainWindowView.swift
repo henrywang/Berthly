@@ -114,6 +114,31 @@ struct MainWindowView: View {
             .onChange(of: bridge.pendingIntent) { _, _ in handlePendingIntent() }
         }
         .navigationTitle("Berthly")
+        // ⎋ backs out one level: close the palette if it's up, else collapse the detail pane by
+        // clearing the selection. A hidden key-equivalent button, not `.onExitCommand` — key
+        // equivalents resolve window-wide regardless of focus, while cancelOperation only reaches
+        // an onExitCommand when a SwiftUI-focusable descendant currently has focus (it doesn't
+        // after a palette action or a plain row click, verified empirically). Mounted only while
+        // there's something to back out of, so Esc still reaches the search field's own
+        // clear/cancel behavior the rest of the time. Sheets are separate key windows, so their
+        // Cancel buttons keep owning Esc while presented.
+        .background {
+            if showCommandPalette || detailVisible {
+                Button("") {
+                    if showCommandPalette {
+                        showCommandPalette = false
+                    } else {
+                        selectedCompute = nil
+                        selectedImageID = nil
+                        selectedVolumeID = nil
+                        selectedNetworkID = nil
+                    }
+                }
+                .keyboardShortcut(.cancelAction)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
+        }
         .toolbar { toolbarContent }
         .sheet(isPresented: $showPullSheet) {
             PullImageSheet {
@@ -365,11 +390,18 @@ struct MainWindowView: View {
 
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
+        // `.titleAndIcon` on the primary actions: macOS toolbars render Labels icon-only by
+        // default, which left three ambiguities — Run's play.fill collides with every row's
+        // "start this container" button, Pull's arrow.down.circle sits next to Refresh's
+        // arrow.clockwise, and the contextual + changes meaning per section. Text resolves all
+        // three (Finder/Mail label their primary toolbar actions the same way); Refresh stays
+        // icon-only in its own group — secondary and universally understood.
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 showRunMenu = true
             } label: {
                 Label("Run", systemImage: "play.fill")
+                    .labelStyle(.titleAndIcon)
             }
             .buttonStyle(.borderedProminent)
             .tint(.berthlyAccent)
@@ -401,6 +433,7 @@ struct MainWindowView: View {
                 showBuildSheet = true
             } label: {
                 Label("Build", systemImage: "hammer")
+                    .labelStyle(.titleAndIcon)
             }
             .disabled(!service.isConnected)
             .help("Build an image from a Dockerfile")
@@ -409,6 +442,7 @@ struct MainWindowView: View {
                 showPullSheet = true
             } label: {
                 Label("Pull", systemImage: "arrow.down.circle")
+                    .labelStyle(.titleAndIcon)
             }
             .disabled(!service.isConnected)
             .help("Pull an image from a registry")
@@ -418,6 +452,7 @@ struct MainWindowView: View {
             if let add = contextualAddAction {
                 Button(action: add.action) {
                     Label(add.title, systemImage: "plus")
+                        .labelStyle(.titleAndIcon)
                 }
                 .disabled(!service.isConnected)
                 .help(add.title)

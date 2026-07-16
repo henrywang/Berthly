@@ -20,6 +20,9 @@ struct ImagesListView: View {
     @State private var isSearchPresented = false
     @State private var deleteTargetID: String?
     @State private var deleteErrorMessage: String?
+    @State private var showPruneConfirm = false
+    @State private var isPruning = false
+    @State private var pruneResult: PruneResult?
     @AppStorage("imagesSortOrder") private var sortOrderRaw = LibrarySortOrder.default.rawValue
 
     private var sortOrder: LibrarySortOrder { LibrarySortOrder(rawValue: sortOrderRaw) ?? .default }
@@ -64,7 +67,9 @@ struct ImagesListView: View {
                     if !local.isEmpty {
                         Section {
                             ForEach(local)  { img in ImageRow(imageID: img.id, selectedID: $selectedID).tag(img.id).listRowSeparator(.hidden) }
-                        } header: { LibrarySectionHeader("LOCAL \(local.count)") }
+                        // "BUILT", not "LOCAL": pulled images live locally too, so "local" didn't
+                        // distinguish anything — the split is how the image got here.
+                        } header: { LibrarySectionHeader("BUILT \(local.count)") }
                     }
                     if !pulled.isEmpty {
                         Section {
@@ -105,6 +110,36 @@ struct ImagesListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by reference")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Images")
+        // Section-scoped housekeeping next to the shared Run/Build/Pull actions, mirroring the
+        // Networks pane's Prune — this pane already shows the reclaimable size, so the action
+        // that frees it belongs here too, not only in System > Disk Usage.
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if isPruning {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Prune…") { showPruneConfirm = true }
+                        .disabled(diskUsage.reclaimableBytes == 0)
+                        .help(diskUsage.reclaimableBytes == 0
+                              ? "Every image is used by a container or machine"
+                              : "Remove images not used by any container or machine")
+                }
+            }
+        }
+        .alert("Remove unused images?", isPresented: $showPruneConfirm) {
+            Button("Remove", role: .destructive) { performPrune() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Deletes every image not used by a container or machine, freeing about \(formatSize(diskUsage.reclaimableBytes)). Machine and builder images are never removed.")
+        }
+        .alert("Done", isPresented: Binding(
+            get: { pruneResult != nil },
+            set: { if !$0 { pruneResult = nil } }
+        )) {
+            Button("OK") { pruneResult = nil }
+        } message: {
+            Text(pruneResult?.summaryText ?? "")
+        }
         .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
             get: { deleteTargetID != nil },
             set: { if !$0 { deleteTargetID = nil } }
@@ -135,6 +170,24 @@ struct ImagesListView: View {
         Task {
             do { try await service.deleteImage(image.fullName) }
             catch { deleteErrorMessage = error.localizedDescription }
+        }
+    }
+
+    private func performPrune() {
+        isPruning = true
+        Task {
+            do {
+                let result = try await service.pruneImages()
+                // A pruned image might be the selected one — clear selection so the detail pane
+                // doesn't strand on "not found" (same reason performDelete clears it).
+                if let selectedID, !service.images.contains(where: { $0.id == selectedID }) {
+                    self.selectedID = nil
+                }
+                pruneResult = result
+            } catch {
+                deleteErrorMessage = error.localizedDescription
+            }
+            isPruning = false
         }
     }
 }

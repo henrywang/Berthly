@@ -115,7 +115,7 @@ struct ComputeListView: View {
             Button("Delete", role: .destructive) { performDelete() }
             Button("Cancel", role: .cancel) { deleteTarget = nil }
         } message: {
-            Text("This action cannot be undone.")
+            Text("This can't be undone.")
         }
         .errorAlert($deleteErrorMessage)
     }
@@ -295,7 +295,7 @@ private struct ContainerComputeRow: View {
             .accessibilityIdentifier("containerDeleteConfirmButton")
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This action cannot be undone.")
+            Text("This can't be undone.")
         }
         .errorAlert($errorMessage)
     }
@@ -434,7 +434,7 @@ private struct MachineComputeRow: View {
             .accessibilityIdentifier("machineDeleteConfirmButton")
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("This action cannot be undone.")
+            Text("This can't be undone.")
         }
         .errorAlert($errorMessage)
     }

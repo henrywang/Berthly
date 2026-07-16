@@ -70,7 +70,7 @@ private struct NetworkDetailContent: View {
                 if !network.endpoints.isEmpty {
                     Text("This network has \(network.endpoints.count) endpoint\(network.endpoints.count == 1 ? "" : "s"). Deleting it may disrupt connectivity.")
                 } else {
-                    Text("This action cannot be undone.")
+                    Text("This can't be undone.")
                 }
             }
             .errorAlert($errorMessage)

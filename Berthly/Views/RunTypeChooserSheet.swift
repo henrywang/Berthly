@@ -26,7 +26,7 @@ struct RunTypeMenuContent: View {
                 iconColor: .statusRunning,
                 title: "Create Machine",
                 subtitle: "Provision a full Linux VM",
-                shortcut: nil,
+                shortcut: "⇧⌘M",
                 action: onSelectMachine
             )
         }

@@ -61,13 +61,13 @@ struct NetworksListView: View {
                 if isPruning {
                     ProgressView().controlSize(.small)
                 } else {
-                    Button { showPruneConfirm = true } label: {
-                        Label("Prune Unused Networks…", systemImage: "trash.slash")
-                    }
-                    .disabled(prunableCount == 0)
-                    .help(prunableCount == 0
-                          ? "Every network is attached to a container"
-                          : "Remove networks with no container connections")
+                    // Text, not an icon: the old trash.slash glyph read as "deletion disabled",
+                    // and no SF Symbol says "clean up unused" unambiguously.
+                    Button("Prune…") { showPruneConfirm = true }
+                        .disabled(prunableCount == 0)
+                        .help(prunableCount == 0
+                              ? "Every network is attached to a container"
+                              : "Remove networks with no container connections")
                 }
             }
         }
@@ -143,7 +143,7 @@ struct NetworksListView: View {
         if !network.endpoints.isEmpty {
             return "This network has \(network.endpoints.count) endpoint\(network.endpoints.count == 1 ? "" : "s"). Deleting it may disrupt connectivity."
         }
-        return "This action cannot be undone."
+        return "This can't be undone."
     }
 
     private func performDelete() {
@@ -241,7 +241,7 @@ private struct NetworkRow: View {
                 if !network.endpoints.isEmpty {
                     Text("This network has \(network.endpoints.count) endpoint\(network.endpoints.count == 1 ? "" : "s"). Deleting it may disrupt connectivity.")
                 } else {
-                    Text("This action cannot be undone.")
+                    Text("This can't be undone.")
                 }
             }
             .errorAlert($errorMessage)

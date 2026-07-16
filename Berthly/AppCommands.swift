@@ -72,7 +72,10 @@ struct ContainerCommands: Commands {
             }
         }
 
-        CommandMenu("Container") {
+        // Two domain menus, named for what they act on (Mail's Mailbox/Message split). The old
+        // single "Container" menu held Create Machine — a machine isn't a container — and didn't
+        // match the sidebar's vocabulary, which calls the containers+machines section "Compute".
+        CommandMenu("Compute") {
             Button("Run Container…") { send(.openRunContainerSheet) }
                 .keyboardShortcut("r", modifiers: [.command, .shift])
                 .disabled(!service.isConnected)
@@ -83,6 +86,14 @@ struct ContainerCommands: Commands {
 
             Divider()
 
+            Button("Refresh") {
+                Task { await service.refresh() }
+            }
+            .keyboardShortcut("r", modifiers: .command)
+            .disabled(!service.isConnected)
+        }
+
+        CommandMenu("Image") {
             Button("Build Image…") { send(.openBuildSheet) }
                 .keyboardShortcut("b", modifiers: [.command, .shift])
                 .disabled(!service.isConnected)
@@ -94,14 +105,6 @@ struct ContainerCommands: Commands {
             Button("Load Image from Disk…") { send(.openLoadImageSheet) }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
                 .disabled(!service.isConnected)
-
-            Divider()
-
-            Button("Refresh") {
-                Task { await service.refresh() }
-            }
-            .keyboardShortcut("r", modifiers: .command)
-            .disabled(!service.isConnected)
         }
     }
 

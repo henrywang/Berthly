@@ -336,9 +336,6 @@
     "container" : {
 
     },
-    "Container" : {
-
-    },
     "CONTAINER" : {
 
     },
@@ -507,6 +504,9 @@
     "Delete…" : {
 
     },
+    "Deletes every image not used by a container or machine, freeing about %@. Machine and builder images are never removed." : {
+
+    },
     "Deletes every network no container is attached to. The default network is never removed." : {
 
     },
@@ -601,6 +601,9 @@
 
     },
     "Error" : {
+
+    },
+    "Every image is used by a container or machine" : {
 
     },
     "Every network is attached to a container" : {
@@ -988,7 +991,7 @@
     "Prune" : {
 
     },
-    "Prune Unused Networks…" : {
+    "Prune…" : {
 
     },
     "Pull" : {
@@ -1060,7 +1063,13 @@
     "Remove from list" : {
 
     },
+    "Remove images not used by any container or machine" : {
+
+    },
     "Remove networks with no container connections" : {
+
+    },
+    "Remove unused images?" : {
 
     },
     "Remove when stopped" : {
@@ -1378,9 +1387,6 @@
       }
     },
     "The log stream ended unexpectedly — the daemon connection may have been lost." : {
-
-    },
-    "This action cannot be undone." : {
 
     },
     "This can't be undone." : {

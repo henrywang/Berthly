@@ -16,6 +16,15 @@ struct CommandPaletteView: View {
     @State private var query = ""
     @State private var selectedIndex = 0
     @FocusState private var searchFocused: Bool
+    /// Hover may only steal the selection after the pointer has actually moved. Without this,
+    /// a palette that opens under a stationary mouse fires `.active` for whatever row happens
+    /// to be under the pointer — preselecting a random mid-list command (and scrolling to it),
+    /// so a reflexive ⌘K-then-⏎ could run something like "Restart …" the user never chose.
+    @State private var hoverArmed = false
+    @State private var lastHoverLocation: CGPoint?
+    /// True while the latest selection change came from hover — those must not auto-scroll
+    /// (the list would shift under the pointer); only ↑/↓ moves recenter the selection.
+    @State private var selectionFollowsHover = false
 
     private var results: [PaletteCommand] {
         rankedPaletteCommands(commands, query: query)
@@ -44,6 +53,9 @@ struct CommandPaletteView: View {
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(.separator, lineWidth: 0.5))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.25), radius: 24, y: 12)
+        // Fallback for when the search field has lost focus (the field's own `.onKeyPress`
+        // only sees ⎋ while focused) — cancelOperation bubbles up here from any descendant.
+        .onExitCommand { isPresented = false }
     }
 
     private var searchField: some View {
@@ -62,7 +74,10 @@ struct CommandPaletteView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .onChange(of: query) { _, _ in selectedIndex = 0 }
+        .onChange(of: query) { _, _ in
+            selectionFollowsHover = false
+            selectedIndex = 0
+        }
         .onAppear { searchFocused = true }
     }
 
@@ -82,14 +97,26 @@ struct CommandPaletteView: View {
                                 .id(command.id)
                                 .contentShape(Rectangle())
                                 .onTapGesture { run(command) }
-                                .onHover { if $0 { selectedIndex = index } }
+                                .onContinuousHover(coordinateSpace: .global) { phase in
+                                    guard case .active(let location) = phase else { return }
+                                    // Global (window) coordinates so scrolling rows under a
+                                    // stationary pointer doesn't count as a move either.
+                                    if let last = lastHoverLocation, last != location {
+                                        hoverArmed = true
+                                    }
+                                    lastHoverLocation = location
+                                    if hoverArmed {
+                                        selectionFollowsHover = true
+                                        selectedIndex = index
+                                    }
+                                }
                         }
                     }
                     .padding(6)
                 }
                 .frame(maxHeight: 360)
                 .onChange(of: selectedIndex) { _, index in
-                    guard results.indices.contains(index) else { return }
+                    guard !selectionFollowsHover, results.indices.contains(index) else { return }
                     withAnimation(.easeInOut(duration: 0.1)) {
                         proxy.scrollTo(results[index].id, anchor: .center)
                     }
@@ -101,6 +128,7 @@ struct CommandPaletteView: View {
     private func moveSelection(_ delta: Int) {
         let count = results.count
         guard count > 0 else { return }
+        selectionFollowsHover = false
         selectedIndex = (selectedIndex + delta + count) % count
     }
 
