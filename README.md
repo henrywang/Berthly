@@ -1,7 +1,13 @@
-# Berthly
+<p align="center">
+  <img src="design/icon/berthly-master-1024.svg" width="150" alt="Berthly app icon — a dock bollard with a mooring line made fast">
+</p>
 
-[![CI](https://github.com/henrywang/Berthly/actions/workflows/ci.yml/badge.svg)](https://github.com/henrywang/Berthly/actions/workflows/ci.yml)
-[![Logic coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhenrywang%2FBerthly%2Fbadges%2Fcoverage.json)](https://github.com/henrywang/Berthly/actions/workflows/ci.yml)
+<h1 align="center">Berthly</h1>
+
+<p align="center">
+  <a href="https://github.com/henrywang/Berthly/actions/workflows/ci.yml"><img src="https://github.com/henrywang/Berthly/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/henrywang/Berthly/actions/workflows/ci.yml"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhenrywang%2FBerthly%2Fbadges%2Fcoverage.json" alt="Logic coverage"></a>
+</p>
 
 A native macOS app for [Apple's `container`](https://github.com/apple/container) — build images, run containers and machines, manage networks and volumes, and tail logs from a real GUI instead of the command line.
 
