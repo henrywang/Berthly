@@ -45,13 +45,33 @@ jobs:
       - name: Resolve package dependencies
         run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
 
+      # Apple's `metal` is a stub that locates the downloaded Metal toolchain
+      # at runtime, and that lookup fails under CodeQL's build tracer even
+      # when the toolchain is present (verified: same steps pass untraced in
+      # ci.yml). So: full build here, untraced, to compile and cache
+      # SwiftTerm's Metal shaders in DerivedData...
+      - name: Prebuild dependencies (untraced)
+        run: |
+          xcodebuild build \
+            -project Berthly.xcodeproj \
+            -scheme Berthly \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM=
+
       - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           languages: swift
           build-mode: manual
 
-      - name: Build
+      # ...then touch only Berthly's own sources so this traced build
+      # recompiles exactly the first-party Swift (all the extractor needs —
+      # dependencies come in as compiled modules) while the cached Metal
+      # compile is skipped as up-to-date, never reaching the broken stub.
+      - name: Build (traced, first-party sources only)
         run: |
+          find Berthly -name '*.swift' -exec touch {} +
           xcodebuild build \
             -project Berthly.xcodeproj \
             -scheme Berthly \
