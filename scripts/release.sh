@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Release pipeline for Berthly (see PLAN/UPGRADE.md):
-#   archive → Developer ID export → notarize + staple → zip → generate_appcast → GitHub release
+#   archive → Developer ID export → DMG → notarize + staple → generate_appcast → GitHub release
 #
 # One-time setup this script assumes (all done 2026-07-14):
 #   - "Developer ID Application" certificate in the login keychain
@@ -15,8 +15,18 @@
 # The version comes from MARKETING_VERSION — bump it (plus CURRENT_PROJECT_VERSION)
 # before running. The appcast only carries the newest release: Sparkle just needs the
 # latest entry to offer an update, and single-entry feeds sidestep stale download URLs
-# when each release hosts its own assets. (Delta updates need past zips kept around —
+# when each release hosts its own assets. (Delta updates need past DMGs kept around —
 # revisit if release cadence ever makes full downloads annoying.)
+#
+# Ships a DMG, not a zip: zip can't hold com.apple.provenance (a kernel-set,
+# unremovable xattr every build file carries), so `ditto -c` AppleDouble-encodes
+# it — `ditto -x`/Finder reconstitutes that fine on extraction, but plain
+# `unzip` doesn't, and materializes literal ._* files that corrupt Sparkle's
+# nested Installer.xpc seal (see 2026-07-16 incident: v1.0 shipped this way
+# and failed spctl for anyone who extracted with `unzip`). A DMG is a real
+# filesystem image — xattrs live on it natively, no encoding involved — and
+# Sparkle 2.x supports .dmg update packages directly, so this covers both the
+# manual download and the in-app auto-update with one artifact.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -35,7 +45,9 @@ if ! gh auth status >/dev/null 2>&1; then
   echo "error: gh is not authenticated. Run: gh auth login" >&2
   exit 1
 fi
-if ! security find-identity -v -p codesigning | grep -q "Developer ID Application"; then
+DEVID_IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" |
+  head -1 | sed -E 's/^[[:space:]]*[0-9]+\) [A-F0-9]+ "(.*)"$/\1/')
+if [[ -z "$DEVID_IDENTITY" ]]; then
   echo "error: no Developer ID Application identity in the keychain." >&2
   echo "  Xcode → Settings → Accounts → Manage Certificates… → + → Developer ID Application" >&2
   exit 1
@@ -113,20 +125,6 @@ xcodebuild archive \
   -destination "generic/platform=macOS" \
   -archivePath "$ARCHIVE" | tail -2
 
-# Vendored SPM binary frameworks (Sparkle.xcframework) can carry stray macOS
-# AppleDouble sidecar files (._*) inside their pre-signed nested XPC services
-# (Installer.xpc, Downloader.xpc) — leftovers from however SPM originally
-# extracted the package on the build machine. Xcode's default resource rules
-# omit ._* from the OUTER app's own seal, so the app-level signature stays
-# valid either way, but Sparkle's XPC services are validated against their
-# OWN pre-existing seal (applied by Sparkle's release process, not ours),
-# which these strays silently invalidate — invisible until `codesign --verify
-# --deep` or Gatekeeper actually checks it (see 2026-07-16 incident: shipped
-# v1.0 failed spctl and showed "app is damaged" for end users). -exportArchive
-# re-signs the outer bundle from the archive's current content but does not
-# touch already-signed nested code, so strip strays here, before export.
-find "$ARCHIVE/Products/Applications/Berthly.app" -name '._*' -delete
-
 cat > "$DIST/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -146,20 +144,27 @@ xcodebuild -exportArchive \
 
 APP="$DIST/export/Berthly.app"
 
-# ── Notarize, staple, final zip ──────────────────────────────────────────────
-# Submit a zip, but staple the .app (tickets can't attach to zips) and re-zip:
-# the stapled copy keeps Gatekeeper happy even offline.
-ZIP_NAME="Berthly-$VERSION.zip"
-ditto -c -k --keepParent "$APP" "$DIST/notarize-$ZIP_NAME"
+# ── DMG, notarize, staple ─────────────────────────────────────────────────
+# Standard drag-to-install layout: the app plus an /Applications symlink.
+DMG_NAME="Berthly-$VERSION.dmg"
+DMG_PATH="$DIST/$DMG_NAME"
+STAGING="$DIST/dmg-staging"
+mkdir -p "$STAGING"
+ditto "$APP" "$STAGING/Berthly.app"
+ln -s /Applications "$STAGING/Applications"
+hdiutil create -volname "Berthly $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG_PATH"
+rm -rf "$STAGING"
+
+codesign --force --sign "$DEVID_IDENTITY" "$DMG_PATH"
 echo "──> Notarizing (waits for Apple; typically a few minutes)…"
-xcrun notarytool submit "$DIST/notarize-$ZIP_NAME" \
+xcrun notarytool submit "$DMG_PATH" \
   --keychain-profile "$NOTARY_PROFILE" --wait
-xcrun stapler staple "$APP"
-spctl -a -vv "$APP"
+xcrun stapler staple "$DMG_PATH"
+spctl -a -vv "$DMG_PATH"
 
 APPCAST_DIR="$DIST/appcast"
 mkdir -p "$APPCAST_DIR"
-ditto -c -k --keepParent "$APP" "$APPCAST_DIR/$ZIP_NAME"
+cp "$DMG_PATH" "$APPCAST_DIR/$DMG_NAME"
 
 # ── Appcast (EdDSA-signed from the keychain key) ─────────────────────────────
 "$SPARKLE_BIN/generate_appcast" "$APPCAST_DIR" \
@@ -196,7 +201,7 @@ fi
 # SUFeedURL points at releases/latest/download/appcast.xml, so attaching the feed
 # to every release automatically serves the newest one.
 gh release create "$TAG" \
-  "$APPCAST_DIR/$ZIP_NAME" \
+  "$APPCAST_DIR/$DMG_NAME" \
   "$APPCAST_DIR/appcast.xml" \
   --title "Berthly $VERSION" \
   --notes-file "$NOTES"

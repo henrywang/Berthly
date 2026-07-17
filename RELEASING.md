@@ -11,7 +11,7 @@ Releases. `scripts/release.sh` runs the whole pipeline.
 1. **Bump versions** in Xcode: project → target *Berthly* → *General* →
    *Identity*:
    - **Version** (`MARKETING_VERSION`) — the human-facing version; becomes the
-     git tag `v<version>` and the zip name.
+     git tag `v<version>` and the DMG name.
    - **Build** (`CURRENT_PROJECT_VERSION`) — **must increase every release.**
      Sparkle compares build numbers (`CFBundleVersion`), not version strings,
      to decide whether an update is newer; a release that reuses a build
@@ -22,14 +22,15 @@ Releases. `scripts/release.sh` runs the whole pipeline.
    - preflight: `gh` authenticated, Developer ID identity present, Sparkle
      tools in DerivedData, tag `v<version>` not already released
    - `xcodebuild archive` + `-exportArchive` with the Developer ID method
-   - notarize the zipped app (`notarytool --wait`, typically a few minutes),
-     staple the ticket to the `.app`, verify with `spctl`
-   - zip the stapled app as `Berthly-<version>.zip`
-   - `generate_appcast` — signs the zip with the Sparkle EdDSA key from the
+   - build `Berthly-<version>.dmg` (app + `/Applications` symlink), sign it,
+     notarize it (`notarytool --wait`, typically a few minutes), staple the
+     ticket to the DMG, verify with `spctl`
+   - `generate_appcast` — signs the DMG with the Sparkle EdDSA key from the
      login keychain and writes a single-entry `appcast.xml` whose download
      URL points at this release's assets
-   - `gh release create v<version>` with the zip and `appcast.xml` attached,
-     release notes auto-generated from merged PRs/commits
+   - `gh release create v<version>` with the DMG and `appcast.xml` attached,
+     release notes written from the test gate's results (see
+     `scripts/release.sh`'s Release notes step)
 4. **Smoke-test the update path** (from the second release onward): launch an
    older installed build and use *Berthly → Check for Updates…* — the Sparkle
    dialog should offer the new version and *Install and Relaunch* cleanly.
