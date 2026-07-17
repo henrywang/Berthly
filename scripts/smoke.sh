@@ -18,7 +18,7 @@
 # failures so one broken thing doesn't hide the rest of the report.
 
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 APP="${BERTHLY_APP_PATH:-/Applications/Berthly.app}"
 APP_NAME="Berthly"
@@ -87,16 +87,13 @@ else
 fi
 
 VERSION=$(plist_get CFBundleShortVersionString)
-[[ -n "$VERSION" ]] && pass "CFBundleShortVersionString = $VERSION" \
-  || fail "CFBundleShortVersionString missing"
+if [[ -n "$VERSION" ]]; then pass "CFBundleShortVersionString = $VERSION"; else fail "CFBundleShortVersionString missing"; fi
 
 ED_KEY=$(plist_get SUPublicEDKey)
-[[ -n "$ED_KEY" ]] && pass "SUPublicEDKey present" \
-  || fail "SUPublicEDKey missing"
+if [[ -n "$ED_KEY" ]]; then pass "SUPublicEDKey present"; else fail "SUPublicEDKey missing"; fi
 
 FEED_URL=$(plist_get SUFeedURL)
-[[ -n "$FEED_URL" ]] && pass "SUFeedURL = $FEED_URL" \
-  || fail "SUFeedURL missing"
+if [[ -n "$FEED_URL" ]]; then pass "SUFeedURL = $FEED_URL"; else fail "SUFeedURL missing"; fi
 
 # ── Sparkle appcast ─────────────────────────────────────────────────────────
 # The check that would have caught the private-repo 404: a perfectly signed,
@@ -125,6 +122,7 @@ echo
 echo "Launch / quit"
 BINARY="$APP/Contents/MacOS/$APP_NAME"
 running() { pgrep -f "$BINARY" >/dev/null 2>&1; }
+# shellcheck disable=SC2329  # invoked indirectly via wait_until
 not_running() { ! running; }
 wait_until() { for _ in $(seq 1 20); do "$1" && return 0; sleep 0.5; done; return 1; }
 

@@ -18,6 +18,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Shell only: the release/e2e/smoke scripts are load-bearing infrastructure.
+  # No SwiftLint (766 style-opinion findings on default rules against a
+  # deliberately styled codebase — noise, not bugs; revisit if outside PRs
+  # pick up) and no Python lint (one icon script plus heredocs inside shell
+  # scripts that no linter can reach).
+  lint:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - run: shellcheck scripts/*.sh design/icon/build.sh
+
   test:
     name: ${{ matrix.name }}
     # Berthly's deployment target is macOS 26.0, so any macOS 26.x runner can
