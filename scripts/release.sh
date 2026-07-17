@@ -113,6 +113,20 @@ xcodebuild archive \
   -destination "generic/platform=macOS" \
   -archivePath "$ARCHIVE" | tail -2
 
+# Vendored SPM binary frameworks (Sparkle.xcframework) can carry stray macOS
+# AppleDouble sidecar files (._*) inside their pre-signed nested XPC services
+# (Installer.xpc, Downloader.xpc) — leftovers from however SPM originally
+# extracted the package on the build machine. Xcode's default resource rules
+# omit ._* from the OUTER app's own seal, so the app-level signature stays
+# valid either way, but Sparkle's XPC services are validated against their
+# OWN pre-existing seal (applied by Sparkle's release process, not ours),
+# which these strays silently invalidate — invisible until `codesign --verify
+# --deep` or Gatekeeper actually checks it (see 2026-07-16 incident: shipped
+# v1.0 failed spctl and showed "app is damaged" for end users). -exportArchive
+# re-signs the outer bundle from the archive's current content but does not
+# touch already-signed nested code, so strip strays here, before export.
+find "$ARCHIVE/Products/Applications/Berthly.app" -name '._*' -delete
+
 cat > "$DIST/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
