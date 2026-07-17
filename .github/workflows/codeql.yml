@@ -37,45 +37,31 @@ jobs:
       - name: Select latest Xcode 26
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
 
-      # SwiftTerm compiles Metal shaders; the Metal toolchain is a separate
-      # download in Xcode 26 and is not preinstalled on runner images.
-      - name: Download Metal toolchain
-        run: xcodebuild -downloadComponent MetalToolchain
-
       - name: Resolve package dependencies
         run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
-
-      # Apple's `metal` is a stub that locates the downloaded Metal toolchain
-      # at runtime, and that lookup fails under CodeQL's build tracer even
-      # when the toolchain is present (verified: same steps pass untraced in
-      # ci.yml). So: full build here, untraced, to compile and cache
-      # SwiftTerm's Metal shaders in DerivedData...
-      - name: Prebuild dependencies (untraced)
-        run: |
-          xcodebuild build \
-            -project Berthly.xcodeproj \
-            -scheme Berthly \
-            -destination 'generic/platform=macOS' \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY=- \
-            DEVELOPMENT_TEAM=
 
       - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
         with:
           languages: swift
           build-mode: manual
 
-      # ...then touch only Berthly's own sources so this traced build
-      # recompiles exactly the first-party Swift (all the extractor needs —
-      # dependencies come in as compiled modules) while the cached Metal
-      # compile is skipped as up-to-date, never reaching the broken stub.
-      - name: Build (traced, first-party sources only)
+      # EXCLUDED_SOURCE_FILE_NAMES drops SwiftTerm's Metal shader compile
+      # entirely: Apple's `metal` is a stub that resolves the downloaded
+      # Metal toolchain at runtime, and that lookup fails under CodeQL's
+      # build tracer even when the toolchain is present (an untraced
+      # prebuild doesn't help — the tracer environment invalidates Xcode's
+      # incremental state and the Metal task re-runs traced anyway). The
+      # shader library is a runtime resource for SwiftTerm's renderer;
+      # nothing here runs the built app, and the extractor only needs the
+      # Swift compiles. Verified: a clean build with this exclusion succeeds
+      # with no CompileMetalFile task, so no Metal toolchain download either.
+      - name: Build
         run: |
-          find Berthly -name '*.swift' -exec touch {} +
           xcodebuild build \
             -project Berthly.xcodeproj \
             -scheme Berthly \
             -destination 'generic/platform=macOS' \
+            EXCLUDED_SOURCE_FILE_NAMES='*.metal' \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM=
