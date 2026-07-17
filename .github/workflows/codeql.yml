@@ -1,0 +1,84 @@
+name: CodeQL
+
+# Advanced setup, not default: CodeQL's Swift autobuild can't build Berthly
+# (it needs the Xcode 26 selection, the Metal toolchain download SwiftTerm
+# requires, and SPM resolution — the same steps ci.yml does explicitly), so
+# Swift runs in manual build mode with those steps mirrored here. Default
+# setup must stay disabled in Settings → Advanced Security or uploads from
+# this workflow are rejected.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "30 9 * * 1" # weekly: new CodeQL queries land without a code change
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze-swift:
+    name: Analyze Swift
+    runs-on: macos-26
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # Pinned to full commit SHAs so a moved tag can't silently change what runs.
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - name: Select latest Xcode 26
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -n 1)"
+
+      # SwiftTerm compiles Metal shaders; the Metal toolchain is a separate
+      # download in Xcode 26 and is not preinstalled on runner images.
+      - name: Download Metal toolchain
+        run: xcodebuild -downloadComponent MetalToolchain
+
+      - name: Resolve package dependencies
+        run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
+
+      - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          languages: swift
+          build-mode: manual
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project Berthly.xcodeproj \
+            -scheme Berthly \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM=
+
+      - uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          category: "/language:swift"
+
+  analyze-actions:
+    name: Analyze workflows
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+
+      - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          languages: actions
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+        with:
+          category: "/language:actions"
