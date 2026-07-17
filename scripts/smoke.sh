@@ -122,7 +122,7 @@ echo
 echo "Launch / quit"
 BINARY="$APP/Contents/MacOS/$APP_NAME"
 running() { pgrep -f "$BINARY" >/dev/null 2>&1; }
-# shellcheck disable=SC2329  # invoked indirectly via wait_until
+# shellcheck disable=SC2317,SC2329  # invoked indirectly via wait_until (code differs by shellcheck version)
 not_running() { ! running; }
 wait_until() { for _ in $(seq 1 20); do "$1" && return 0; sleep 0.5; done; return 1; }
 
