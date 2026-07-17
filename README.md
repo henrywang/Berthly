@@ -50,6 +50,16 @@ expert flags left to the CLI.
 - **macOS 26 or later.**
 - **[Apple's `container`](https://github.com/apple/container) installed and running.** Berthly is a GUI on top of it; it can help you install and start the daemon, but it drives the same underlying tooling.
 
+## Install
+
+Download the latest `Berthly-<version>.dmg` from
+[Releases](https://github.com/henrywang/Berthly/releases/latest), open it, and
+drag **Berthly.app** into Applications. The app is Developer ID–signed and
+notarized by Apple, so it opens without warnings. Updates arrive in-app
+(Berthly → Check for Updates…).
+
+Or build from source:
+
 ## Building
 
 Berthly is an Xcode project. It links against Apple's [`container`](https://github.com/apple/container) and [`containerization`](https://github.com/apple/containerization) Swift packages, resolved automatically via Swift Package Manager.
