@@ -7,7 +7,7 @@ A native macOS app for [Apple's `container`](https://github.com/apple/container)
 
 Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's container tooling the Docker Desktop-style experience it's missing.
 
-![Berthly's main window: the Compute list with a container's live CPU, memory, and network charts](design/screenshots/main-window.png)
+![Berthly in the menu bar — its status-item popover open next to the main window, where the Compute list shows a container's live CPU and memory charts](design/screenshots/main-window.png)
 
 ## Features
 
