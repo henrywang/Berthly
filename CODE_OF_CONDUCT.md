@@ -59,8 +59,12 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-<henrywangxf@me.com>.
+reported to the community leaders responsible for enforcement through this
+repository's
+[private reporting form](https://github.com/henrywang/Berthly/security/advisories/new)
+(Security tab → "Report a vulnerability" — it reaches the maintainer
+privately and is this project's channel for any report that shouldn't be
+public, not just vulnerabilities).
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the
