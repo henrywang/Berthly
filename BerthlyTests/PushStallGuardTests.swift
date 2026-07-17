@@ -82,8 +82,10 @@ struct RaceAgainstStallTests {
         }
 
         // Must return around the 80ms timeout, not the ~5s the ignored-cancellation operation
-        // would otherwise run for.
-        #expect(clock.now - start < .milliseconds(600))
+        // would otherwise run for. The bound is deliberately loose: on a contended CI runner,
+        // task-scheduling latency alone can add over a second (observed 1.4s on a cold
+        // GitHub macos-26 runner), and the regression this guards produces ~5s, not ~2s.
+        #expect(clock.now - start < .seconds(2.5))
     }
 
     @Test func returnsTheOperationsResultWhenItWinsTheRace() async throws {
