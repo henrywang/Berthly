@@ -32,6 +32,23 @@ body:
       label: What did you expect to happen?
     validations:
       required: true
+  - type: dropdown
+    id: cli-comparison
+    attributes:
+      label: Does the same operation work via the container CLI?
+      description: >-
+        Berthly drives the same daemon as the `container` CLI (see
+        [PARITY.md](../blob/main/PARITY.md) for the command mapping). Trying
+        the equivalent command tells us whether the bug is in Berthly or in
+        the underlying tooling — CLI-side issues belong at
+        [apple/container](https://github.com/apple/container/issues).
+      options:
+        - "Yes — the CLI works, only Berthly misbehaves"
+        - "No — the CLI fails the same way"
+        - "Haven't tried / not sure how"
+        - "Not applicable (no CLI equivalent)"
+    validations:
+      required: true
   - type: input
     id: berthly-version
     attributes:
