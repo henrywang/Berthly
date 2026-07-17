@@ -26,7 +26,7 @@ jobs:
   analyze-swift:
     name: Analyze Swift
     runs-on: macos-26
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
       security-events: write
@@ -55,12 +55,18 @@ jobs:
       # nothing here runs the built app, and the extractor only needs the
       # Swift compiles. Verified: a clean build with this exclusion succeeds
       # with no CompileMetalFile task, so no Metal toolchain download either.
+      #
+      # Concrete `platform=macOS` destination, NOT generic/platform=macOS:
+      # generic builds universal (x86_64 + arm64), which doubles the whole
+      # tracer-taxed dependency compile — that's what pushed the first run
+      # past a 90-minute timeout with the Berthly module still compiling.
+      # One architecture is enough for extraction.
       - name: Build
         run: |
           xcodebuild build \
             -project Berthly.xcodeproj \
             -scheme Berthly \
-            -destination 'generic/platform=macOS' \
+            -destination 'platform=macOS' \
             EXCLUDED_SOURCE_FILE_NAMES='*.metal' \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
