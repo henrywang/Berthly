@@ -160,7 +160,15 @@ echo "──> Notarizing (waits for Apple; typically a few minutes)…"
 xcrun notarytool submit "$DMG_PATH" \
   --keychain-profile "$NOTARY_PROFILE" --wait
 xcrun stapler staple "$DMG_PATH"
-spctl -a -vv "$DMG_PATH"
+# spctl -a is unreliable for .dmg files from the CLI — it's built around
+# validating .app bundles, and Gatekeeper's real "open" assessment needs
+# LaunchServices-level quarantine-event context no CLI invocation can
+# synthesize, so it reports false rejections ("does not seem to be an app"
+# under the default -t execute, "Insufficient Context" under -t open) even
+# for a correctly signed, notarized DMG. codesign + stapler validate are
+# the checks that actually mean something here.
+codesign --verify --deep --strict "$DMG_PATH"
+xcrun stapler validate "$DMG_PATH"
 
 APPCAST_DIR="$DIST/appcast"
 mkdir -p "$APPCAST_DIR"
