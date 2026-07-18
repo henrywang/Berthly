@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import ContainerAPIClient
 import Testing
 @testable import Berthly
 
@@ -36,6 +37,49 @@ struct MapRegistriesTests {
 
     @Test func emptyKeychainProducesNoRegistries() {
         #expect(LiveContainerService.mapRegistries(keychainEntries: []).isEmpty)
+    }
+}
+
+struct ResolveRegistryConnectionTargetTests {
+
+    @Test func splitsHostPortIntoBareHostAndExplicitPort() throws {
+        // A local test registry — the case the host-only RegistryClient initializer used to mishandle.
+        let target = try LiveContainerService.resolveRegistryConnectionTarget(
+            host: "localhost:18581", insecure: true, internalDnsDomain: nil
+        )
+        #expect(target.scheme == .http)
+        #expect(target.host == "localhost")
+        #expect(target.port == 18581)
+    }
+
+    @Test func insecureForcesHTTPRegardlessOfHost() throws {
+        // Mirrors pushImage/pullImage's `insecure ? .http : .auto` — a public host can still be
+        // forced to HTTP explicitly, same as the Push/Pull sheets' toggle.
+        let target = try LiveContainerService.resolveRegistryConnectionTarget(
+            host: "ghcr.io", insecure: true, internalDnsDomain: nil
+        )
+        #expect(target.scheme == .http)
+        #expect(target.host == "ghcr.io")
+        #expect(target.port == nil)
+    }
+
+    @Test func publicHostWithoutInsecureResolvesHTTPS() throws {
+        let target = try LiveContainerService.resolveRegistryConnectionTarget(
+            host: "ghcr.io", insecure: false, internalDnsDomain: nil
+        )
+        #expect(target.scheme == .https)
+        #expect(target.port == nil)
+    }
+
+    @Test func bareLocalhostAutoDetectsHTTPWithoutTheInsecureToggle() throws {
+        // `RequestScheme.auto` already treats an exact "localhost" as an internal host (see
+        // `RequestScheme.isInternalHost`) — the toggle isn't the only way to reach HTTP.
+        let target = try LiveContainerService.resolveRegistryConnectionTarget(
+            host: "localhost", insecure: false, internalDnsDomain: nil
+        )
+        #expect(target.scheme == .http)
+        #expect(target.host == "localhost")
+        #expect(target.port == nil)
     }
 }
 

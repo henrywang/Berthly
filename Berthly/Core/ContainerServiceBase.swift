@@ -213,7 +213,7 @@ class ContainerServiceBase {
     /// Refreshes `registries` from the Keychain. Page-specific, fetched on demand (like
     /// `fetchDiskUsage`/`fetchKernelInfo`) rather than on every poll tick.
     func loadRegistries() async {}
-    func signInRegistry(host: String, username: String, password: String) async throws {}
+    func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {}
     func signOutRegistry(host: String) async throws {}
 
     var isConnected: Bool {

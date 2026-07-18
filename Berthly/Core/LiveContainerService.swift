@@ -1781,7 +1781,25 @@ final class LiveContainerService: ContainerServiceBase {
         registries = Self.mapRegistries(keychainEntries: entries.map { (hostname: $0.hostname, username: $0.username) })
     }
 
-    override func signInRegistry(host: String, username: String, password: String) async throws {
+    /// Resolves the scheme and splits `host` into (bare host, port) for a `RegistryClient`
+    /// connection — mirrors `container registry login` (`RegistryLogin.swift`): build a URL from
+    /// scheme+host so a `host:port` string (e.g. a local test registry) splits into a bare host
+    /// and an explicit port. `RegistryClient`'s host-only initializer doesn't split "host:port"
+    /// itself, so passing the raw string straight through mishandles any registry with a port.
+    /// Pure and `nonisolated` so it's testable without a live daemon (`LiveContainerService.buildArguments(for:)`
+    /// is the pattern) — no `Process`/XPC involved.
+    nonisolated static func resolveRegistryConnectionTarget(
+        host: String, insecure: Bool, internalDnsDomain: String?
+    ) throws -> (scheme: RequestScheme, host: String, port: Int?) {
+        let scheme = try RequestScheme(insecure ? "http" : "auto")
+            .schemeFor(host: host, internalDnsDomain: internalDnsDomain)
+        guard let url = URL(string: "\(scheme.rawValue)://\(host)"), let urlHost = url.host else {
+            throw ContainerCLIError(exitCode: 1, message: "\(host) is not a valid registry host.")
+        }
+        return (scheme, urlHost, url.port)
+    }
+
+    override func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {
         let host = Reference.resolveDomain(domain: host.trimmingCharacters(in: .whitespaces))
         let username = username.trimmingCharacters(in: .whitespaces)
         guard !host.isEmpty, !username.isEmpty, !password.isEmpty else {
@@ -1789,10 +1807,13 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         let containerSystemConfig = await resolvedSystemConfig()
-        let scheme = try RequestScheme("auto").schemeFor(host: host, internalDnsDomain: containerSystemConfig.dns.domain)
+        let target = try Self.resolveRegistryConnectionTarget(
+            host: host, insecure: insecure, internalDnsDomain: containerSystemConfig.dns.domain
+        )
         let client = RegistryClient(
-            host: host,
-            scheme: scheme.rawValue,
+            host: target.host,
+            scheme: target.scheme.rawValue,
+            port: target.port,
             authentication: BasicAuthentication(username: username, password: password),
             retryOptions: RetryOptions(maxRetries: 3, retryInterval: 300_000_000, shouldRetry: { $0.status.code >= 500 })
         )

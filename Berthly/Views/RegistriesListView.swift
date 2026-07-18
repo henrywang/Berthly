@@ -169,6 +169,7 @@ private struct RegistryRow: View {
                     } else {
                         Button("Sign out") { signOut(host: registry.host) }
                             .buttonStyle(.bordered)
+                            .accessibilityIdentifier("registrySignOutButton-\(registry.host)")
                     }
                 }
                 .frame(width: 90, alignment: .trailing)

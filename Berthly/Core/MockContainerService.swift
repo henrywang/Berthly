@@ -282,7 +282,7 @@ final class MockContainerService: ContainerServiceBase {
     // Already seeded in init — nothing to reload.
     override func loadRegistries() async {}
 
-    override func signInRegistry(host: String, username: String, password: String) async throws {
+    override func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {
         let host = host.trimmingCharacters(in: .whitespaces)
         let username = username.trimmingCharacters(in: .whitespaces)
         guard !host.isEmpty, !username.isEmpty, !password.isEmpty else {
