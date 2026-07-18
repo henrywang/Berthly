@@ -9,6 +9,10 @@
   <a href="https://github.com/henrywang/Berthly/actions/workflows/ci.yml"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhenrywang%2FBerthly%2Fbadges%2Fcoverage.json" alt="Logic coverage"></a>
 </p>
 
+<p align="center">
+  <a href="https://berthly.net"><b>berthly.net</b></a>
+</p>
+
 A native macOS app for [Apple's `container`](https://github.com/apple/container) — build images, run containers and machines, manage networks and volumes, and tail logs from a real GUI instead of the command line.
 
 Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's container tooling the Docker Desktop-style experience it's missing.
@@ -59,6 +63,7 @@ expert flags left to the CLI.
 ## Install
 
 Download the latest `Berthly-<version>.dmg` from
+[berthly.net](https://berthly.net) or
 [Releases](https://github.com/henrywang/Berthly/releases/latest), open it, and
 drag **Berthly.app** into Applications. The app is Developer ID–signed and
 notarized by Apple, so it opens without warnings. Updates arrive in-app
