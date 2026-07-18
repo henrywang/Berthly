@@ -7,10 +7,12 @@ name: CodeQL
 # setup must stay disabled in Settings → Advanced Security or uploads from
 # this workflow are rejected.
 
+# No pull_request trigger: Swift extraction traces a full Xcode build (~1hr), too slow for
+# PR CI, and GitHub can't diff a pull_request-triggered run against a baseline anyway (no
+# matching push-triggered analysis on the PR's own commits). Push (every merge) + weekly cron
+# give full coverage instead. No branch protection requires this workflow, so nothing blocks.
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   schedule:
     - cron: "30 9 * * 1" # weekly: new CodeQL queries land without a code change
@@ -27,10 +29,6 @@ jobs:
     name: Analyze Swift
     runs-on: macos-26
     timeout-minutes: 120
-    # Swift extraction takes ~1hr (traced Xcode build); skip it on PRs to
-    # keep PR CI fast, and rely on push (every merge) + weekly cron for
-    # coverage. No branch protection requires this job, so nothing blocks.
-    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       security-events: write
