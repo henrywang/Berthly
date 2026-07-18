@@ -86,7 +86,7 @@ final class TerminalSession {
         let keepFd    = policy.handOffIsReadEnd ? writeEnd : readEnd
         return (
             handOff: FileHandle(fileDescriptor: handOffFd, closeOnDealloc: policy.handOffOwnsClose),
-            keep:    FileHandle(fileDescriptor: keepFd,    closeOnDealloc: policy.keepOwnsClose)
+            keep: FileHandle(fileDescriptor: keepFd, closeOnDealloc: policy.keepOwnsClose)
         )
     }
 

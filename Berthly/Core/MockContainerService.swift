@@ -11,65 +11,68 @@ final class MockContainerService: ContainerServiceBase {
         super.init()
         daemonState = .connected
         installedContainerVersion = ContainerCompatibility.requiredVersion
+        // Fixture literals: one entry per line scans best; wrapping these 15-argument
+        // initializers would triple the section's height for no clarity gain.
+        // swiftlint:disable line_length
         containers = [
-            Container(id: "3f9a2b7c1d", name: "web-frontend",  image: "local/web:1.4",       status: .running, ports: [PortMapping(host: 3000, container: 3000)], cpuPercent: 12, memoryMB: 184,  memoryLimitMB: 1024, networkIOString: "1.2 MB/s", uptime: "2h 41m", command: #"nginx -g "daemon off;""#,   mounts: [ContainerMount(source: "./src", destination: "/app")], networks: ["app-net"], environment: ["NODE_ENV=production", "PORT=3000", "API_URL=http://api-service:8080"], startedDate: Date().addingTimeInterval(-(2*3600 + 41*60))),
-            Container(id: "a17c44e9b2", name: "api-service",   image: "local/api:2.1",       status: .running, ports: [PortMapping(host: 8080, container: 8080)], cpuPercent: 34, memoryMB: 320,  memoryLimitMB: 2048, networkIOString: "3.4 MB/s", uptime: "5h 12m", command: "node server.js",               mounts: [], networks: ["app-net", "data-net"], environment: ["NODE_ENV=production"],                                                                                startedDate: Date().addingTimeInterval(-(5*3600 + 12*60))),
-            Container(id: "c20e81f7a4", name: "datastore",     image: "local/datastore:15",  status: .running, ports: [PortMapping(host: 5432, container: 5432)], cpuPercent:  8, memoryMB: 512,  memoryLimitMB: 1024, networkIOString: "0.8 MB/s", uptime: "1d 3h",  command: "postgres",                       mounts: [], networks: ["data-net"], environment: [],                                                                                                              startedDate: Date().addingTimeInterval(-(27*3600))),
-            Container(id: "7b3d09c5e1", name: "cache",         image: "local/cache:7",       status: .running, ports: [PortMapping(host: 6379, container: 6379)], cpuPercent:  2, memoryMB:  64,  memoryLimitMB:  512, networkIOString: "0.2 MB/s", uptime: "1d 3h",  command: "redis-server",                   mounts: [], networks: ["app-net"], environment: [],                                                                                                               startedDate: Date().addingTimeInterval(-(27*3600))),
-            Container(id: "d4e5f6a7b8", name: "worker",        image: "local/worker:1.0",    status: .stopped, ports: [],                                          cpuPercent:  0, memoryMB:   0,  memoryLimitMB:  512, networkIOString: "–",        uptime: "–",      command: "python worker.py",                mounts: [], networks: ["data-net"], environment: []),
-            Container(id: "b4c8d2e6f0", name: "edge-proxy",    image: "local/proxy:1.25",    status: .error,   ports: [PortMapping(host: 80, container: 80), PortMapping(host: 443, container: 443)], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 256, networkIOString: "–", uptime: "–", command: "nginx", mounts: [], networks: ["default"], environment: []),
-            Container(id: "1a2b3c4d5e", name: "sandbox",       image: "local/base:latest",   status: .paused,  ports: [],                                          cpuPercent:  0, memoryMB:   0,  memoryLimitMB:  512, networkIOString: "–",        uptime: "–",      command: "/bin/bash",                       mounts: [], networks: [],          environment: []),
+            Container(id: "3f9a2b7c1d", name: "web-frontend", image: "local/web:1.4", status: .running, ports: [PortMapping(host: 3000, container: 3000)], cpuPercent: 12, memoryMB: 184, memoryLimitMB: 1024, networkIOString: "1.2 MB/s", uptime: "2h 41m", command: #"nginx -g "daemon off;""#, mounts: [ContainerMount(source: "./src", destination: "/app")], networks: ["app-net"], environment: ["NODE_ENV=production", "PORT=3000", "API_URL=http://api-service:8080"], startedDate: Date().addingTimeInterval(-(2*3600 + 41*60))),
+            Container(id: "a17c44e9b2", name: "api-service", image: "local/api:2.1", status: .running, ports: [PortMapping(host: 8080, container: 8080)], cpuPercent: 34, memoryMB: 320, memoryLimitMB: 2048, networkIOString: "3.4 MB/s", uptime: "5h 12m", command: "node server.js", mounts: [], networks: ["app-net", "data-net"], environment: ["NODE_ENV=production"], startedDate: Date().addingTimeInterval(-(5*3600 + 12*60))),
+            Container(id: "c20e81f7a4", name: "datastore", image: "local/datastore:15", status: .running, ports: [PortMapping(host: 5432, container: 5432)], cpuPercent: 8, memoryMB: 512, memoryLimitMB: 1024, networkIOString: "0.8 MB/s", uptime: "1d 3h", command: "postgres", mounts: [], networks: ["data-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
+            Container(id: "7b3d09c5e1", name: "cache", image: "local/cache:7", status: .running, ports: [PortMapping(host: 6379, container: 6379)], cpuPercent: 2, memoryMB: 64, memoryLimitMB: 512, networkIOString: "0.2 MB/s", uptime: "1d 3h", command: "redis-server", mounts: [], networks: ["app-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
+            Container(id: "d4e5f6a7b8", name: "worker", image: "local/worker:1.0", status: .stopped, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "python worker.py", mounts: [], networks: ["data-net"], environment: []),
+            Container(id: "b4c8d2e6f0", name: "edge-proxy", image: "local/proxy:1.25", status: .error, ports: [PortMapping(host: 80, container: 80), PortMapping(host: 443, container: 443)], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 256, networkIOString: "–", uptime: "–", command: "nginx", mounts: [], networks: ["default"], environment: []),
+            Container(id: "1a2b3c4d5e", name: "sandbox", image: "local/base:latest", status: .paused, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "/bin/bash", mounts: [], networks: [], environment: [])
         ]
         images = [
-            ContainerImage(id: "local/web:1.4",       repository: "local/web",       tag: "1.4",    digest: "sha256:3f9a2b7c1d", arch: ["arm64", "amd64"], sizeBytes: 182 * 1_048_576, created: "2h ago",  source: .built,  usage: .usedBy(3)),
-            ContainerImage(id: "local/api:2.1",       repository: "local/api",       tag: "2.1",    digest: "sha256:a17c44e9b2", arch: ["arm64"],          sizeBytes: 240 * 1_048_576, created: "5h ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "local/datastore:15",  repository: "local/datastore", tag: "15",     digest: "sha256:c20e81f7a4", arch: ["arm64", "amd64"], sizeBytes: 410 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "local/cache:7",       repository: "local/cache",     tag: "7",      digest: "sha256:7b3d09c5e1", arch: ["arm64"],          sizeBytes:  38 * 1_048_576, created: "1d ago",  source: .built,  usage: .usedBy(1)),
-            ContainerImage(id: "local/base:latest",   repository: "local/base",      tag: "latest", digest: "sha256:1a2b3c4d5e", arch: ["arm64", "amd64"], sizeBytes:  96 * 1_048_576, created: "3d ago",  source: .pulled, usage: .usedBy(2)),
-            ContainerImage(id: "local/proxy:1.25",    repository: "local/proxy",     tag: "1.25",   digest: "sha256:b4c8d2e6f0", arch: ["amd64"],          sizeBytes:  54 * 1_048_576, created: "2d ago",  source: .built,  usage: .unused),
-            ContainerImage(id: "buildkit:0.13",       repository: "buildkit",        tag: "0.13",   digest: "sha256:9f2c1a7e44", arch: ["arm64", "amd64"], sizeBytes: 160 * 1_048_576, created: "1w ago",  source: .pulled, usage: .builderImage),
+            ContainerImage(id: "local/web:1.4", repository: "local/web", tag: "1.4", digest: "sha256:3f9a2b7c1d", arch: ["arm64", "amd64"], sizeBytes: 182 * 1_048_576, created: "2h ago", source: .built, usage: .usedBy(3)),
+            ContainerImage(id: "local/api:2.1", repository: "local/api", tag: "2.1", digest: "sha256:a17c44e9b2", arch: ["arm64"], sizeBytes: 240 * 1_048_576, created: "5h ago", source: .built, usage: .usedBy(1)),
+            ContainerImage(id: "local/datastore:15", repository: "local/datastore", tag: "15", digest: "sha256:c20e81f7a4", arch: ["arm64", "amd64"], sizeBytes: 410 * 1_048_576, created: "1d ago", source: .built, usage: .usedBy(1)),
+            ContainerImage(id: "local/cache:7", repository: "local/cache", tag: "7", digest: "sha256:7b3d09c5e1", arch: ["arm64"], sizeBytes: 38 * 1_048_576, created: "1d ago", source: .built, usage: .usedBy(1)),
+            ContainerImage(id: "local/base:latest", repository: "local/base", tag: "latest", digest: "sha256:1a2b3c4d5e", arch: ["arm64", "amd64"], sizeBytes: 96 * 1_048_576, created: "3d ago", source: .pulled, usage: .usedBy(2)),
+            ContainerImage(id: "local/proxy:1.25", repository: "local/proxy", tag: "1.25", digest: "sha256:b4c8d2e6f0", arch: ["amd64"], sizeBytes: 54 * 1_048_576, created: "2d ago", source: .built, usage: .unused),
+            ContainerImage(id: "buildkit:0.13", repository: "buildkit", tag: "0.13", digest: "sha256:9f2c1a7e44", arch: ["arm64", "amd64"], sizeBytes: 160 * 1_048_576, created: "1w ago", source: .pulled, usage: .builderImage)
         ]
         let volumesRoot = "~/Library/Application Support/com.apple.container/volumes"
         volumes = [
-            Volume(id: "pgdata",       name: "pgdata",       type: .named,     usedMB: 742,  allocatedMB: 2048, driver: "local", source: "\(volumesRoot)/pgdata/volume.img",       created: "08:58", labels: ["app=datastore"], options: ["size=2G"],   mounts: [VolumeMount(containerName: "datastore",    mountPath: "/var/lib/postgresql/data", mode: "RW")], fs: "ext4", reclaimable: false),
-            Volume(id: "shared",       name: "shared-assets", type: .named,    usedMB: 318,  allocatedMB:  512, driver: "local", source: "\(volumesRoot)/shared-assets/volume.img", created: "08:30", labels: [],                options: ["size=512M"], mounts: [VolumeMount(containerName: "web-frontend", mountPath: "/app/public", mode: "RO"), VolumeMount(containerName: "api-service", mountPath: "/srv/assets", mode: "RO")], fs: "ext4", reclaimable: false),
-            Volume(id: "redis",        name: "redis-data",   type: .named,     usedMB:  48,  allocatedMB:  256, driver: "local", source: "\(volumesRoot)/redis-data/volume.img",   created: "09:00", labels: [],                options: ["size=256M"], mounts: [VolumeMount(containerName: "cache",        mountPath: "/data", mode: "RW")], fs: "ext4", reclaimable: false),
-            Volume(id: "worker-q",     name: "worker-queue", type: .named,     usedMB:  12,  allocatedMB:  128, driver: "local", source: "\(volumesRoot)/worker-queue/volume.img", created: "09:02", labels: ["app=worker"],    options: ["size=128M"], mounts: [VolumeMount(containerName: "worker",       mountPath: "/var/spool/queue", mode: "RW")], fs: "ext4", reclaimable: false),
-            Volume(id: "model",        name: "model-cache",  type: .named,     usedMB: 3481, allocatedMB: 4096, driver: "local", source: "\(volumesRoot)/model-cache/volume.img",  created: "Jun 12", labels: [],               options: ["size=4G"],   mounts: [], fs: "ext4", reclaimable: true),
+            Volume(id: "pgdata", name: "pgdata", type: .named, usedMB: 742, allocatedMB: 2048, driver: "local", source: "\(volumesRoot)/pgdata/volume.img", created: "08:58", labels: ["app=datastore"], options: ["size=2G"], mounts: [VolumeMount(containerName: "datastore", mountPath: "/var/lib/postgresql/data", mode: "RW")], fs: "ext4", reclaimable: false),
+            Volume(id: "shared", name: "shared-assets", type: .named, usedMB: 318, allocatedMB: 512, driver: "local", source: "\(volumesRoot)/shared-assets/volume.img", created: "08:30", labels: [], options: ["size=512M"], mounts: [VolumeMount(containerName: "web-frontend", mountPath: "/app/public", mode: "RO"), VolumeMount(containerName: "api-service", mountPath: "/srv/assets", mode: "RO")], fs: "ext4", reclaimable: false),
+            Volume(id: "redis", name: "redis-data", type: .named, usedMB: 48, allocatedMB: 256, driver: "local", source: "\(volumesRoot)/redis-data/volume.img", created: "09:00", labels: [], options: ["size=256M"], mounts: [VolumeMount(containerName: "cache", mountPath: "/data", mode: "RW")], fs: "ext4", reclaimable: false),
+            Volume(id: "worker-q", name: "worker-queue", type: .named, usedMB: 12, allocatedMB: 128, driver: "local", source: "\(volumesRoot)/worker-queue/volume.img", created: "09:02", labels: ["app=worker"], options: ["size=128M"], mounts: [VolumeMount(containerName: "worker", mountPath: "/var/spool/queue", mode: "RW")], fs: "ext4", reclaimable: false),
+            Volume(id: "model", name: "model-cache", type: .named, usedMB: 3481, allocatedMB: 4096, driver: "local", source: "\(volumesRoot)/model-cache/volume.img", created: "Jun 12", labels: [], options: ["size=4G"], mounts: [], fs: "ext4", reclaimable: true),
             Volume(id: "anon1", name: "8349ab8d-e6db-4e58-98ab-6e34f08f1dae", type: .anonymous, usedMB: 214, allocatedMB: 1024, driver: "local", source: "\(volumesRoot)/8349ab8d-e6db-4e58-98ab-6e34f08f1dae/volume.img", created: "09:14", labels: ["com.apple.container.resource.anonymous=true"], options: [], mounts: [VolumeMount(containerName: "datastore", mountPath: "/var/lib/postgresql/pgdata", mode: "RW")], fs: "ext4", reclaimable: false),
-            Volume(id: "anon2", name: "1c4f0a7e-93b1-4d02-8f6a-25c1de0a7b44", type: .anonymous, usedMB:  96, allocatedMB:  512, driver: "local", source: "\(volumesRoot)/1c4f0a7e-93b1-4d02-8f6a-25c1de0a7b44/volume.img", created: "08:58", labels: ["com.apple.container.resource.anonymous=true"], options: [], mounts: [], fs: "ext4", reclaimable: true),
+            Volume(id: "anon2", name: "1c4f0a7e-93b1-4d02-8f6a-25c1de0a7b44", type: .anonymous, usedMB: 96, allocatedMB: 512, driver: "local", source: "\(volumesRoot)/1c4f0a7e-93b1-4d02-8f6a-25c1de0a7b44/volume.img", created: "08:58", labels: ["com.apple.container.resource.anonymous=true"], options: [], mounts: [], fs: "ext4", reclaimable: true),
             // Created without --size: the daemon's 512 GiB sparse default. Exercises the
             // on-disk-footprint presentation (no meaningful capacity gauge).
-            Volume(id: "logs", name: "logs", type: .named, usedMB: 66, allocatedMB: Volume.defaultSparseCapacityMB, driver: "local", source: "\(volumesRoot)/logs/volume.img", created: "09:20", labels: [], options: [], mounts: [VolumeMount(containerName: "api-service", mountPath: "/var/log/app", mode: "RW")], fs: "ext4", reclaimable: false),
+            Volume(id: "logs", name: "logs", type: .named, usedMB: 66, allocatedMB: Volume.defaultSparseCapacityMB, driver: "local", source: "\(volumesRoot)/logs/volume.img", created: "09:20", labels: [], options: [], mounts: [VolumeMount(containerName: "api-service", mountPath: "/var/log/app", mode: "RW")], fs: "ext4", reclaimable: false)
         ]
         networks = [
-            Network(id: "app-net", name: "app-net", driver: .nat,      subnet: "192.168.65.0/24", gateway: "192.168.65.1", isDefault: false, scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e1", name: "web-frontend", ipv4: "192.168.65.10", kind: "CONTAINER", isRunning: true, aliases: ["web", "frontend"]), NetworkEndpoint(id: "e2", name: "api-service", ipv4: "192.168.65.11", kind: "CONTAINER", isRunning: true, aliases: ["api"]), NetworkEndpoint(id: "e6", name: "cache", ipv4: "192.168.65.12", kind: "CONTAINER", isRunning: true, aliases: ["redis", "cache"])]),
-            Network(id: "data-net", name: "data-net", driver: .hostOnly, subnet: "192.168.66.0/24", gateway: "192.168.66.1", isDefault: false, scope: "local", ipv6Enabled: false, egress: "",          attachable: false, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e7", name: "api-service", ipv4: "192.168.66.20", kind: "CONTAINER", isRunning: true, aliases: ["api"]), NetworkEndpoint(id: "e8", name: "datastore", ipv4: "192.168.66.21", kind: "CONTAINER", isRunning: true, aliases: ["db", "postgres"]), NetworkEndpoint(id: "e9", name: "worker", ipv4: "192.168.66.22", kind: "CONTAINER", isRunning: false, aliases: ["worker"])]),
-            Network(id: "default",  name: "default",  driver: .nat,      subnet: "192.168.64.0/24", gateway: "192.168.64.1", isDefault: true,  scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e3", name: "dev",        ipv4: "192.168.64.3", kind: "MACHINE",   isRunning: true,  aliases: ["machine"]), NetworkEndpoint(id: "e4", name: "ci-runner", ipv4: "192.168.64.4", kind: "MACHINE", isRunning: false, aliases: ["machine"]), NetworkEndpoint(id: "e5", name: "default", ipv4: "192.168.64.2", kind: "MACHINE", isRunning: true, aliases: ["machine", "utility VM"]), NetworkEndpoint(id: "e10", name: "edge-proxy", ipv4: "192.168.64.10", kind: "CONTAINER", isRunning: false, aliases: ["edge", "proxy"])]),
+            Network(id: "app-net", name: "app-net", driver: .nat, subnet: "192.168.65.0/24", gateway: "192.168.65.1", isDefault: false, scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e1", name: "web-frontend", ipv4: "192.168.65.10", kind: "CONTAINER", isRunning: true, aliases: ["web", "frontend"]), NetworkEndpoint(id: "e2", name: "api-service", ipv4: "192.168.65.11", kind: "CONTAINER", isRunning: true, aliases: ["api"]), NetworkEndpoint(id: "e6", name: "cache", ipv4: "192.168.65.12", kind: "CONTAINER", isRunning: true, aliases: ["redis", "cache"])]),
+            Network(id: "data-net", name: "data-net", driver: .hostOnly, subnet: "192.168.66.0/24", gateway: "192.168.66.1", isDefault: false, scope: "local", ipv6Enabled: false, egress: "", attachable: false, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e7", name: "api-service", ipv4: "192.168.66.20", kind: "CONTAINER", isRunning: true, aliases: ["api"]), NetworkEndpoint(id: "e8", name: "datastore", ipv4: "192.168.66.21", kind: "CONTAINER", isRunning: true, aliases: ["db", "postgres"]), NetworkEndpoint(id: "e9", name: "worker", ipv4: "192.168.66.22", kind: "CONTAINER", isRunning: false, aliases: ["worker"])]),
+            Network(id: "default", name: "default", driver: .nat, subnet: "192.168.64.0/24", gateway: "192.168.64.1", isDefault: true, scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e3", name: "dev", ipv4: "192.168.64.3", kind: "MACHINE", isRunning: true, aliases: ["machine"]), NetworkEndpoint(id: "e4", name: "ci-runner", ipv4: "192.168.64.4", kind: "MACHINE", isRunning: false, aliases: ["machine"]), NetworkEndpoint(id: "e5", name: "default", ipv4: "192.168.64.2", kind: "MACHINE", isRunning: true, aliases: ["machine", "utility VM"]), NetworkEndpoint(id: "e10", name: "edge-proxy", ipv4: "192.168.64.10", kind: "CONTAINER", isRunning: false, aliases: ["edge", "proxy"])])
         ]
         machines = [
-            Machine(id: "dev",       name: "dev",       image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite, isDefault: true),
-            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22",  status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–",      kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
-            Machine(id: "default",   name: "default",   image: "debian:12",    status: .running, isUtility: true,  diskUsedGB: 1.2,  diskTotalGB: 4.0, uptimeString: "6d 4h",  kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none),
+            Machine(id: "dev", name: "dev", image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite, isDefault: true),
+            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22", status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–", kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
+            Machine(id: "default", name: "default", image: "debian:12", status: .running, isUtility: true, diskUsedGB: 1.2, diskTotalGB: 4.0, uptimeString: "6d 4h", kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none)
         ]
         builders = [
-            Builder(id: "default", name: "default", image: "buildkit:0.13", status: .running, autoStarted: true, cpus: 2, memoryGB: 2),
+            Builder(id: "default", name: "default", image: "buildkit:0.13", status: .running, autoStarted: true, cpus: 2, memoryGB: 2)
         ]
         registries = [
             Registry(host: "ghcr.io", username: "apple-bot"),
-            Registry(host: "registry-1.docker.io", username: "berthly"),
+            Registry(host: "registry-1.docker.io", username: "berthly")
         ]
         imageInspectData = Self.mockInspectData()
         buildContexts = [
             "local/web:1.4": BuildContext(contextPath: "/Users/dev/projects/web", dockerfilePath: nil),
-            "local/api:2.1": BuildContext(contextPath: "/Users/dev/projects/api", dockerfilePath: "Containerfile"),
+            "local/api:2.1": BuildContext(contextPath: "/Users/dev/projects/api", dockerfilePath: "Containerfile")
         ]
     }
 
     private static func mockInspectData() -> [String: ImageInspectData] {
         let webVariants = [
             ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 182 * 1_048_576, digest: "sha256:arm64variant001"),
-            ImageVariantInfo(arch: "amd64", archVariant: nil,  sizeBytes: 188 * 1_048_576, digest: "sha256:amd64variant001"),
+            ImageVariantInfo(arch: "amd64", archVariant: nil, sizeBytes: 188 * 1_048_576, digest: "sha256:amd64variant001")
         ]
         let webEnv = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "PORT=3000", "NGINX_VERSION=1.25.4"]
         let webLabels: [String: String] = ["maintainer": "berthly@example.com", "version": "1.4", "org.opencontainers.image.title": "web-frontend"]
@@ -80,7 +83,7 @@ final class MockContainerService: ContainerServiceBase {
             "npm ci --omit=dev",
             "COPY . .",
             "EXPOSE 3000",
-            "CMD [\"nginx\",\"-g\",\"daemon off;\"]",
+            "CMD [\"nginx\",\"-g\",\"daemon off;\"]"
         ]
 
         let apiVariants = [ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 240 * 1_048_576, digest: "sha256:apiarm64variant001")]
@@ -89,9 +92,10 @@ final class MockContainerService: ContainerServiceBase {
 
         return [
             "sha256:3f9a2b7c1d": ImageInspectData(variants: webVariants, command: "nginx -g daemon off;", workDir: "/app", user: "www-data", stopSignal: "SIGTERM", env: webEnv, labels: webLabels, history: webHistory),
-            "sha256:a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory),
+            "sha256:a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory)
         ]
     }
+    // swiftlint:enable line_length
 
     // MARK: - Operations (simulated in mock)
 
@@ -101,14 +105,22 @@ final class MockContainerService: ContainerServiceBase {
         try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
         let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .running, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "0m", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
+        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .running,
+                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
+                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "0m",
+                                  command: c.command, mounts: c.mounts, networks: c.networks,
+                                  environment: c.environment)
     }
 
     override func stopContainer(_ id: String) async throws {
         try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
         let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
+        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped,
+                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
+                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–",
+                                  command: c.command, mounts: c.mounts, networks: c.networks,
+                                  environment: c.environment)
     }
 
     override func restartContainer(_ id: String) async throws {
@@ -120,7 +132,11 @@ final class MockContainerService: ContainerServiceBase {
         // No simulated latency, unlike stopContainer: SIGKILL is immediate — that's its point.
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
         let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped, ports: c.ports, cpuPercent: 0, memoryMB: 0, memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–", command: c.command, mounts: c.mounts, networks: c.networks, environment: c.environment)
+        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped,
+                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
+                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–",
+                                  command: c.command, mounts: c.mounts, networks: c.networks,
+                                  environment: c.environment)
     }
 
     override func deleteContainer(_ id: String) async throws {
@@ -128,8 +144,9 @@ final class MockContainerService: ContainerServiceBase {
         pinnedContainerIDs.remove(id)
     }
 
-    /// Records the arguments of the last copy so tests and previews can assert what the UI asked
-    /// for without a daemon. There's no host/guest filesystem to actually move bytes between here.
+    // Records the arguments of the last copy so tests and previews can assert what the UI asked
+    // for without a daemon. There's no host/guest filesystem to actually move bytes between here.
+    // swiftlint:disable:next large_tuple
     private(set) var lastCopy: (direction: CopyDirection, containerID: String, hostPath: String, containerPath: String)?
 
     override func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {
@@ -370,7 +387,7 @@ final class MockContainerService: ContainerServiceBase {
             SystemProperty(key: "network.subnet", value: "192.168.64.0/24"),
             SystemProperty(key: "network.subnetv6", value: "–"),
             SystemProperty(key: "registry.domain", value: "docker.io"),
-            SystemProperty(key: "vminit.image", value: "ghcr.io/apple/containerization/vminit:latest"),
+            SystemProperty(key: "vminit.image", value: "ghcr.io/apple/containerization/vminit:latest")
         ]
     }
 
@@ -411,7 +428,7 @@ final class MockContainerService: ContainerServiceBase {
         for line in [
             "08:00:00.000\tInfo\tapiserver started",
             "08:00:01.000\tInfo\tlistening on com.apple.container.apiserver",
-            "08:00:02.481\tError\txpc client handler connection error [error=Connection invalid]",
+            "08:00:02.481\tError\txpc client handler connection error [error=Connection invalid]"
         ] {
             onLine(line)
         }
@@ -437,7 +454,7 @@ final class MockContainerService: ContainerServiceBase {
             "#7 exporting to image",
             "#7 exporting layers done",
             "#7 writing image sha256:abc123 done",
-            "#7 naming to \(options.reference) done",
+            "#7 naming to \(options.reference) done"
         ]
         for line in lines {
             try? await Task.sleep(for: .milliseconds(300))
@@ -583,7 +600,8 @@ final class MockContainerService: ContainerServiceBase {
         await startDaemon()
     }
 
-    override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
+    override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false,
+                            progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
         let layerCount = 8
         let totalBytes: Int64 = 145_000_000
         let bytesPerLayer = totalBytes / Int64(layerCount)
@@ -660,7 +678,8 @@ final class MockContainerService: ContainerServiceBase {
         return ImageLoadSummary(loadedReferences: [full], rejectedMembers: [])
     }
 
-    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
+    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil,
+                            insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
         let source = images.first { $0.fullName == reference }
         let layerCount = 6
         let totalBytes = source?.sizeBytes ?? 120_000_000

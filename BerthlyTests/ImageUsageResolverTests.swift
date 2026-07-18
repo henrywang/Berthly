@@ -9,7 +9,7 @@ import Testing
 struct ImageUsageResolverTests {
 
     private func makeImage(id: String = "local/web:1.4", repository: String = "local/web",
-                            tag: String = "1.4", digest: String = "sha256:abc") -> ContainerImage {
+                           tag: String = "1.4", digest: String = "sha256:abc") -> ContainerImage {
         ContainerImage(id: id, repository: repository, tag: tag, digest: digest, arch: ["arm64"],
                         sizeBytes: 100, created: "–", source: .pulled, usage: .unused)
     }
@@ -77,7 +77,7 @@ struct ImageUsageResolverTests {
     @Test func diskUsageSumsDistinctDigests() {
         let usage = ContainerImage.diskUsage(of: [
             makeSizedImage(id: "a", digest: "sha256:a", sizeBytes: 100, usage: .usedBy(1)),
-            makeSizedImage(id: "b", digest: "sha256:b", sizeBytes: 250, usage: .unused),
+            makeSizedImage(id: "b", digest: "sha256:b", sizeBytes: 250, usage: .unused)
         ])
         #expect(usage.totalBytes == 350)
         #expect(usage.reclaimableBytes == 250)
@@ -87,7 +87,7 @@ struct ImageUsageResolverTests {
         // Two names for the same digest are one copy on disk, not two.
         let usage = ContainerImage.diskUsage(of: [
             makeSizedImage(id: "a", digest: "sha256:same", sizeBytes: 100, usage: .unused),
-            makeSizedImage(id: "b", digest: "sha256:same", sizeBytes: 100, usage: .unused),
+            makeSizedImage(id: "b", digest: "sha256:same", sizeBytes: 100, usage: .unused)
         ])
         #expect(usage.totalBytes == 100)
         #expect(usage.reclaimableBytes == 100)
@@ -97,7 +97,7 @@ struct ImageUsageResolverTests {
         // Deleting the unused tag frees nothing while another name still references the bytes.
         let usage = ContainerImage.diskUsage(of: [
             makeSizedImage(id: "a", digest: "sha256:same", sizeBytes: 100, usage: .usedBy(2)),
-            makeSizedImage(id: "b", digest: "sha256:same", sizeBytes: 100, usage: .unused),
+            makeSizedImage(id: "b", digest: "sha256:same", sizeBytes: 100, usage: .unused)
         ])
         #expect(usage.totalBytes == 100)
         #expect(usage.reclaimableBytes == 0)
@@ -105,7 +105,7 @@ struct ImageUsageResolverTests {
 
     @Test func builderImageIsNotReclaimable() {
         let usage = ContainerImage.diskUsage(of: [
-            makeSizedImage(id: "builder", digest: "sha256:builder", sizeBytes: 500, usage: .builderImage),
+            makeSizedImage(id: "builder", digest: "sha256:builder", sizeBytes: 500, usage: .builderImage)
         ])
         #expect(usage.totalBytes == 500)
         #expect(usage.reclaimableBytes == 0)

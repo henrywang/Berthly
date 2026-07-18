@@ -7,7 +7,7 @@ import SwiftUI
 
 struct NetworkDetailView: View {
     let networkID: String
-    var onDelete: (() -> Void)? = nil
+    var onDelete: (() -> Void)?
     @Environment(ContainerServiceBase.self) private var service
 
     var body: some View {
@@ -289,14 +289,14 @@ private struct NetworkDetailContent: View {
 
     private func configurationSection(_ network: Network) -> some View {
         let rows: [(String, String)] = [
-            ("Driver",     network.driver.rawValue),
-            ("Scope",      network.scope),
-            ("Subnet",     network.subnet),
-            ("Gateway",    network.gateway),
-            ("IPv6",       network.ipv6Enabled ? "enabled" : "disabled"),
-            ("Egress",     NetworkPresentation.egressDescription(for: network)),
+            ("Driver", network.driver.rawValue),
+            ("Scope", network.scope),
+            ("Subnet", network.subnet),
+            ("Gateway", network.gateway),
+            ("IPv6", network.ipv6Enabled ? "enabled" : "disabled"),
+            ("Egress", NetworkPresentation.egressDescription(for: network)),
             ("Attachable", network.attachable ? "yes" : "no"),
-            ("Backend",    network.backend),
+            ("Backend", network.backend)
         ]
         return DetailSection(title: "Configuration") {
             KeyValueRows(rows: rows, monoKeys: ["Subnet", "Gateway", "Egress", "Backend"])

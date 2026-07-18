@@ -287,8 +287,7 @@ private struct ContainerComputeRow: View {
                 isDeleting = true
                 if selection == .container(container.id) { selection = nil }
                 Task {
-                    do { try await service.deleteContainer(container.id) }
-                    catch { errorMessage = error.localizedDescription }
+                    do { try await service.deleteContainer(container.id) } catch { errorMessage = error.localizedDescription }
                     isDeleting = false
                 }
             }
@@ -304,8 +303,7 @@ private struct ContainerComputeRow: View {
         guard !isWorking else { return }
         isWorking = true
         Task {
-            do { try await action() }
-            catch { errorMessage = error.localizedDescription }
+            do { try await action() } catch { errorMessage = error.localizedDescription }
             isWorking = false
         }
     }
@@ -426,8 +424,7 @@ private struct MachineComputeRow: View {
                 isDeleting = true
                 if selection == .machine(machine.id) { selection = nil }
                 Task {
-                    do { try await service.deleteMachine(machine.id) }
-                    catch { errorMessage = error.localizedDescription }
+                    do { try await service.deleteMachine(machine.id) } catch { errorMessage = error.localizedDescription }
                     isDeleting = false
                 }
             }
@@ -443,8 +440,7 @@ private struct MachineComputeRow: View {
         guard !isWorking else { return }
         isWorking = true
         Task {
-            do { try await action() }
-            catch { errorMessage = error.localizedDescription }
+            do { try await action() } catch { errorMessage = error.localizedDescription }
             isWorking = false
         }
     }
@@ -475,7 +471,7 @@ private struct ComputeSectionHeader: View {
 // Wrapped in NavigationStack so `.searchable` has a navigation container to place its field in,
 // matching the NavigationSplitView the real app provides.
 #Preview {
-    @Previewable @State var selection: ComputeItem? = nil
+    @Previewable @State var selection: ComputeItem?
     NavigationStack {
         ComputeListView(selection: $selection)
     }
@@ -485,7 +481,7 @@ private struct ComputeSectionHeader: View {
 }
 
 #Preview("Empty") {
-    @Previewable @State var selection: ComputeItem? = nil
+    @Previewable @State var selection: ComputeItem?
     let mock = MockContainerService()
     mock.containers.removeAll()
     mock.machines.removeAll()

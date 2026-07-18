@@ -1,3 +1,22 @@
+# Linting — run before every commit
+
+Before committing, run and get clean output from:
+
+- `swiftlint lint --strict` — config in `.swiftlint.yml`; the repo is at zero
+  findings, so `--strict` treats any new warning as a failure. CI runs the
+  same command with the same pinned SwiftLint version (`ci.yml`'s `swiftlint`
+  job), so a locally-clean run is authoritative.
+- `shellcheck scripts/*.sh design/icon/build.sh` — whenever a shell script
+  changed.
+
+Fix findings rather than suppressing them. A `swiftlint:disable` needs a
+one-line justification comment and the narrowest possible scope (`:next` /
+`:this`, or a `disable`/`enable` pair around a fixture block) — see
+`MockContainerService.swift` and `LiveContainerService.swift` for the
+existing precedents. Size-metric thresholds in `.swiftlint.yml` are a
+ratchet set just above the current largest offender: don't raise them to
+absorb growth.
+
 # Testing
 
 Changes to `Berthly/Core/` (services, models, argument/mapping logic) need a

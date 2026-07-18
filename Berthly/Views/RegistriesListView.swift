@@ -104,7 +104,12 @@ struct RegistriesListView: View {
             Image(systemName: "lock.fill")
                 .foregroundStyle(.blue)
                 .padding(.top, 1)
-            Text("Credentials are stored in the **macOS Keychain**, never written to `config.toml` in plaintext. Signing in or out maps to `container registry login` / `logout` — no daemon restart. While signed in, macOS may confirm Keychain access on pulls from that host too, even for public images — sign out below to stop it.")
+            Text("""
+                Credentials are stored in the **macOS Keychain**, never written to `config.toml` \
+                in plaintext. Signing in or out maps to `container registry login` / `logout` — \
+                no daemon restart. While signed in, macOS may confirm Keychain access on pulls \
+                from that host too, even for public images — sign out below to stop it.
+                """)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

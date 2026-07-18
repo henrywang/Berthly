@@ -33,13 +33,13 @@ struct SidebarView: View {
                       : "No containers or machines running")
 
             Section("LIBRARY") {
-                SidebarRow(icon: "cylinder",              label: "Volumes",    badge: service.volumes.count)
+                SidebarRow(icon: "cylinder", label: "Volumes", badge: service.volumes.count)
                     .tag(SidebarSelection.volumes)
-                SidebarRow(icon: "arrow.triangle.branch", label: "Networks",   badge: service.networks.count)
+                SidebarRow(icon: "arrow.triangle.branch", label: "Networks", badge: service.networks.count)
                     .tag(SidebarSelection.networks)
-                SidebarRow(icon: "square.stack.3d.up",   label: "Images",     badge: service.images.count)
+                SidebarRow(icon: "square.stack.3d.up", label: "Images", badge: service.images.count)
                     .tag(SidebarSelection.images)
-                SidebarRow(icon: "building.columns",      label: "Registries", badge: service.registries.count)
+                SidebarRow(icon: "building.columns", label: "Registries", badge: service.registries.count)
                     .tag(SidebarSelection.registries)
             }
 
@@ -69,11 +69,11 @@ struct SidebarView: View {
 private struct SidebarRow: View {
     let icon: String
     let label: LocalizedStringKey
-    var badge: Int? = nil
-    var badgeText: String? = nil
+    var badge: Int?
+    var badgeText: String?
     /// Colors the badge count (`Text.foregroundColor` survives into `.badge()` rendering).
     /// Used to mark a badge that means "currently running" rather than "total".
-    var badgeTint: Color? = nil
+    var badgeTint: Color?
     var indent: Bool = false
 
     var body: some View {
@@ -100,7 +100,7 @@ struct DaemonStatusBar: View {
     let state: DaemonState
     /// Non-nil when the daemon connected fine but a background bootstrap step
     /// (vminit image / default kernel install) failed. Only shown while `.connected`.
-    var warning: String? = nil
+    var warning: String?
 
     var body: some View {
         HStack {

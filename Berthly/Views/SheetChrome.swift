@@ -165,7 +165,7 @@ struct SheetCalloutDetail: View {
     let text: String
     var monospaced: Bool = true
     var selectable: Bool = false
-    var lineLimit: Int? = nil
+    var lineLimit: Int?
 
     var body: some View {
         let base = Text(text)
@@ -201,11 +201,11 @@ struct SheetSubmitFooter: View {
     var doneLabel: LocalizedStringKey = "Done"
     var canSubmit: Bool = true
     /// Accessibility identifier for the idle submit button (UI/E2E tests drive it).
-    var submitIdentifier: String? = nil
+    var submitIdentifier: String?
     /// Hide the disabled spinner button for work that only offers Cancel (save/load).
     var showsBusyButton: Bool = true
     /// Working-phase Cancel action; `nil` keeps the idle behavior of dismissing the sheet.
-    var onCancel: (() -> Void)? = nil
+    var onCancel: (() -> Void)?
     var onSubmit: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss

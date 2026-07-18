@@ -28,7 +28,7 @@ import Testing
         let commands = [
             cmd("prefix", "Runner"),      // "run" is a prefix
             cmd("exact", "Run"),          // exact
-            cmd("substr", "Prerun task"), // "run" is a substring mid-string
+            cmd("substr", "Prerun task") // "run" is a substring mid-string
         ]
         let ranked = rankedPaletteCommands(commands, query: "run")
         #expect(ranked.first?.id == "exact")
@@ -38,7 +38,7 @@ import Testing
         let commands = [
             cmd("sub", "docker-nginx"),   // "dn" is a subsequence
             cmd("substr", "abc-dn-xyz"),  // "dn" is a contiguous substring
-            cmd("pre", "dns settings"),   // "dn" is a prefix
+            cmd("pre", "dns settings")   // "dn" is a prefix
         ]
         let ranked = rankedPaletteCommands(commands, query: "dn")
         #expect(ranked.map(\.id) == ["pre", "substr", "sub"])
@@ -58,7 +58,7 @@ import Testing
     @Test func keywordMatchesButRanksBelowTitleMatch() {
         let commands = [
             cmd("kw", "Add Registry…", keywords: ["login"]), // matches only via keyword
-            cmd("title", "Login window"),                    // matches in the title
+            cmd("title", "Login window")                    // matches in the title
         ]
         let ranked = rankedPaletteCommands(commands, query: "login")
         #expect(ranked.map(\.id) == ["title", "kw"])

@@ -27,7 +27,7 @@ struct VolumesListView: View {
         }
     }
 
-    private var named:     [Volume] { filtered.filter { $0.type == .named     } }
+    private var named: [Volume] { filtered.filter { $0.type == .named     } }
     private var anonymous: [Volume] { filtered.filter { $0.type == .anonymous } }
 
     private var totalUsedMB: Int { service.volumes.reduce(0) { $0 + $1.usedMB } }
@@ -54,7 +54,7 @@ struct VolumesListView: View {
                 List(selection: $selectedID) {
                     if !named.isEmpty {
                         Section {
-                            ForEach(named)     { v in VolumeRow(volumeID: v.id, selectedID: $selectedID).tag(v.id).listRowSeparator(.hidden) }
+                            ForEach(named) { v in VolumeRow(volumeID: v.id, selectedID: $selectedID).tag(v.id).listRowSeparator(.hidden) }
                         } header: { LibrarySectionHeader("NAMED \(named.count)") }
                     }
                     if !anonymous.isEmpty {
@@ -125,8 +125,7 @@ struct VolumesListView: View {
         deleteTargetID = nil
         if selectedID == volume.id { selectedID = nil }
         Task {
-            do { try await service.deleteVolume(volume.name) }
-            catch { deleteErrorMessage = error.localizedDescription }
+            do { try await service.deleteVolume(volume.name) } catch { deleteErrorMessage = error.localizedDescription }
         }
     }
 }
@@ -201,8 +200,7 @@ private struct VolumeRow: View {
                     isDeleting = true
                     if selectedID == volume.id { selectedID = nil }
                     Task {
-                        do { try await service.deleteVolume(volume.name) }
-                        catch { errorMessage = error.localizedDescription }
+                        do { try await service.deleteVolume(volume.name) } catch { errorMessage = error.localizedDescription }
                         isDeleting = false
                     }
                 }
@@ -258,7 +256,7 @@ private struct VolumeRow: View {
 }
 
 #Preview {
-    @Previewable @State var selectedID: String? = nil
+    @Previewable @State var selectedID: String?
     VolumesListView(selectedID: $selectedID)
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())

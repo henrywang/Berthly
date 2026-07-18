@@ -179,8 +179,7 @@ private struct MachineDetailContent: View {
         guard !isWorking else { return }
         isWorking = true
         Task {
-            do { try await action() }
-            catch { errorMessage = error.localizedDescription }
+            do { try await action() } catch { errorMessage = error.localizedDescription }
             isWorking = false
         }
     }
@@ -250,7 +249,7 @@ private struct PipelineBox: View {
     let title: String
     let caption: String
     var accented: Bool = false
-    var statusRunning: Bool? = nil
+    var statusRunning: Bool?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -411,13 +410,13 @@ private struct InspectSection: View {
 
     private var rows: [(String, String)] {
         [
-            ("Status",    machine.status.label),
-            ("Image",     machine.image),
+            ("Status", machine.status.label),
+            ("Image", machine.image),
             ("Machine ID", machine.id),
             ("Resources", machine.resources),
-            ("Kernel",    machine.kernel),
-            ("Created",   machine.created),
-            ("Disk",      String(format: "%.1f / %.1f GB", machine.diskUsedGB, machine.diskTotalGB)),
+            ("Kernel", machine.kernel),
+            ("Created", machine.created),
+            ("Disk", String(format: "%.1f / %.1f GB", machine.diskUsedGB, machine.diskTotalGB))
         ]
     }
 

@@ -1,7 +1,6 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
-
 import SwiftUI
 
 /// Button style for icon-only row actions (delete, run, etc.) that only become

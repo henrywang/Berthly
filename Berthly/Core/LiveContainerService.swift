@@ -22,6 +22,10 @@ import TerminalProgress
 internal import ContainerPersistence
 internal import ContainerPlugin
 
+// The one deliberate monolith: every daemon operation lives here so the XPC/client
+// plumbing has a single seam. Splitting it is a known future refactor, not a lint fix.
+// swiftlint:disable file_length type_body_length
+
 @MainActor
 final class LiveContainerService: ContainerServiceBase {
 
@@ -373,7 +377,7 @@ final class LiveContainerService: ContainerServiceBase {
     /// identity, installs fail closed with the verification error until this is re-pinned
     /// (re-check alongside `ContainerCompatibility.requiredVersion` bumps).
     nonisolated static let appleSignatureMarkers = [
-        "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)",
+        "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
     ]
 
     /// The acceptance predicate for `pkgutil --check-signature`, extracted pure so the
@@ -867,7 +871,7 @@ final class LiveContainerService: ContainerServiceBase {
             guard let raw = h.createdBy, !raw.isEmpty else { return nil }
             var s = raw
             if s.hasPrefix("/bin/sh -c ") { s = String(s.dropFirst("/bin/sh -c ".count)) }
-            if s.hasPrefix("#(nop) ")      { s = String(s.dropFirst("#(nop) ".count)) }
+            if s.hasPrefix("#(nop) ") { s = String(s.dropFirst("#(nop) ".count)) }
             return s.trimmingCharacters(in: .whitespaces)
         }
         return ImageInspectData(
@@ -1304,7 +1308,7 @@ final class LiveContainerService: ContainerServiceBase {
         guard !s.isEmpty else { return nil }
         let multipliers: [Character: Int] = [
             "k": 1_024, "m": 1_048_576, "g": 1_073_741_824,
-            "t": 1_099_511_627_776, "p": 1_125_899_906_842_624,
+            "t": 1_099_511_627_776, "p": 1_125_899_906_842_624
         ]
         let last = s[s.index(before: s.endIndex)]
         if let mult = multipliers[Character(last.lowercased())] {
@@ -1573,19 +1577,19 @@ final class LiveContainerService: ContainerServiceBase {
             let message = error.localizedDescription
             return CleanUpAllResult(failureMessages: [
                 "Removing unused images failed: \(message)",
-                "Removing stopped containers failed: \(message)",
+                "Removing stopped containers failed: \(message)"
             ])
         }
 
         var combined = PruneResult()
         var failures: [String] = []
         do {
-            combined = combined + (try await pruneImages(allContainers: allContainers))
+            combined += try await pruneImages(allContainers: allContainers)
         } catch {
             failures.append("Removing unused images failed: \(error.localizedDescription)")
         }
         do {
-            combined = combined + (try await pruneStoppedContainers(allContainers: allContainers))
+            combined += try await pruneStoppedContainers(allContainers: allContainers)
         } catch {
             failures.append("Removing stopped containers failed: \(error.localizedDescription)")
         }
@@ -1673,7 +1677,7 @@ final class LiveContainerService: ContainerServiceBase {
             SystemProperty(key: "network.subnet", value: config.network.subnet.map { String(describing: $0) } ?? "–"),
             SystemProperty(key: "network.subnetv6", value: config.network.subnetv6.map { String(describing: $0) } ?? "–"),
             SystemProperty(key: "registry.domain", value: config.registry.domain),
-            SystemProperty(key: "vminit.image", value: config.vminit.image),
+            SystemProperty(key: "vminit.image", value: config.vminit.image)
         ]
     }
 
@@ -1872,7 +1876,7 @@ final class LiveContainerService: ContainerServiceBase {
         let (process, pipe) = try Self.launchLogProcess(arguments: [
             "stream", "--info",
             "--style", "ndjson",
-            "--predicate", Self.daemonLogPredicate,
+            "--predicate", Self.daemonLogPredicate
         ])
 
         await withTaskCancellationHandler {
@@ -1899,7 +1903,7 @@ final class LiveContainerService: ContainerServiceBase {
         guard let (_, pipe) = try? Self.launchLogProcess(arguments: [
             "show", "--last", "1h", "--info",
             "--style", "ndjson",
-            "--predicate", daemonLogPredicate,
+            "--predicate", daemonLogPredicate
         ]) else { return [] }
 
         var formatted: [String] = []
@@ -2137,12 +2141,12 @@ final class LiveContainerService: ContainerServiceBase {
         config.resources = resources
         config.labels = [
             ResourceLabelKeys.plugin: "builder",
-            ResourceLabelKeys.role: ResourceRoleValues.builder,
+            ResourceLabelKeys.role: ResourceRoleValues.builder
         ]
         config.capAdd = ["ALL"]
         config.mounts = [
             Filesystem(type: .tmpfs, source: "", destination: "/run", options: []),
-            Filesystem(type: .virtiofs, source: exportsMount, destination: "/var/lib/container-builder-shim/exports", options: []),
+            Filesystem(type: .virtiofs, source: exportsMount, destination: "/var/lib/container-builder-shim/exports", options: [])
         ]
         config.rosetta = useRosetta
 
@@ -2215,7 +2219,9 @@ final class LiveContainerService: ContainerServiceBase {
         let platforms = try Self.buildPlatforms(for: options)
 
         let containerSystemConfig = await resolvedSystemConfig()
-        let builder = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig, cpus: options.cpus.map { Int64($0) }, memory: options.memory, onLog: onLog)
+        let builder = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig,
+                                                   cpus: options.cpus.map { Int64($0) },
+                                                   memory: options.memory, onLog: onLog)
 
         let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
         let buildID = UUID().uuidString
@@ -2688,7 +2694,8 @@ final class LiveContainerService: ContainerServiceBase {
         return snapshot
     }
 
-    override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
+    override func pullImage(reference: String, platform: String? = nil, insecure: Bool = false,
+                            progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
         let config = await resolvedSystemConfig()
         let ociPlatform: Platform? = try {
             guard let p = platform, !p.isEmpty else { return nil }
@@ -2706,7 +2713,8 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
-    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
+    override func pushImage(reference: String, destination: String? = nil, platform: String? = nil,
+                            insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
         let config = await resolvedSystemConfig()
         let ociPlatform: Platform? = try {
             guard let p = platform, !p.isEmpty else { return nil }
@@ -2790,3 +2798,4 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 }
+// swiftlint:enable type_body_length

@@ -17,8 +17,8 @@ private final class RunState {
     }
 
     var isRunning = false
-    var result: Result? = nil
-    var runTask: Task<Void, Never>? = nil
+    var result: Result?
+    var runTask: Task<Void, Never>?
 }
 
 // MARK: - Sheet
@@ -371,7 +371,10 @@ struct RunContainerSheet: View {
             Toggle(isOn: $attachAndShowOutput) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Attach and show output")
-                    Text("For one-shot commands that exit, e.g. pwd — waits for the command to finish and shows what it printed. Don't use with a long-running service.")
+                    Text("""
+                        For one-shot commands that exit, e.g. pwd — waits for the command to finish \
+                        and shows what it printed. Don't use with a long-running service.
+                        """)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

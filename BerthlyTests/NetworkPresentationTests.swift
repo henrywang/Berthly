@@ -33,8 +33,8 @@ struct NetworkPresentationTests {
         // The live daemon reports no endpoints — attached containers must still show up.
         let containers = [
             makeContainer(name: "web", status: .running, networks: ["net"]),
-            makeContainer(name: "db",  status: .stopped, networks: ["net"]),
-            makeContainer(name: "other", status: .running, networks: ["elsewhere"]),
+            makeContainer(name: "db", status: .stopped, networks: ["net"]),
+            makeContainer(name: "other", status: .running, networks: ["elsewhere"])
         ]
         let resolved = NetworkPresentation.resolvedEndpoints(for: makeNetwork(), containers: containers)
         #expect(resolved.map(\.name) == ["db", "web"]) // sorted by name

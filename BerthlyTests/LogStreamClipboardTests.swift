@@ -30,7 +30,7 @@ struct LogStreamClipboardTests {
         let text = LogStreamView.clipboardText(for: [
             line("09:01:12", .info, "server up"),
             line("", .other, "plain stdout"),
-            line("09:01:14", .error, "boom"),
+            line("09:01:14", .error, "boom")
         ])
         #expect(text == "09:01:12 INFO server up\nplain stdout\n09:01:14 ERROR boom")
     }

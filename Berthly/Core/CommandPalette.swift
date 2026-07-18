@@ -154,7 +154,7 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
         PaletteCommand(id: "nav.registries", title: "Go to Registries", systemImage: "building.columns",
                        action: .navigate(.registries)),
         PaletteCommand(id: "nav.system", title: "Go to System", systemImage: "gearshape",
-                       action: .navigate(.system)),
+                       action: .navigate(.system))
     ]
 
     guard isConnected else { return commands }
@@ -177,7 +177,7 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
         PaletteCommand(id: "action.addRegistry", title: "Add Registry…", systemImage: "plus.circle",
                        keywords: ["login", "sign in"], action: .addRegistry),
         PaletteCommand(id: "action.refresh", title: "Refresh", systemImage: "arrow.clockwise",
-                       keywords: ["reload"], action: .refresh),
+                       keywords: ["reload"], action: .refresh)
     ]
 
     for container in containers {

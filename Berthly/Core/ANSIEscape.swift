@@ -30,6 +30,7 @@ enum ANSIEscape {
     // Constant pattern with a unit test guarding it, so `try!` can never fire at runtime.
     // `nonisolated` so the `nonisolated` `strip` can read it: `NSRegularExpression` is `Sendable`
     // and its matching methods are thread-safe, so it's safe from any isolation domain.
+    // swiftlint:disable:next force_try
     private nonisolated static let regex = try! NSRegularExpression(pattern: pattern)
 
     /// Returns `line` with escape sequences and stray C0/DEL control bytes removed. Tabs are

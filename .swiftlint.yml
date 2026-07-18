@@ -1,0 +1,52 @@
+# SwiftLint configuration — tuned for a SwiftUI app, not the defaults.
+# Thresholds were set from the codebase's real shape when lint was adopted
+# (2026-07-17): rules that catch bugs stay strict; size metrics are a
+# ratchet — set just above the current largest offender so existing code is
+# green but meaningful growth trips the gate. LiveContainerService (the one
+# deliberate monolith) carries its own file-level disable instead of
+# stretching these numbers to cover it.
+
+excluded:
+  - design # one-off icon rasterizer script, not shipped code
+
+identifier_name:
+  # Short names (i, n, fh, kb) are idiomatic Swift in tight closure/loop
+  # scopes; the default 3-char minimum flags ~140 of them. Casing and the
+  # max-length check still apply.
+  min_length: 1
+
+line_length:
+  warning: 160
+  error: 300
+  ignores_comments: true
+  ignores_urls: true
+  ignores_interpolated_strings: true
+
+file_length:
+  # Journey-style test suites (BerthlyTests, BerthlyUITests, BerthlyE2ETests)
+  # are deliberately few-and-long per the testing strategy in CLAUDE.md.
+  warning: 1400
+  error: 2000
+
+type_body_length:
+  warning: 650
+  error: 1000
+
+function_body_length:
+  warning: 120
+  error: 200
+
+cyclomatic_complexity:
+  # A flat switch dispatcher (e.g. MainWindowView's palette-action dispatch)
+  # is table lookup, not complexity.
+  ignores_case_statements: true
+  warning: 15
+  error: 30
+
+function_parameter_count:
+  warning: 8
+  error: 12
+
+large_tuple:
+  warning: 3
+  error: 5

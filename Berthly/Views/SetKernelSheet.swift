@@ -11,7 +11,7 @@ import TerminalProgress
 private final class KernelInstallState {
     var isInstalling = false
     var statusText = ""
-    var fraction: Double? = nil
+    var fraction: Double?
     var errorMessage: String?
 
     private var totalBytes: Int64 = 0

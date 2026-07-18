@@ -7,7 +7,7 @@ import SwiftUI
 
 struct VolumeDetailView: View {
     let volumeID: String
-    var onDelete: (() -> Void)? = nil
+    var onDelete: (() -> Void)?
     @Environment(ContainerServiceBase.self) private var service
 
     var body: some View {
@@ -304,8 +304,8 @@ private struct VolumeDetailContent: View {
 
     private func configurationSection(_ volume: Volume) -> some View {
         var rows: [(String, String)] = [
-            ("Type",   volume.type == .named ? "named" : "anonymous"),
-            ("Driver", volume.driver),
+            ("Type", volume.type == .named ? "named" : "anonymous"),
+            ("Driver", volume.driver)
         ]
         if !volume.source.isEmpty { rows.append(("Source", volume.source)) }
         rows.append(("Created", volume.created))

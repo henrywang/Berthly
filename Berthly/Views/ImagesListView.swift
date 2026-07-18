@@ -39,7 +39,7 @@ struct ImagesListView: View {
         }
     }
 
-    private var local:  [ContainerImage] { filtered.filter { $0.source == .built } }
+    private var local: [ContainerImage] { filtered.filter { $0.source == .built } }
     private var pulled: [ContainerImage] { filtered.filter { $0.source == .pulled } }
 
     // Summarizes all images, not `filtered` — like the Volumes bar, it reports disk state,
@@ -66,7 +66,7 @@ struct ImagesListView: View {
                 List(selection: $selectedID) {
                     if !local.isEmpty {
                         Section {
-                            ForEach(local)  { img in ImageRow(imageID: img.id, selectedID: $selectedID).tag(img.id).listRowSeparator(.hidden) }
+                            ForEach(local) { img in ImageRow(imageID: img.id, selectedID: $selectedID).tag(img.id).listRowSeparator(.hidden) }
                         // "BUILT", not "LOCAL": pulled images live locally too, so "local" didn't
                         // distinguish anything — the split is how the image got here.
                         } header: { LibrarySectionHeader("BUILT \(local.count)") }
@@ -168,8 +168,7 @@ struct ImagesListView: View {
         guard let image = deleteTarget else { return }
         deleteTargetID = nil
         Task {
-            do { try await service.deleteImage(image.fullName) }
-            catch { deleteErrorMessage = error.localizedDescription }
+            do { try await service.deleteImage(image.fullName) } catch { deleteErrorMessage = error.localizedDescription }
         }
     }
 
@@ -292,8 +291,7 @@ private struct ImageRow: View {
                     isDeleting = true
                     if selectedID == image.id { selectedID = nil }
                     Task {
-                        do { try await service.deleteImage(image.fullName) }
-                        catch { errorMessage = error.localizedDescription }
+                        do { try await service.deleteImage(image.fullName) } catch { errorMessage = error.localizedDescription }
                         isDeleting = false
                     }
                 }
@@ -374,7 +372,7 @@ struct LibrarySortMenu: View {
 }
 
 #Preview {
-    @Previewable @State var selectedID: String? = nil
+    @Previewable @State var selectedID: String?
     ImagesListView(selectedID: $selectedID)
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())
@@ -382,7 +380,7 @@ struct LibrarySortMenu: View {
 }
 
 #Preview("Empty") {
-    @Previewable @State var selectedID: String? = nil
+    @Previewable @State var selectedID: String?
     let mock = MockContainerService()
     mock.images.removeAll()
     return ImagesListView(selectedID: $selectedID)

@@ -151,8 +151,7 @@ struct NetworksListView: View {
         deleteTargetID = nil
         if selectedID == network.id { selectedID = nil }
         Task {
-            do { try await service.deleteNetwork(network.id) }
-            catch { deleteErrorMessage = error.localizedDescription }
+            do { try await service.deleteNetwork(network.id) } catch { deleteErrorMessage = error.localizedDescription }
         }
     }
 }
@@ -231,8 +230,7 @@ private struct NetworkRow: View {
                     isDeleting = true
                     if selectedID == network.id { selectedID = nil }
                     Task {
-                        do { try await service.deleteNetwork(network.id) }
-                        catch { errorMessage = error.localizedDescription }
+                        do { try await service.deleteNetwork(network.id) } catch { errorMessage = error.localizedDescription }
                         isDeleting = false
                     }
                 }
@@ -289,7 +287,7 @@ private struct RowChip: View {
 }
 
 #Preview {
-    @Previewable @State var selectedID: String? = nil
+    @Previewable @State var selectedID: String?
     NetworksListView(selectedID: $selectedID)
         .environment(MockContainerService() as ContainerServiceBase)
         .environment(MenuBarBridge())

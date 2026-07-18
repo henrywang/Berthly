@@ -213,7 +213,7 @@ private struct OverviewTab: View {
 
     struct StatsPoint: Identifiable {
         let id    = UUID()
-        let cpu:   Double
+        let cpu: Double
         let memMB: Double
         let netMBs: Double
     }
@@ -296,15 +296,15 @@ private struct InspectSection: View {
     private var rows: [(String, String)] {
         let mountStr = container.mounts.map(\.displayString).joined(separator: "\n")
         return [
-            ("Status",       "\(container.status.label)\(container.status == .running ? " · up \(container.uptime)" : "")"),
-            ("Image",        container.image),
+            ("Status", "\(container.status.label)\(container.status == .running ? " · up \(container.uptime)" : "")"),
+            ("Image", container.image),
             ("Container ID", container.id),
-            ("Command",      container.command),
-            ("Ports",        container.ports.isEmpty ? "–" : container.ports.map(\.displayString).joined(separator: ", ")),
-            ("Mounts",       mountStr.isEmpty ? "–" : mountStr),
-            ("Networks",     container.networks.isEmpty ? "–" : container.networks.joined(separator: ", ")),
-            ("Environment",  container.environment.isEmpty ? "–"
-                             : "\(container.environment[0])\(container.environment.count > 1 ? " (+\(container.environment.count - 1))" : "")"),
+            ("Command", container.command),
+            ("Ports", container.ports.isEmpty ? "–" : container.ports.map(\.displayString).joined(separator: ", ")),
+            ("Mounts", mountStr.isEmpty ? "–" : mountStr),
+            ("Networks", container.networks.isEmpty ? "–" : container.networks.joined(separator: ", ")),
+            ("Environment", container.environment.isEmpty ? "–"
+                             : "\(container.environment[0])\(container.environment.count > 1 ? " (+\(container.environment.count - 1))" : "")")
         ]
     }
 
@@ -361,12 +361,12 @@ private struct LogsTab: View {
 }
 
 private struct MetricCard: View {
-    let label:      String
-    let value:      String
-    let trend:      String
+    let label: String
+    let value: String
+    let trend: String
     let trendColor: Color
-    let data:       [Double]
-    let lineColor:  Color
+    let data: [Double]
+    let lineColor: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

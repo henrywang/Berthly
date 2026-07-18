@@ -5,6 +5,8 @@ import XCTest
 
 final class BerthlyUITestsLaunchTests: XCTestCase {
 
+    // An override can't be `static`; the rule doesn't see the XCTestCase superclass.
+    // swiftlint:disable:next static_over_final_class
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true
     }

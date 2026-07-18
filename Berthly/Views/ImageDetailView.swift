@@ -1,7 +1,6 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
-
 import SwiftUI
 
 // MARK: - ImageDetailView
@@ -105,9 +104,9 @@ private struct ImageDetailContent: View {
 
     private func configRows(_ d: ImageInspectData) -> [(String, String)] {
         var rows: [(String, String)] = []
-        if !d.command.isEmpty   { rows.append(("Command",     d.command)) }
-        if !d.workDir.isEmpty   { rows.append(("Work Dir",    d.workDir)) }
-        if !d.user.isEmpty      { rows.append(("User",        d.user)) }
+        if !d.command.isEmpty { rows.append(("Command", d.command)) }
+        if !d.workDir.isEmpty { rows.append(("Work Dir", d.workDir)) }
+        if !d.user.isEmpty { rows.append(("User", d.user)) }
         if !d.stopSignal.isEmpty { rows.append(("Stop Signal", d.stopSignal)) }
         return rows
     }
@@ -294,7 +293,7 @@ private struct PlatformsSection: View {
     private func variantSize(_ bytes: Int64) -> String {
         let mb = Double(bytes) / 1_048_576
         if mb >= 1024 { return String(format: "%.1f GB", mb / 1024) }
-        if mb >= 1    { return String(format: "%.0f MB", mb) }
+        if mb >= 1 { return String(format: "%.0f MB", mb) }
         return "<1 MB"
     }
 }

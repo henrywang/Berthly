@@ -203,7 +203,10 @@ private struct DiskUsageSection: View {
                     DiskUsageGridRow(name: "Containers", category: usage.containers, cleanup: .init(
                         confirmTitle: "Remove stopped containers?",
                         confirmButton: "Remove",
-                        confirmMessage: "Deletes every stopped container and its writable layer. Running containers, machines, and builders are left alone. This can't be undone.",
+                        confirmMessage: """
+                            Deletes every stopped container and its writable layer. Running \
+                            containers, machines, and builders are left alone. This can't be undone.
+                            """,
                         isDestructive: true,
                         run: { try await service.pruneStoppedContainers() }
                     ))
@@ -214,7 +217,11 @@ private struct DiskUsageSection: View {
                     DiskUsageGridRow(name: "Volumes", category: usage.volumes, cleanup: .init(
                         confirmTitle: "Remove unused volumes?",
                         confirmButton: "Remove",
-                        confirmMessage: "Deletes every volume not attached to any container, including all data inside. Volumes a container still references — even a stopped one — are left alone. This can't be undone.",
+                        confirmMessage: """
+                            Deletes every volume not attached to any container, including all data \
+                            inside. Volumes a container still references — even a stopped one — are \
+                            left alone. This can't be undone.
+                            """,
                         isDestructive: true,
                         run: { try await service.pruneVolumes() }
                     ))
@@ -263,7 +270,10 @@ private struct DiskUsageSection: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Removes unused images and stopped containers in one step. Volumes are never touched here — use the Volumes row's own Prune if you're sure you don't need their data.")
+            Text("""
+                Removes unused images and stopped containers in one step. Volumes are never touched \
+                here — use the Volumes row's own Prune if you're sure you don't need their data.
+                """)
         }
         .alert("Done", isPresented: Binding(
             get: { allResult != nil },
@@ -346,8 +356,7 @@ private struct DiskUsageGridRow: View {
                 Button(cleanup.confirmButton, role: cleanup.isDestructive ? .destructive : nil) {
                     isBusy = true
                     Task {
-                        do { result = try await cleanup.run() }
-                        catch { errorMessage = error.localizedDescription }
+                        do { result = try await cleanup.run() } catch { errorMessage = error.localizedDescription }
                         isBusy = false
                     }
                 }
@@ -417,7 +426,10 @@ private struct SystemConfigSection: View {
         } header: {
             sectionHeader("Infrastructure Images", systemImage: "cube")
         } footer: {
-            Text("The exact vminit and builder image versions this install of Berthly is built against — these must match what the installed container CLI expects.")
+            Text("""
+                The exact vminit and builder image versions this install of Berthly is built \
+                against — these must match what the installed container CLI expects.
+                """)
         }
     }
 
@@ -496,7 +508,10 @@ private struct SystemPropertiesSection: View {
         } header: {
             sectionHeader("Properties", systemImage: "list.bullet.rectangle")
         } footer: {
-            Text("Everything `container system property list` reports, defaults included. To change a value, edit config.toml (revealed above) and restart the daemon.")
+            Text("""
+                Everything `container system property list` reports, defaults included. To change \
+                a value, edit config.toml (revealed above) and restart the daemon.
+                """)
         }
     }
 }
@@ -541,7 +556,11 @@ private struct LocalDNSSection: View {
         } header: {
             sectionHeader("Local DNS", systemImage: "globe")
         } footer: {
-            Text("A local domain lets this Mac resolve containers by name under it (e.g. web.test). Adding or removing one modifies /etc/resolver, so macOS asks for an administrator password.")
+            Text("""
+                A local domain lets this Mac resolve containers by name under it (e.g. web.test). \
+                Adding or removing one modifies /etc/resolver, so macOS asks for an administrator \
+                password.
+                """)
         }
         .alert("Add a local DNS domain", isPresented: $showAddPrompt) {
             TextField("Domain (e.g. test)", text: $newDomain)
@@ -557,9 +576,13 @@ private struct LocalDNSSection: View {
         let domain = newDomain
         isCreating = true
         Task {
-            do { try await service.createDNSDomain(domain) }
-            catch is CancellationError { /* dismissed the admin prompt — not an error */ }
-            catch { errorMessage = error.localizedDescription }
+            do {
+                try await service.createDNSDomain(domain)
+            } catch is CancellationError {
+                // Dismissed the admin prompt — not an error.
+            } catch {
+                errorMessage = error.localizedDescription
+            }
             isCreating = false
         }
     }
@@ -594,9 +617,13 @@ private struct DNSDomainRow: View {
             Button("Delete", role: .destructive) {
                 isDeleting = true
                 Task {
-                    do { try await service.deleteDNSDomain(domain) }
-                    catch is CancellationError { /* dismissed the admin prompt */ }
-                    catch { errorMessage = error.localizedDescription }
+                    do {
+                        try await service.deleteDNSDomain(domain)
+                    } catch is CancellationError {
+                        // Dismissed the admin prompt — not an error.
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
                     isDeleting = false
                 }
             }
@@ -667,8 +694,7 @@ private struct BuilderRow: View {
                     Button {
                         isStarting = true
                         Task {
-                            do { try await service.startBuilder(builder.id) }
-                            catch { errorMessage = error.localizedDescription }
+                            do { try await service.startBuilder(builder.id) } catch { errorMessage = error.localizedDescription }
                             isStarting = false
                         }
                     } label: {
@@ -708,8 +734,7 @@ private struct BuilderRow: View {
             Button("Stop", role: .destructive) {
                 isStopping = true
                 Task {
-                    do { try await service.stopBuilder(builder.id) }
-                    catch { errorMessage = error.localizedDescription }
+                    do { try await service.stopBuilder(builder.id) } catch { errorMessage = error.localizedDescription }
                     isStopping = false
                 }
             }
@@ -721,8 +746,7 @@ private struct BuilderRow: View {
             Button("Delete", role: .destructive) {
                 isDeleting = true
                 Task {
-                    do { try await service.deleteBuilder(builder.id) }
-                    catch { errorMessage = error.localizedDescription }
+                    do { try await service.deleteBuilder(builder.id) } catch { errorMessage = error.localizedDescription }
                     isDeleting = false
                 }
             }
@@ -850,7 +874,7 @@ private struct DaemonLogView: View {
         Builder(id: "running", name: "buildkit", image: "buildkit:0.13", status: .running,
                 autoStarted: true, cpus: 2, memoryGB: 2),
         Builder(id: "stopped", name: "buildkit", image: "buildkit:0.13", status: .stopped,
-                autoStarted: false, cpus: 2, memoryGB: 2),
+                autoStarted: false, cpus: 2, memoryGB: 2)
     ]
     return Form {
         BuilderSection()
@@ -865,7 +889,7 @@ private struct DaemonLogView: View {
         for raw in [
             "09:01:12.031\tinfo\tdaemon started",
             "09:01:13.114\tinfo\tapiserver ready",
-            "09:01:14.980\twarn\tbuilder image missing, pulling",
+            "09:01:14.980\twarn\tbuilder image missing, pulling"
         ] {
             await MainActor.run { onLine(raw) }
         }
@@ -889,7 +913,7 @@ private struct DaemonLogView: View {
     mock.systemProperties = [
         SystemProperty(key: "build.rosetta", value: "true"),
         SystemProperty(key: "dns.domain", value: "test"),
-        SystemProperty(key: "registry.domain", value: "docker.io"),
+        SystemProperty(key: "registry.domain", value: "docker.io")
     ]
     mock.kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
     mock.systemConfigInfo = SystemConfigInfo(

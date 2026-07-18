@@ -96,7 +96,7 @@ struct PinnedStatusChangeTextTests {
             (.running, "Container Started", "web is now running."),
             (.stopped, "Container Stopped", "web has stopped."),
             (.error, "Container Error", "web is in an error state."),
-            (.paused, "Container Paused", "web has been paused."),
+            (.paused, "Container Paused", "web has been paused.")
         ]
         for (newStatus, title, body) in cases {
             let change = PinnedStatusChange(

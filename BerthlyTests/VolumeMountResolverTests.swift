@@ -74,7 +74,7 @@ struct VolumeMountResolverTests {
                 ]),
                 makeContainer(name: "api", mounts: [
                     ContainerMount(source: "x", destination: "/srv/assets", volumeName: "shared", isReadOnly: true)
-                ]),
+                ])
             ]
         )
         #expect(resolved[0].mounts.map(\.containerName) == ["web", "api"])
