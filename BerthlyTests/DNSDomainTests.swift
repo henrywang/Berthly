@@ -18,7 +18,7 @@ struct DNSDomainTests {
             "containerization.test",
             "containerization.dev.internal",
             "corp-vpn",           // someone else's resolver file
-            "openvpn.split",      // no containerization prefix
+            "openvpn.split"      // no containerization prefix
         ])
         #expect(domains == ["dev.internal", "test"])  // ours only, sorted
     }

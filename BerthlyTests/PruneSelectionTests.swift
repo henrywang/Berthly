@@ -58,7 +58,7 @@ struct PruneSelectionTests {
         let ids = LiveContainerService.deletableStoppedContainerIDs([
             PruneContainerInfo(id: "running", imageReference: "a", isStopped: false, isInfrastructure: false),
             PruneContainerInfo(id: "stopped1", imageReference: "b", isStopped: true, isInfrastructure: false),
-            PruneContainerInfo(id: "stopped2", imageReference: "c", isStopped: true, isInfrastructure: false),
+            PruneContainerInfo(id: "stopped2", imageReference: "c", isStopped: true, isInfrastructure: false)
         ])
         #expect(ids == ["stopped1", "stopped2"])
     }
@@ -69,7 +69,7 @@ struct PruneSelectionTests {
         let ids = LiveContainerService.deletableStoppedContainerIDs([
             PruneContainerInfo(id: "vm1", imageReference: "vmlinux:machine", isStopped: true, isInfrastructure: true),
             PruneContainerInfo(id: "builder1", imageReference: "buildkit:0.13", isStopped: true, isInfrastructure: true),
-            PruneContainerInfo(id: "job1", imageReference: "workload:1.0", isStopped: true, isInfrastructure: false),
+            PruneContainerInfo(id: "job1", imageReference: "workload:1.0", isStopped: true, isInfrastructure: false)
         ])
         #expect(ids == ["job1"])
         #expect(!ids.contains("vm1"))
@@ -114,7 +114,7 @@ struct PruneSelectionTests {
             [
                 PruneNetworkInfo(id: "app-net", isBuiltin: false),
                 PruneNetworkInfo(id: "old-net", isBuiltin: false),
-                PruneNetworkInfo(id: "default", isBuiltin: true),
+                PruneNetworkInfo(id: "default", isBuiltin: true)
             ],
             connectedNetworkIDs: ["app-net"]
         )
@@ -179,6 +179,16 @@ struct PruneSelectionTests {
         #expect(combined.failedCount == 1)
         #expect(combined.totalFreedBytes == 1_190_000_000)
         #expect(combined.deletedCount == 12)
+    }
+
+    @Test func inPlaceCombineMatchesBinaryCombine() {
+        let images = PruneResult(imagesFreedBytes: 1_100_000_000, deletedImageCount: 8, failedCount: 1)
+        let containers = PruneResult(containersFreedBytes: 90_000_000, deletedContainerCount: 4)
+
+        var accumulated = images
+        accumulated += containers
+
+        #expect(accumulated == images + containers)
     }
 
     // MARK: - summaryText
@@ -271,7 +281,7 @@ struct PruneSelectionTests {
     @Test func errorAlertMessageJoinsMultipleFailures() {
         let outcome = CleanUpAllResult(result: PruneResult(), failureMessages: [
             "Removing unused images failed: boom",
-            "Removing stopped containers failed: bang",
+            "Removing stopped containers failed: bang"
         ])
         #expect(outcome.errorAlertMessage == "Removing unused images failed: boom\nRemoving stopped containers failed: bang")
     }

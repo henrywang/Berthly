@@ -14,8 +14,8 @@ private final class MachineCreateState {
     }
 
     var isRunning = false
-    var result: Result? = nil
-    var runTask: Task<Void, Never>? = nil
+    var result: Result?
+    var runTask: Task<Void, Never>?
 }
 
 private enum HomeMountChoice: String, CaseIterable {

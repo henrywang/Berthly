@@ -27,7 +27,7 @@ final class BuildJob: Identifiable {
     let id = UUID()
     let reference: String
     let startedAt = Date()
-    private(set) var finishedAt: Date? = nil
+    private(set) var finishedAt: Date?
     private(set) var logLines: [LogLine] = []
     private(set) var status: Status = .building
 
@@ -36,7 +36,7 @@ final class BuildJob: Identifiable {
     var seen = false
 
     /// The running build task. Held so `cancel` works; cleared when the build ends.
-    fileprivate var task: Task<Void, Never>? = nil
+    fileprivate var task: Task<Void, Never>?
 
     init(reference: String) {
         self.reference = reference

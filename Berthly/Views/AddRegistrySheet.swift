@@ -105,7 +105,10 @@ struct AddRegistrySheet: View {
                             Text("Reused on next push & pull · never written to config.toml")
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
-                            Text("While signed in, macOS may also confirm Keychain access on pulls from this host — even public images. Sign out from Registries when you're done to stop it.")
+                            Text("""
+                                While signed in, macOS may also confirm Keychain access on pulls from this \
+                                host — even public images. Sign out from Registries when you're done to stop it.
+                                """)
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }

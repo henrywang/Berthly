@@ -219,7 +219,10 @@ struct DaemonGateView<Content: View>: View {
                 Button("Update", role: .destructive) { onConfirm() }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("This stops every running container on this Mac, not just ones Berthly manages, while the update runs. You'll be asked for your admin password.")
+                Text("""
+                    This stops every running container on this Mac, not just ones Berthly manages, \
+                    while the update runs. You'll be asked for your admin password.
+                    """)
             }
         }
     }
@@ -365,7 +368,7 @@ struct DaemonGateView<Content: View>: View {
         logLines: [
             "Updating to release version 1.1.0",
             "Downloading package from: https://github.com/apple/container/releases/…",
-            "Installing package to /usr/local…",
+            "Installing package to /usr/local…"
         ],
         onCancel: {}
     )

@@ -29,24 +29,24 @@ class ContainerServiceBase {
     /// regardless (it's the correct state for most purposes), so without this the failure is
     /// otherwise invisible until an unrelated later operation fails for a confusing reason.
     /// `nil` means no warning; cleared at the start of every `startDaemon()` call.
-    var lastStartupWarning: String? = nil
+    var lastStartupWarning: String?
 
     /// The running daemon's version, from the health-check ping. `nil` before the first
     /// successful connect. Compared against `ContainerCompatibility.requiredVersion` to decide
     /// `.connected` vs `.versionMismatch`.
-    var installedContainerVersion: String? = nil
+    var installedContainerVersion: String?
 
     /// System-page data, fetched on demand when that page appears rather than on every
     /// `refresh()` poll — it's low-frequency, look-it-up-when-needed information.
-    var diskUsage: DiskUsageSummary? = nil
-    var kernelInfo: KernelInfo? = nil
-    var systemConfigInfo: SystemConfigInfo? = nil
+    var diskUsage: DiskUsageSummary?
+    var kernelInfo: KernelInfo?
+    var systemConfigInfo: SystemConfigInfo?
     /// Local DNS domains registered for containers (like `container system dns list`).
     /// `nil` until the first `fetchDNSDomains()`, so the UI can show a loading state.
-    var dnsDomains: [String]? = nil
+    var dnsDomains: [String]?
     /// Resolved system properties (like `container system property list`), defaults included.
     /// Read-only in Berthly — editing stays a `config.toml` / CLI affair.
-    var systemProperties: [SystemProperty]? = nil
+    var systemProperties: [SystemProperty]?
 
     func buildContext(for reference: String) -> BuildContext? { buildContexts[reference] }
     func saveBuildContext(_ ctx: BuildContext, for reference: String) { buildContexts[reference] = ctx }
@@ -121,7 +121,8 @@ class ContainerServiceBase {
     /// wedged/bloated builder" action, not a permanent removal. Callers gate on stopped status
     /// (the CLI requires `--force` to delete a running builder; the GUI just doesn't offer it).
     func deleteBuilder(_ id: String) async throws {}
-    func pullImage(reference: String, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
+    func pullImage(reference: String, platform: String? = nil, insecure: Bool = false,
+                   progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
     /// Create an additional local reference for an existing image (like `container image tag`).
     /// Returns the reference actually created: normalization can add a default registry host,
     /// a `library/` namespace, or `:latest` — the UI shows the result so that isn't a surprise.
@@ -141,7 +142,8 @@ class ContainerServiceBase {
     /// the image is retagged to that registry-qualified reference before pushing — the native push
     /// requires a registry host in the reference, which a locally-built name like `local/web:1.4`
     /// lacks. Progress mirrors `pullImage`.
-    func pushImage(reference: String, destination: String? = nil, platform: String? = nil, insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {}
+    func pushImage(reference: String, destination: String? = nil, platform: String? = nil,
+                   insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {}
     /// `onLog` reports slow first-run bootstrap steps (kernel/vminit downloads) that otherwise
     /// happen silently inside daemon startup — the guided install flow shows them in its log.
     func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {}
@@ -182,12 +184,12 @@ class ContainerServiceBase {
         var combined = PruneResult()
         var failures: [String] = []
         do {
-            combined = combined + (try await pruneImages())
+            combined += try await pruneImages()
         } catch {
             failures.append("Removing unused images failed: \(error.localizedDescription)")
         }
         do {
-            combined = combined + (try await pruneStoppedContainers())
+            combined += try await pruneStoppedContainers()
         } catch {
             failures.append("Removing stopped containers failed: \(error.localizedDescription)")
         }

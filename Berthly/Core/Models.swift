@@ -56,7 +56,7 @@ struct ContainerMount: Hashable {
     let destination: String
     /// Name of the named/anonymous volume backing this mount; `nil` for bind/virtiofs/tmpfs
     /// mounts. Lets `Volume.resolvingMounts` reconstruct volume→container attachments.
-    var volumeName: String? = nil
+    var volumeName: String?
     var isReadOnly: Bool = false
 
     var displayString: String { "\(source) → \(destination)" }
@@ -77,7 +77,7 @@ struct Container: Identifiable, Hashable {
     let mounts: [ContainerMount]
     let networks: [String]
     let environment: [String]
-    var startedDate: Date? = nil
+    var startedDate: Date?
 
     // Include status and image so SwiftUI detects section changes and late-arriving image data.
     // Hash by id only for stable Set membership across status/image transitions.
@@ -470,6 +470,10 @@ struct PruneResult: Sendable, Equatable {
             deletedNetworkCount: lhs.deletedNetworkCount + rhs.deletedNetworkCount,
             failedCount: lhs.failedCount + rhs.failedCount
         )
+    }
+
+    static func += (lhs: inout PruneResult, rhs: PruneResult) {
+        lhs = lhs + rhs
     }
 
     /// Formats this result for display, whether it came from a single-category cleanup or the

@@ -16,7 +16,7 @@ struct LogStreamView: View {
     /// source — the GUI equivalent of the CLI's `logs --boot` flag. The caller must fold the
     /// source into `id` so switching restarts the stream task. `nil` hides the picker (Daemon
     /// Logs and other single-source streams).
-    var source: Binding<LogStreamer.LogSource>? = nil
+    var source: Binding<LogStreamer.LogSource>?
 
     struct LogLine: Identifiable {
         let id = UUID()
@@ -278,7 +278,7 @@ private struct LogStreamLineRow: View {
             "09:01:12 INFO server listening on :8080",
             "09:01:13 WARN slow query took 812ms",
             "09:01:14 ERROR connection refused: db:5432",
-            "added 1423 packages in 12s",
+            "added 1423 packages in 12s"
         ] {
             await MainActor.run { onLine(raw) }
         }
@@ -291,7 +291,7 @@ private struct LogStreamLineRow: View {
         for raw in [
             "vminit: mounting rootfs",
             "vminit: starting init process",
-            "vminit: ready",
+            "vminit: ready"
         ] {
             await MainActor.run { onLine(raw) }
         }
@@ -302,15 +302,15 @@ private struct LogStreamLineRow: View {
 #Preview("Log rows — structured / mixed / plain") {
     let lines: [LogStreamView.LogLine] = [
         // Fully structured: time + level columns
-        .init(timestamp: "09:01:12", level: .info,  message: "server listening on :8080"),
-        .init(timestamp: "09:01:13", level: .warn,  message: "slow query took 812ms"),
+        .init(timestamp: "09:01:12", level: .info, message: "server listening on :8080"),
+        .init(timestamp: "09:01:13", level: .warn, message: "slow query took 812ms"),
         .init(timestamp: "09:01:14", level: .error, message: "connection refused: db:5432"),
         // Time only (level column empty but grid kept)
         .init(timestamp: "09:01:15", level: .other, message: "GET /health 200"),
         // Pure plain stdout — should be flush-left, no gutter
         .init(timestamp: "", level: .other, message: "added 1423 packages in 12s"),
         .init(timestamp: "", level: .other, message: "  at Object.<anonymous> (/app/index.js:42:11)"),
-        .init(timestamp: "", level: .other, message: "Building wheel for numpy (pyproject.toml) ..."),
+        .init(timestamp: "", level: .other, message: "Building wheel for numpy (pyproject.toml) ...")
     ]
     return VStack(alignment: .leading, spacing: 0) {
         ForEach(lines) { LogStreamLineRow(line: $0, wrapText: false) }

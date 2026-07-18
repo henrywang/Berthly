@@ -86,10 +86,13 @@ enum ContainerCLI {
         if process.isRunning {
             process.terminate()
             throw NSError(domain: "ContainerCLI", code: 1, userInfo: [
-                NSLocalizedDescriptionKey: "`container \(arguments.joined(separator: " "))` timed out after \(Int(timeout))s",
+                NSLocalizedDescriptionKey: "`container \(arguments.joined(separator: " "))` timed out after \(Int(timeout))s"
             ])
         }
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        // Lossy decode on purpose: CLI output with a stray non-UTF-8 byte should still
+        // surface the rest, not become nil.
+        // swiftlint:disable:next optional_data_string_conversion
         return Result(status: process.terminationStatus, output: String(decoding: data, as: UTF8.self))
     }
 
@@ -111,7 +114,7 @@ enum ContainerCLI {
         let pull = try run(["image", "pull", reference], timeout: 600)
         guard pull.status == 0 else {
             throw NSError(domain: "ContainerCLI", code: 2, userInfo: [
-                NSLocalizedDescriptionKey: "pull \(reference) failed: \(pull.output)",
+                NSLocalizedDescriptionKey: "pull \(reference) failed: \(pull.output)"
             ])
         }
     }
@@ -130,7 +133,7 @@ enum ContainerCLI {
         let result = try run(["inspect", name], timeout: 30)
         guard result.status == 0 else {
             throw NSError(domain: "ContainerCLI", code: 3, userInfo: [
-                NSLocalizedDescriptionKey: "inspect \(name) failed: \(result.output)",
+                NSLocalizedDescriptionKey: "inspect \(name) failed: \(result.output)"
             ])
         }
         let data = Data(result.output.utf8)
@@ -138,7 +141,7 @@ enum ContainerCLI {
         if let array = parsed as? [[String: Any]], let first = array.first { return first }
         if let object = parsed as? [String: Any] { return object }
         throw NSError(domain: "ContainerCLI", code: 4, userInfo: [
-            NSLocalizedDescriptionKey: "unexpected inspect JSON shape: \(result.output.prefix(200))",
+            NSLocalizedDescriptionKey: "unexpected inspect JSON shape: \(result.output.prefix(200))"
         ])
     }
 

@@ -389,8 +389,8 @@ struct MainWindowView: View {
     /// The create action for the selected sidebar section, if it has one.
     private var contextualAddAction: (title: String, action: () -> Void)? {
         switch sidebarSelection {
-        case .volumes:    ("Add Volume…",   { showVolumeCreateSheet = true })
-        case .networks:   ("Add Network…",  { showNetworkCreateSheet = true })
+        case .volumes:    ("Add Volume…", { showVolumeCreateSheet = true })
+        case .networks:   ("Add Network…", { showNetworkCreateSheet = true })
         case .registries: ("Add Registry…", { showAddRegistrySheet = true })
         default:          nil
         }

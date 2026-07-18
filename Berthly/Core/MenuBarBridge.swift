@@ -51,14 +51,14 @@ final class MenuBarBridge {
     /// request usually arrives with a *fresh* detail mount) by switching to its Terminal tab, then
     /// clears it. A nil-clearing optional (not a token) so each request fires exactly once and a
     /// new request for a different item always re-fires — same shape as `pendingIntent`.
-    var terminalRequest: ComputeItem? = nil
+    var terminalRequest: ComputeItem?
 
     /// The detail pane a View-menu shortcut (⌘⌥1/2/3) asked the open detail view to show.
     /// Whichever container/machine detail is currently mounted consumes it via `.onChange` and
     /// clears it. Deliberately *not* consumed on `.onAppear` (unlike `terminalRequest`): the
     /// menu items are disabled while no detail is open, and a request that somehow goes
     /// unconsumed should die rather than fire on the next detail the user happens to open.
-    var detailTabRequest: DetailPaneTab? = nil
+    var detailTabRequest: DetailPaneTab?
 
     /// Whether a compute detail pane (container or machine) is currently showing — kept in sync
     /// by `MainWindowView`, read by the View menu to enable the ⌘⌥1/2/3 tab items.

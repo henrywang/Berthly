@@ -63,12 +63,12 @@ struct ContainerCommands: Commands {
             // routes through the same `navigate` intent the window reads on `.onChange`/`.onAppear`.
             // Enabled while disconnected: the sections still render their empty/connect states.
             Group {
-                paneItem("Compute",    .compute,    "1")
-                paneItem("Volumes",    .volumes,    "2")
-                paneItem("Networks",   .networks,   "3")
-                paneItem("Images",     .images,     "4")
+                paneItem("Compute", .compute, "1")
+                paneItem("Volumes", .volumes, "2")
+                paneItem("Networks", .networks, "3")
+                paneItem("Images", .images, "4")
                 paneItem("Registries", .registries, "5")
-                paneItem("System",     .system,     "6")
+                paneItem("System", .system, "6")
             }
 
             Divider()
@@ -132,7 +132,7 @@ struct ContainerCommands: Commands {
         var body: some View {
             Group {
                 tabItem("Show Overview", .overview, "1")
-                tabItem("Show Logs",     .logs,     "2")
+                tabItem("Show Logs", .logs, "2")
                 tabItem("Show Terminal", .terminal, "3")
             }
             .disabled(!bridge.isComputeDetailOpen)

@@ -19,7 +19,7 @@ struct KeyValueEditor: View {
     /// "runEnvKeyField"/"runEnvValueField"/"runEnvAddButton". Applied to leaf controls only —
     /// an identifier on a container would override every child's own id. Rows share ids, so
     /// tests that add multiple rows must scope queries; E2E journeys add one row per editor.
-    var identifierPrefix: String? = nil
+    var identifierPrefix: String?
     @Binding var pairs: [KeyValuePair]
 
     var body: some View {
@@ -73,9 +73,9 @@ struct StringEntry: Identifiable {
 struct StringListEditor: View {
     let title: LocalizedStringKey
     let placeholder: String
-    var helpText: String? = nil
+    var helpText: String?
     /// Test-identifier prefix (see KeyValueEditor): "runVolume" → "runVolumeField"/"runVolumeAddButton".
-    var identifierPrefix: String? = nil
+    var identifierPrefix: String?
     @Binding var entries: [StringEntry]
 
     var body: some View {
@@ -123,10 +123,10 @@ struct StringListEditor: View {
 
 struct NetworkListEditor: View {
     let title: LocalizedStringKey
-    var helpText: String? = nil
+    var helpText: String?
     let availableNetworks: [Network]
     /// Test-identifier prefix (see KeyValueEditor): "runNetwork" → "runNetworkPicker"/"runNetworkAddButton".
-    var identifierPrefix: String? = nil
+    var identifierPrefix: String?
     @Binding var entries: [StringEntry]
 
     /// New rows start on the standard network rather than blank, since that's what an empty
@@ -198,7 +198,7 @@ struct PortEntry: Identifiable {
 struct PortRowsEditor: View {
     let title: LocalizedStringKey
     /// Test-identifier prefix (see KeyValueEditor): "runPort" → "runPortHostField"/"runPortContainerField"/"runPortAddButton".
-    var identifierPrefix: String? = nil
+    var identifierPrefix: String?
     @Binding var entries: [PortEntry]
 
     var body: some View {
@@ -370,7 +370,7 @@ struct LocalImageReferenceField: View {
     let images: [ContainerImage]
     /// Test identifier for the inner TextField (on the leaf, not this container — a container
     /// id would override the field's). Distinct per host sheet: "runImageField" vs machine's.
-    var fieldIdentifier: String? = nil
+    var fieldIdentifier: String?
 
     var body: some View {
         HStack(spacing: 6) {

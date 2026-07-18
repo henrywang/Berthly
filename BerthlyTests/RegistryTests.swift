@@ -9,7 +9,7 @@ struct MapRegistriesTests {
     @Test func mapsEachKeychainEntryToASignedInRow() {
         let registries = LiveContainerService.mapRegistries(keychainEntries: [
             (hostname: "ghcr.io", username: "apple-bot"),
-            (hostname: "registry-1.docker.io", username: "berthly"),
+            (hostname: "registry-1.docker.io", username: "berthly")
         ])
         #expect(registries.count == 2)
         #expect(registries.first { $0.host == "ghcr.io" }?.username == "apple-bot")
@@ -29,7 +29,7 @@ struct MapRegistriesTests {
         let registries = LiveContainerService.mapRegistries(keychainEntries: [
             (hostname: "quay.io", username: "a"),
             (hostname: "ghcr.io", username: "b"),
-            (hostname: "docker.io", username: "c"),
+            (hostname: "docker.io", username: "c")
         ])
         #expect(registries.map(\.host) == ["docker.io", "ghcr.io", "quay.io"])
     }

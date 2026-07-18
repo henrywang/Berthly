@@ -18,11 +18,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Shell only: the release/e2e/smoke scripts are load-bearing infrastructure.
-  # No SwiftLint (766 style-opinion findings on default rules against a
-  # deliberately styled codebase — noise, not bugs; revisit if outside PRs
-  # pick up) and no Python lint (one icon script plus heredocs inside shell
-  # scripts that no linter can reach).
+  # The release/e2e/smoke scripts are load-bearing infrastructure. No Python
+  # lint (one icon script plus heredocs inside shell scripts that no linter
+  # can reach).
   lint:
     name: ShellCheck
     runs-on: ubuntu-latest
@@ -30,6 +28,19 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - run: shellcheck scripts/*.sh design/icon/build.sh
+
+  # Rules and thresholds live in .swiftlint.yml. The container image is pinned
+  # to the same SwiftLint version used locally so findings never differ by
+  # environment (learned the hard way with ShellCheck's SC2317/SC2329 skew).
+  # --strict: the repo is at zero findings, so any new warning is a failure.
+  swiftlint:
+    name: SwiftLint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container: ghcr.io/realm/swiftlint:0.65.0
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - run: swiftlint lint --strict --reporter github-actions-logging
 
   test:
     name: ${{ matrix.name }}

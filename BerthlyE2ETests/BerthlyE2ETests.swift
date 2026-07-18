@@ -508,6 +508,7 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
             .appendingPathComponent("\(Self.resourcePrefix)-mctx-\(UUID().uuidString.prefix(8))")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
+        // swiftlint:disable line_length
         let dockerfile = """
         FROM quay.io/fedora/fedora:44
         RUN dnf update -y && dnf install -y systemd
@@ -515,6 +516,7 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
         VOLUME [ "/sys/fs/cgroup" ]
         CMD ["/usr/sbin/init"]
         """
+        // swiftlint:enable line_length
         try dockerfile.write(to: dir.appendingPathComponent("Dockerfile"),
                              atomically: true, encoding: .utf8)
         let tag = "\(Self.resourcePrefix)/machine-\(UUID().uuidString.prefix(8).lowercased()):1"

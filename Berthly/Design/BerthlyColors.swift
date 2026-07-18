@@ -21,9 +21,9 @@ extension Color {
         var int: UInt64 = 0
         Scanner(string: hex).scanHexInt64(&int)
         self.init(
-            red:   Double((int >> 16) & 0xFF) / 255,
+            red: Double((int >> 16) & 0xFF) / 255,
             green: Double((int >>  8) & 0xFF) / 255,
-            blue:  Double( int        & 0xFF) / 255
+            blue: Double( int        & 0xFF) / 255
         )
     }
 }

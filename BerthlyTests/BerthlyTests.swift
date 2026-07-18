@@ -1281,7 +1281,7 @@ struct ContainerServiceBaseSummaryTests {
         mock.containers = [
             makeContainer(id: "1", status: .running),
             makeContainer(id: "2", status: .stopped),
-            makeContainer(id: "3", status: .error),
+            makeContainer(id: "3", status: .error)
         ]
         #expect(mock.runningContainers.map(\.id) == ["1"])
         #expect(mock.errorContainerCount == 1)
@@ -1292,7 +1292,7 @@ struct ContainerServiceBaseSummaryTests {
         mock.machines = [
             makeMachine(id: "m1", status: .running),
             makeMachine(id: "m2", status: .stopped),
-            makeMachine(id: "m3", status: .error),
+            makeMachine(id: "m3", status: .error)
         ]
         #expect(mock.runningMachines.map(\.id) == ["m1"])
         #expect(mock.errorMachineCount == 1)
@@ -1303,7 +1303,7 @@ struct ContainerServiceBaseSummaryTests {
         mock.machines = [
             makeMachine(id: "m1", status: .running),
             makeMachine(id: "util-running", status: .running, isUtility: true),
-            makeMachine(id: "util-error", status: .error, isUtility: true),
+            makeMachine(id: "util-error", status: .error, isUtility: true)
         ]
         #expect(mock.runningMachines.map(\.id) == ["m1"])
         #expect(mock.errorMachineCount == 0)
@@ -1314,7 +1314,7 @@ struct ContainerServiceBaseSummaryTests {
         mock.containers = [
             makeContainer(id: "1", status: .running),
             makeContainer(id: "2", status: .stopped),
-            makeContainer(id: "3", status: .running),
+            makeContainer(id: "3", status: .running)
         ]
         mock.pinnedContainerIDs = ["2", "3"]
         #expect(Set(mock.pinnedContainers.map(\.id)) == ["2", "3"])
@@ -1324,7 +1324,7 @@ struct ContainerServiceBaseSummaryTests {
         let mock = MockContainerService()
         mock.machines = [
             makeMachine(id: "m1", status: .stopped),
-            makeMachine(id: "util", status: .running, isUtility: true),
+            makeMachine(id: "util", status: .running, isUtility: true)
         ]
         mock.pinnedMachineIDs = ["m1", "util"]
         #expect(mock.pinnedMachines.map(\.id) == ["m1"])

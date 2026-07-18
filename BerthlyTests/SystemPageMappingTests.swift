@@ -128,9 +128,12 @@ struct SystemConfigMappingTests {
 struct DaemonLogEventFormattingTests {
 
     @Test func joinsTimeLevelAndMessageWithTabs() {
+        // One NDJSON event is by definition one line; splitting it would change the input.
+        // swiftlint:disable line_length
         let ndjson = """
             {"timestamp":"2026-07-05 03:36:02.423830-0400","messageType":"Error","eventMessage":"xpc client handler connection error [error=Connection invalid]"}
             """
+        // swiftlint:enable line_length
         let formatted = LiveContainerService.formatDaemonLogEvent(ndjson)
 
         #expect(formatted == "03:36:02.423\tError\txpc client handler connection error [error=Connection invalid]")
