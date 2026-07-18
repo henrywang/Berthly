@@ -51,11 +51,15 @@ the catalog PNGs.
 No `rsvg`/`inkscape`/`imagemagick` on the machine — macOS's two built-in SVG
 rasterizers have complementary bugs:
 
-- **`qlmanage -t`** honors SVG `<filter>` (the `feDropShadow` on the app icon)
-  but mis-lays-out canvases below ~512px.
-- **NSImage/CoreSVG** (`render_svg.swift`) scales correctly at any size but
-  silently ignores `<filter>`.
+- **`qlmanage -t`** honors SVG `<filter>` (the `feDropShadow` on the margined
+  masters) but mis-lays-out canvases below ~512px, square-pads non-square
+  canvases, and composites onto **opaque white** — no transparency survives.
+- **NSImage/CoreSVG** (`render_svg.swift`) scales correctly at any size and
+  keeps transparency, but silently ignores `<filter>` and mishandles
+  `rotate()` transforms.
 
-So the shadowed dmg masters render through `qlmanage` at ≥512 and downsample
-with `sips`; all filter-free art (app icon, menu bar, favicon, touch) renders
-through the Swift helper. `build.sh` already routes each file correctly.
+All art rendered by `build.sh` is filter-free and goes through the Swift
+helper. The shadowed dmg masters are rendered by `../dmg/build.sh` instead:
+CoreSVG for the artwork, with the master's `feDropShadow` re-applied in
+CoreGraphics (`../dmg/render_volume_icon.swift`) — the qlmanage route would
+bake a white square behind the squircle.
