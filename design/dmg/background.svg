@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Berthly DMG background — authored at 2x (window is 660x420 pt).
+     Rendered via qlmanage (canvas >= 512 rule); no <filter> used, but
+     qlmanage is also the renderer that honors <text>. -->
+<svg width="1320" height="840" viewBox="0 0 1320 840" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3F82EC"/>
+      <stop offset="1" stop-color="#1D4FA8"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1320" height="840" fill="url(#bg)"/>
+
+  <!-- water: two soft wave bands along the bottom -->
+  <path d="M0 700 Q 165 670 330 700 T 660 700 T 990 700 T 1320 700 L 1320 840 L 0 840 Z"
+        fill="#FFFFFF" opacity="0.07"/>
+  <path d="M0 756 Q 165 730 330 756 T 660 756 T 990 756 T 1320 756 L 1320 840 L 0 840 Z"
+        fill="#FFFFFF" opacity="0.09"/>
+
+  <!-- instruction -->
+  <text x="660" y="142" text-anchor="middle"
+        font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+        font-size="34" font-weight="600" fill="#FFFFFF" opacity="0.95">
+    Drag Berthly to Applications
+  </text>
+
+  <!-- mooring line: a dotted rope that sags from the app, levels out, and
+       ends in a right-pointing arrowhead at Applications. The curve's last
+       control point shares the end's y so the tangent is horizontal — a
+       tilted arrowhead reads as pointing down, not right. -->
+  <path d="M 486 372 C 570 452, 690 382, 792 382"
+        fill="none" stroke="#FFFFFF" opacity="0.9"
+        stroke-width="10" stroke-linecap="round"
+        stroke-dasharray="0.1 34"/>
+  <path d="M 846 380 L 810 363 L 810 397 Z" fill="#FFFFFF" opacity="0.9"/>
+</svg>

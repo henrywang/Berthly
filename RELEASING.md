@@ -22,9 +22,11 @@ Releases. `scripts/release.sh` runs the whole pipeline.
    - preflight: `gh` authenticated, Developer ID identity present, Sparkle
      tools in DerivedData, tag `v<version>` not already released
    - `xcodebuild archive` + `-exportArchive` with the Developer ID method
-   - build `Berthly-<version>.dmg` (app + `/Applications` symlink), sign it,
-     notarize it (`notarytool --wait`, typically a few minutes), staple the
-     ticket to the DMG, verify with `spctl`
+   - build `Berthly-<version>.dmg` via `scripts/dmg.sh` — branded
+     drag-to-install window (background, icon positions, volume icon; assets
+     from `design/dmg/`; needs Finder Automation permission on first run) —
+     then sign it, notarize it (`notarytool --wait`, typically a few
+     minutes), staple the ticket to the DMG
    - `generate_appcast` — signs the DMG with the Sparkle EdDSA key from the
      login keychain and writes a single-entry `appcast.xml` whose download
      URL points at this release's assets

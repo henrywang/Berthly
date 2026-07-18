@@ -1,0 +1,5 @@
+# Rendered artifacts — regenerate with ./build.sh
+*.png
+*.tiff
+*.icns
+build/

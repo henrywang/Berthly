@@ -145,15 +145,11 @@ xcodebuild -exportArchive \
 APP="$DIST/export/Berthly.app"
 
 # ── DMG, notarize, staple ─────────────────────────────────────────────────
-# Standard drag-to-install layout: the app plus an /Applications symlink.
+# Branded drag-to-install layout (background, icon positions, volume icon):
+# scripts/dmg.sh, with assets from design/dmg.
 DMG_NAME="Berthly-$VERSION.dmg"
 DMG_PATH="$DIST/$DMG_NAME"
-STAGING="$DIST/dmg-staging"
-mkdir -p "$STAGING"
-ditto "$APP" "$STAGING/Berthly.app"
-ln -s /Applications "$STAGING/Applications"
-hdiutil create -volname "Berthly $VERSION" -srcfolder "$STAGING" -ov -format UDZO "$DMG_PATH"
-rm -rf "$STAGING"
+scripts/dmg.sh "$APP" "$VERSION" "$DMG_PATH"
 
 codesign --force --sign "$DEVID_IDENTITY" "$DMG_PATH"
 echo "──> Notarizing (waits for Apple; typically a few minutes)…"

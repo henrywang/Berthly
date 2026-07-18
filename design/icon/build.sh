@@ -4,10 +4,11 @@
 #
 # Rendering note: with no rsvg/inkscape/imagemagick on the machine, macOS gives
 # two built-in SVG rasterizers with complementary bugs —
-#   - qlmanage honors SVG <filter> (feDropShadow) but mis-lays-out canvases <512px
-#   - NSImage/CoreSVG (render_svg.swift) scales at any size but drops <filter>
-# So: shadowed masters go through qlmanage at >=512 then downsample; filter-free
-# small art (menu bar, favicon) goes through the Swift renderer.
+#   - qlmanage honors SVG <filter> (feDropShadow) but mis-lays-out canvases
+#     <512px, square-pads non-square canvases, and composites onto opaque white
+#   - NSImage/CoreSVG (render_svg.swift) scales at any size, keeps
+#     transparency, but drops <filter> (and mishandles rotate() transforms)
+# All art rendered here is filter-free full-bleed -> the Swift renderer.
 set -e
 cd "$(dirname "$0")"
 DIR="$(pwd)"
@@ -28,10 +29,12 @@ render berthly-dock-1024.svg   berthly-dock-1024.png   1024
 render berthly-favicon-512.svg berthly-favicon-512.png 512
 render berthly-touch-512.svg   berthly-touch-512.png   512
 render berthly-menubar-36.svg  berthly-menubar-144.png 144
-#    margined Big Sur-style masters (dmg volume icon only) -> qlmanage
-#    (>=512, honors the baked feDropShadow)
-qlmanage -t -s 1024 -o . berthly-master-1024.svg >/dev/null 2>&1 && mv -f berthly-master-1024.svg.png berthly-master-1024.png
-qlmanage -t -s 512  -o . berthly-small-512.svg   >/dev/null 2>&1 && mv -f berthly-small-512.svg.png   berthly-small-512.png
+#    The margined Big Sur-style masters (berthly-master-1024.svg,
+#    berthly-small-512.svg) are NOT rasterized here: their only consumer is
+#    the DMG volume icon, and ../dmg/build.sh renders them itself (CoreSVG +
+#    CoreGraphics shadow). qlmanage — the only local renderer that honors
+#    their feDropShadow — composites onto opaque white, which puts a white
+#    square behind the squircle.
 
 # 3. app icon set + .icns (staged in build/)
 IS="$DIR/build/Berthly.iconset"
