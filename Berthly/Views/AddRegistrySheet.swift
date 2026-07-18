@@ -13,6 +13,8 @@ struct AddRegistrySheet: View {
     @State private var username = ""
     @State private var password = ""
     @State private var isPasswordRevealed = false
+    @State private var allowInsecure = false
+    @State private var showAdvanced = false
     @State private var isSubmitting = false
     @State private var errorMessage: String?
 
@@ -40,6 +42,7 @@ struct AddRegistrySheet: View {
                             .font(.caption.weight(.medium))
                             .foregroundStyle(.secondary)
                         TextField("docker.io", text: $host)
+                            .accessibilityIdentifier("addRegistryHostField")
                             .textFieldStyle(.roundedBorder)
                             .fontDesign(.monospaced)
                     }
@@ -50,6 +53,7 @@ struct AddRegistrySheet: View {
                                 .font(.caption.weight(.medium))
                                 .foregroundStyle(.secondary)
                             TextField("", text: $username)
+                                .accessibilityIdentifier("addRegistryUsernameField")
                                 .textFieldStyle(.roundedBorder)
                         }
                         VStack(alignment: .leading, spacing: 6) {
@@ -59,6 +63,7 @@ struct AddRegistrySheet: View {
                             HStack(spacing: 6) {
                                 if isPasswordRevealed {
                                     TextField("", text: $password)
+                                        .accessibilityIdentifier("addRegistryPasswordField")
                                         .textFieldStyle(.roundedBorder)
                                         .fontDesign(.monospaced)
                                 } else {
@@ -87,6 +92,7 @@ struct AddRegistrySheet: View {
                                 }
                                 .buttonStyle(.borderless)
                                 .help(isPasswordRevealed ? "Hide token" : "Show token")
+                                .accessibilityIdentifier("addRegistryRevealPasswordButton")
                             }
                             Text("Token or password for this host")
                                 .font(.caption2)
@@ -112,6 +118,10 @@ struct AddRegistrySheet: View {
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
                         }
+                    }
+
+                    SheetAdvancedSection(isExpanded: $showAdvanced) {
+                        InsecureRegistryToggle(isOn: $allowInsecure)
                     }
 
                     if let errorMessage {
@@ -144,6 +154,7 @@ struct AddRegistrySheet: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(!canSubmit)
                         .keyboardShortcut(.return)
+                        .accessibilityIdentifier("addRegistrySubmitButton")
                 }
             }
             .padding(.horizontal, 20)
@@ -163,7 +174,9 @@ struct AddRegistrySheet: View {
         errorMessage = nil
         Task {
             do {
-                try await service.signInRegistry(host: trimmedHost, username: trimmedUsername, password: password)
+                try await service.signInRegistry(
+                    host: trimmedHost, username: trimmedUsername, password: password, insecure: allowInsecure
+                )
                 isSubmitting = false
                 dismiss()
             } catch {

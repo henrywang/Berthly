@@ -962,6 +962,248 @@ final class RegistryJourneyTests: BerthlyE2ETestCase {
         } while Date() < deadline
         throw XCTSkip("local registry on port \(Self.registryPort) never became ready")
     }
+
+    /// Credentialed counterpart to `testBuildPushPullRoundTripThroughLocalInsecureRegistry`: stands
+    /// up a local registry that REQUIRES sign-in (htpasswd Basic auth — `registry:latest`'s own auth
+    /// mode, matching `container registry login`'s credential model), built and run through the UI
+    /// like every other fixture in this suite (per the user's direction: registry infra goes through
+    /// the Build + Run Container sheets, not `ContainerCLI.run`). Proves: (1) the registry actually
+    /// enforces login — an anonymous push is rejected, not silently hung (distinguishing this from
+    /// the stall class `PushStallGuard.swift` exists for); (2) signing in to an HTTP-only registry on
+    /// a non-standard port needs the insecure toggle — the exact gap `LiveContainerService
+    /// .signInRegistry` used to have (it passed a `host:port` string straight into a host-only
+    /// `RegistryClient` initializer with no scheme override — see `resolveRegistryConnectionTarget`);
+    /// (3) push and pull both succeed once signed in, round-tripping real bytes through the registry.
+    ///
+    /// A verified CLI spike (2026-07-18) showed a plain `container image push`/`pull` against this
+    /// exact fixture can appear to hang indefinitely the first time — not a protocol bug, but macOS
+    /// blocking on a Keychain-access confirmation dialog with no one present to click it. Running
+    /// through the app itself avoids the cross-process case that triggered it (the app creates the
+    /// Keychain item and reads it back in the same process), but the `container registry list`
+    /// CLI-oracle check below is a different process reading that same item and could need one
+    /// manual "Always Allow" the first time this test runs locally — same phenomenon
+    /// `AddRegistrySheet`'s own UI copy already warns about.
+    ///
+    /// Regression note (2026-07-18): the run-sheet's "Show Container" success button MUST be
+    /// clicked, not just asserted on — left on screen, it swallows the next ⌘K (command palette)
+    /// instead of routing it to the app, which reproduced as a mysterious `commandPaletteSearchField`
+    /// focus failure ~30s into the run, on a step that has nothing to do with the palette itself.
+    @MainActor
+    func testCredentialedPushPullRoundTripThroughLocalAuthenticatedRegistry() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        try ContainerCLI.ensureImage(Self.registryImage)
+
+        let credentialedPort = 18582
+        let username = "berthly-e2e"
+        let password = UUID().uuidString
+        let registryImageTag = "\(Self.resourcePrefix)/regauth-\(UUID().uuidString.prefix(8).lowercased()):1"
+        let markerTag = "\(Self.resourcePrefix)/authtest-\(UUID().uuidString.prefix(8).lowercased()):1"
+        let ref = "localhost:\(credentialedPort)/berthly-e2e/authtest:1"
+
+        // ── 1. Fixture: bake the htpasswd file and auth env vars into a registry:latest-derived
+        // image via the Build sheet (keeps the Run sheet to a single port field, already exercised
+        // elsewhere, instead of a multi-row env-var entry), then run it via the Run Container sheet. ──
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-authreg-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let htpasswdEntry = try Self.generateHtpasswdEntry(username: username, password: password)
+        try htpasswdEntry.write(to: dir.appendingPathComponent("htpasswd"), atomically: true, encoding: .utf8)
+        let registryDockerfile = """
+        FROM registry:latest
+        COPY htpasswd /auth/htpasswd
+        ENV REGISTRY_AUTH=htpasswd
+        ENV REGISTRY_AUTH_HTPASSWD_REALM=berthly-e2e-realm
+        ENV REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd
+        """
+        try registryDockerfile.write(to: dir.appendingPathComponent("Dockerfile"), atomically: true, encoding: .utf8)
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        buildImageThroughSheet(app, tag: registryImageTag, contextPath: dir.path)
+
+        openRunSheet(app)
+        typeField(app, registryImageTag, into: "runImageField")
+        typeField(app, "\(Self.resourcePrefix)-authreg", into: "runNameField")
+        app.buttons["runCategory-Network"].click()
+        app.buttons["runPortAddButton"].click()
+        typeField(app, "\(credentialedPort)", into: "runPortHostField")
+        typeField(app, "5000", into: "runPortContainerField")
+        app.buttons["runSubmitButton"].click()
+        let showRegistryContainer = app.buttons["Show Container"]
+        XCTAssertTrue(showRegistryContainer.waitForExistence(timeout: 120),
+                      "authenticated registry container should boot")
+        // Dismiss the success sheet — left open, it can swallow the next ⌘K (command palette)
+        // rather than routing it to the app, which is what every other UI step here depends on.
+        showRegistryContainer.click()
+
+        // ── 2. Readiness + negative proof in one step: an anonymous push must be rejected (401),
+        // not hang — that distinguishes "registry up and enforcing auth" from "not listening yet". ──
+        let rejection = try waitForAnonymousPushToBeRejected(port: credentialedPort)
+        XCTAssertTrue(rejection.localizedCaseInsensitiveContains("unauthorized"),
+                      "an anonymous push should be rejected, proving this registry requires login: \(rejection)")
+
+        // ── 3. Marker image to push — same pattern as the anonymous journey. ──
+        let markerDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-authctx-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: markerDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: markerDir) }
+        try "FROM alpine:latest\nRUN echo credential-round-trip > /berthly-e2e-marker\n"
+            .write(to: markerDir.appendingPathComponent("Dockerfile"), atomically: true, encoding: .utf8)
+
+        buildImageThroughSheet(app, tag: markerTag, contextPath: markerDir.path)
+
+        // ── 4. Sign in through the Add Registry sheet: negative (no insecure toggle) against an
+        // HTTP-only registry on a non-standard port, then positive — the exact gap the product fix
+        // closed. Host carries an explicit port, which the old signInRegistry mishandled. ──
+        XCTAssertTrue(app.openViaPalette("Add Registry"))
+        let hostField = app.windows.textFields["addRegistryHostField"]
+        XCTAssertTrue(hostField.waitForExistence(timeout: 5), "Add Registry sheet should appear")
+        typeField(app, "localhost:\(credentialedPort)", into: "addRegistryHostField")
+        typeField(app, username, into: "addRegistryUsernameField")
+        app.buttons["addRegistryRevealPasswordButton"].click()
+        typeField(app, password, into: "addRegistryPasswordField")
+
+        let addRegistrySubmit = app.buttons["addRegistrySubmitButton"]
+        addRegistrySubmit.click()
+        XCTAssertTrue(addRegistrySubmit.waitForNonExistence(timeout: 10), "sign-in should leave idle once submitted")
+        XCTAssertTrue(addRegistrySubmit.waitForExistence(timeout: 90),
+                      "sign-in without the insecure toggle should fail against an HTTP-only registry")
+
+        expandAdvancedSection(app, revealing: "allowInsecureRegistryToggle")
+        app.checkBoxes["allowInsecureRegistryToggle"].click()
+        addRegistrySubmit.click()
+        XCTAssertTrue(hostField.waitForNonExistence(timeout: 30), "sign-in should succeed and dismiss the sheet")
+
+        // CLI oracle: same Keychain security domain `container registry list` reads (see the
+        // doc comment above re: a possible one-time Keychain confirmation on this specific check).
+        let registryList = try ContainerCLI.run(["registry", "list"], timeout: 20)
+        XCTAssertTrue(registryList.output.contains("localhost:\(credentialedPort)"),
+                      "the app's sign-in should be visible to the CLI (same Keychain domain): \(registryList.output)")
+
+        // ── 5. Push, now signed in: should succeed. ──
+        let imagesTab = app.staticTexts["Images"]
+        XCTAssertTrue(imagesTab.waitForExistence(timeout: 10))
+        imagesTab.click()
+        let imageRow = app.staticTexts[markerTag]
+        XCTAssertTrue(imageRow.waitForExistence(timeout: 15), "marker image should appear in the sidebar")
+        imageRow.click()
+        let pushButton = app.buttons["Push"]
+        XCTAssertTrue(pushButton.waitForExistence(timeout: 10))
+        pushButton.click()
+
+        let destField = app.windows.textFields["pushDestinationField"]
+        XCTAssertTrue(destField.waitForExistence(timeout: 5), "Push sheet should appear")
+        destField.click()
+        app.typeKey("a", modifierFlags: .command)
+        destField.typeText(ref)
+        expandAdvancedSection(app, revealing: "allowInsecureRegistryToggle")
+        app.checkBoxes["allowInsecureRegistryToggle"].click()
+        app.buttons["pushSubmitButton"].click()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 90),
+                      "push should succeed once signed in; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        app.buttons["Done"].click()
+
+        // ── 6. Force a real network pull: delete every local copy of the pushed reference. ──
+        _ = try ContainerCLI.run(["image", "delete", ref])
+        _ = try ContainerCLI.run(["image", "delete", markerTag])
+
+        // ── 7. Pull it back — already signed in, so only the insecure toggle is needed. ──
+        XCTAssertTrue(app.openViaPalette("Pull Image"))
+        let pullField = app.windows.textFields["pullImageField"]
+        XCTAssertTrue(pullField.waitForExistence(timeout: 5), "Pull sheet should appear")
+        pullField.click(); pullField.typeText(ref)
+        expandAdvancedSection(app, revealing: "allowInsecureRegistryToggle")
+        app.checkBoxes["allowInsecureRegistryToggle"].click()
+        app.buttons["pullSubmitButton"].click()
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 90), "pull should succeed once signed in")
+        app.buttons["Done"].click()
+
+        // ── Oracle: the pulled bytes are the SAME image that was built and pushed — a genuine
+        // credentialed round trip, not just "a pull succeeded". ──
+        let out = try ContainerCLI.run(
+            ["run", "--rm", "--name", containerName, ref, "cat", "/berthly-e2e-marker"],
+            timeout: 120
+        )
+        XCTAssertTrue(out.output.contains("credential-round-trip"),
+                      "the pulled image should carry what the build baked in:\n\(out.output)")
+
+        // ── Teardown: sign out through the APP, not the CLI — a CLI `registry logout` can't
+        // always delete a Keychain item the app created (different code-signing identity owns it;
+        // see the `errSecInvalidOwnerEdit` handling in LiveContainerService.signOutRegistry). ──
+        XCTAssertTrue(app.openViaPalette("Go to Registries"))
+        let signOutButton = app.buttons["registrySignOutButton-localhost:\(credentialedPort)"]
+        XCTAssertTrue(signOutButton.waitForExistence(timeout: 10), "the signed-in registry row should be visible")
+        signOutButton.click()
+        XCTAssertTrue(signOutButton.waitForNonExistence(timeout: 15), "sign-out should remove the row")
+        // registry container and berthly-e2e/… images swept by prefix in tearDown.
+    }
+
+    /// Generates one bcrypt htpasswd line via the system `htpasswd` tool (ships at
+    /// `/usr/sbin/htpasswd` on macOS) — the only hash `registry:latest`'s `REGISTRY_AUTH=htpasswd`
+    /// mode accepts. `-B` forces bcrypt, `-b` takes the password as an argument, `-n` prints to
+    /// stdout instead of writing a file, so this needs no throwaway file of its own.
+    private static func generateHtpasswdEntry(username: String, password: String) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/htpasswd")
+        process.arguments = ["-Bbn", username, password]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw NSError(domain: "RegistryJourneyTests", code: 1,
+                          userInfo: [NSLocalizedDescriptionKey: "htpasswd generation failed"])
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        // swiftlint:disable:next optional_data_string_conversion
+        return String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) + "\n"
+    }
+
+    /// Polls the freshly-started authenticated registry until an anonymous push gets a definitive
+    /// HTTP-level rejection rather than a connection failure — the same "is it actually listening
+    /// yet" problem `waitForRegistryReady` solves, plus doubling as this journey's negative proof
+    /// that the registry enforces login. Returns the rejecting CLI output for the caller to assert
+    /// on directly, so the "requires login" claim comes from what the daemon actually said, not an
+    /// assumption baked into the poll.
+    private func waitForAnonymousPushToBeRejected(port: Int, timeout: TimeInterval = 30) throws -> String {
+        let probeRef = "localhost:\(port)/berthly-e2e/authready-probe:1"
+        _ = try ContainerCLI.run(["image", "tag", Self.fixtureImage, probeRef])
+        let deadline = Date(timeIntervalSinceNow: timeout)
+        var lastOutput = ""
+        repeat {
+            if let result = try? ContainerCLI.run(["image", "push", "--scheme", "http", probeRef], timeout: 10) {
+                lastOutput = result.output
+                if result.status != 0 && lastOutput.localizedCaseInsensitiveContains("unauthorized") {
+                    return lastOutput
+                }
+            }
+            Thread.sleep(forTimeInterval: 1)
+        } while Date() < deadline
+        throw XCTSkip("local authenticated registry on port \(port) never rejected an anonymous push "
+                       + "(last output: \(lastOutput))")
+    }
+
+    /// Drives the Build sheet end to end (open via palette → tag → context path → submit → Done),
+    /// shared by this journey's two builds (the auth-registry image and the marker image) — same
+    /// flow `testBuildImageFromDockerfileThenRun` and `testBuildMachineImageThenBootMachine` inline,
+    /// factored out here only because this journey needs it twice.
+    @MainActor
+    private func buildImageThroughSheet(_ app: XCUIApplication, tag: String, contextPath: String) {
+        XCTAssertTrue(app.openViaPalette("Build Image"))
+        let tagField = app.windows.textFields["buildTagField"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 5), "Build sheet should appear")
+        tagField.click(); tagField.typeText(tag)
+        let ctxField = app.windows.textFields["buildContextField"]
+        ctxField.click(); ctxField.typeText(contextPath)
+        app.buttons["buildSubmitButton"].click()
+        let buildDone = app.buttons["Done"]
+        XCTAssertTrue(buildDone.waitForExistence(timeout: 300),
+                      "image build should succeed; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        buildDone.click()
+    }
 }
 
 /// Regression coverage for the same "Advanced"-style accessibility-click bug (2026-07-16, see
