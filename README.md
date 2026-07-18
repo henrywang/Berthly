@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="design/icon/berthly-master-1024.svg" width="150" alt="Berthly app icon — a dock bollard with a mooring line made fast">
+  <img src="design/icon/berthly-dock-1024.svg" width="150" alt="Berthly app icon — a dock bollard with a mooring line made fast">
 </p>
 
 <h1 align="center">Berthly</h1>
