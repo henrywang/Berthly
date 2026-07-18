@@ -27,6 +27,10 @@ jobs:
     name: Analyze Swift
     runs-on: macos-26
     timeout-minutes: 120
+    # Swift extraction takes ~1hr (traced Xcode build); skip it on PRs to
+    # keep PR CI fast, and rely on push (every merge) + weekly cron for
+    # coverage. No branch protection requires this job, so nothing blocks.
+    if: github.event_name != 'pull_request'
     permissions:
       contents: read
       security-events: write
