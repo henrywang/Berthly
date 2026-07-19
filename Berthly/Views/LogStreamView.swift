@@ -79,6 +79,7 @@ struct LogStreamView: View {
                 .help(streamEnded ? "The log stream ended unexpectedly — the daemon connection may have been lost." : "")
 
                 TextField("Filter logs", text: $filterText)
+                    .accessibilityIdentifier("logFilterField")
                     .textFieldStyle(.roundedBorder)
                     .frame(maxWidth: 300)
 

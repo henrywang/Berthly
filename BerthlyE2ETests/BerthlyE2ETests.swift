@@ -264,7 +264,11 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
 
     /// Tier-1 lifecycle journey (PLAN/E2E-TEST.md §1.3): stop/start/delete buttons' real
     /// effect, verified through the CLI after each transition. The container is created via
-    /// CLI — this journey tests the lifecycle actions, not the Run sheet.
+    /// CLI — this journey tests the lifecycle actions, not the Run sheet. Extended
+    /// 2026-07-18 (§6.3, W12) with restart/kill — the two remaining lifecycle verbs that had
+    /// no daemon-level proof, reached via the row's context menu (same label-query pattern as
+    /// Delete, since `.accessibilityIdentifier` on a contextMenu Button doesn't survive the
+    /// SwiftUI→NSMenu bridge).
     @MainActor
     func testContainerLifecycleFromUI() throws {
         try ContainerCLI.ensureImage(Self.fixtureImage)
@@ -301,9 +305,49 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         let running = try ContainerCLI.run(["ls"], timeout: 30)
         XCTAssertTrue(running.output.contains(containerName), "daemon should report it running")
 
-        // Stop once more — delete is only offered for stopped containers.
-        stopButton.click()
-        XCTAssertTrue(startButton.waitForExistence(timeout: 60))
+        // Restart: proves the button is a real reboot, not a no-op — the daemon runs each
+        // container in its own lightweight VM, so a restart resets the VM's kernel clock even
+        // though the UI's Stop/Start button never flips (both states read "running" throughout,
+        // unlike Stop→Start above). /proc/uptime is the oracle that distinguishes them.
+        func uptimeSeconds() -> Double? {
+            guard let result = try? ContainerCLI.exec(containerName, ["cat", "/proc/uptime"]),
+                  result.status == 0 else { return nil }
+            return result.output.split(separator: " ").first.flatMap { Double($0) }
+        }
+        guard let uptimeBeforeRestart = uptimeSeconds() else {
+            XCTFail("could not read /proc/uptime before restart"); return
+        }
+        row.rightClick()
+        // Scoped to the window: a bare app.menuItems["Restart"] also matches the Apple menu's
+        // system-wide Restart item (confirmed here — "multiple matching elements" with the menu
+        // open), unlike "Delete…"/"Force Kill" elsewhere in this file, which have no such collision.
+        let restartItem = app.windows.menuItems["Restart"]
+        XCTAssertTrue(restartItem.waitForExistence(timeout: 5))
+        restartItem.click()
+
+        var uptimeAfterRestart: Double?
+        let restartDeadline = Date(timeIntervalSinceNow: 60)
+        repeat {
+            uptimeAfterRestart = uptimeSeconds()
+            if let u = uptimeAfterRestart, u < uptimeBeforeRestart { break }
+            Thread.sleep(forTimeInterval: 1)
+        } while Date() < restartDeadline
+        XCTAssertNotNil(uptimeAfterRestart, "container should be reachable again after restart")
+        XCTAssertLessThan(uptimeAfterRestart ?? .infinity, uptimeBeforeRestart,
+                          "restart should reboot the container's VM, resetting /proc/uptime")
+        let stillRunning = try ContainerCLI.run(["ls"], timeout: 30)
+        XCTAssertTrue(stillRunning.output.contains(containerName), "restarted container should be running")
+
+        // Force Kill: the unwedge path when a graceful Stop is ignored (SIGKILL, not SIGTERM) —
+        // the daemon should report it no longer running. This also leaves the container stopped,
+        // which is what Delete below requires, so no extra Stop click is needed.
+        row.rightClick()
+        let killItem = app.menuItems["Force Kill"]
+        XCTAssertTrue(killItem.waitForExistence(timeout: 5))
+        killItem.click()
+        XCTAssertTrue(startButton.waitForExistence(timeout: 60), "UI should show Start after a force kill")
+        let killed = try ContainerCLI.run(["ls"], timeout: 30)
+        XCTAssertFalse(killed.output.contains(containerName), "daemon should report it stopped after a force kill")
 
         // Delete via the row's context menu + confirmation alert. Query the menu item by
         // label: .accessibilityIdentifier on a contextMenu Button does NOT survive the
