@@ -317,18 +317,23 @@ final class ContextMenuTests: XCTestCase {
     /// during the row-removal layout pass ("attempted to change the layout engine while it is
     /// executing"). A minimal right-click-only repro (open the menu, no delete) is clean 3/3, so
     /// the trigger is specifically the row being removed from the List mid-transaction, not the
-    /// menu itself. VolumesListView's row/`.alert`/hover-trash pattern is structurally almost
-    /// identical and deletes cleanly, so root cause isn't obvious from inspection — needs its own
-    /// investigation, out of scope for this context-menu test pass. Skipped rather than deleted so
-    /// the coverage gap and the bug both stay visible; un-skip once NetworksListView's delete path
-    /// is fixed.
+    /// menu itself. Confirmed NOT mock-specific: reproduces identically (same exception codes)
+    /// against a real daemon in `BerthlyE2ETests`, deleting a freshly created network with zero
+    /// attached containers — rules out both mock-timing and endpoint count as factors. Also ruled
+    /// out: wrapping the List in a `Section` (matching Volumes/Images/Compute's structure) and
+    /// pre-selecting a different row before right-clicking the target (right-click reselects it
+    /// regardless). VolumesListView's row/`.alert`/hover-trash pattern is structurally almost
+    /// identical and deletes cleanly, so root cause is still open — needs its own investigation.
+    /// Skipped rather than deleted so the coverage gap and the bug both stay visible; un-skip once
+    /// NetworksListView's delete path is fixed.
     @MainActor
     func testNetworkContextMenuShowsActionsAndDeletes() throws {
         throw XCTSkip("""
             Reliably crashes the app (AppKit \"layout engine changed during its own layout pass\" \
             exception via OutlineListCoordinator.listTableCellView(_:didUpdateIdealHeight:)) when a \
             non-default network row is deleted via its context menu. Confirmed deterministic \
-            (3/3 data-net, 2/2 app-net) and not row-specific. See the doc comment above.
+            (3/3 data-net, 2/2 app-net, and reproduces against a real daemon) and not row- or \
+            data-specific. See the doc comment above.
             """)
     }
 }
