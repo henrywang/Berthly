@@ -19,6 +19,13 @@ struct ImageSaveRequest: Identifiable {
 /// (`suggestedArchiveFilename`), so callers go straight from menu action to `ImageSaveRequest`.
 @MainActor
 func promptForArchiveDestination(imageName: String) -> URL? {
+    // E2E-only bypass: NSSavePanel is system UI XCUITest can't drive, and a typed-path form in
+    // front of it would trade away overwrite confirmation and .tar enforcement for no real user
+    // benefit (unlike a container-side path, a save destination genuinely wants a picker). Same
+    // seam pattern as UITEST_USE_MOCK_SERVICE — real users are never affected.
+    if let path = ProcessInfo.processInfo.environment["UITEST_SAVE_DESTINATION"] {
+        return URL(fileURLWithPath: path)
+    }
     let panel = NSSavePanel()
     panel.nameFieldStringValue = suggestedArchiveFilename(for: imageName)
     panel.allowedContentTypes = [UTType(filenameExtension: "tar") ?? .archive]
