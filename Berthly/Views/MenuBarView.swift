@@ -4,19 +4,17 @@
 import AppKit
 import SwiftUI
 
-/// `openWindow(id:)` has no built-in single-instance behavior for a plain `WindowGroup` — calling
-/// it when a main window already exists opens a duplicate instead of focusing the existing one.
-/// `bridge.isMainWindowOpen` (set by `MainWindowView`'s `.onAppear`/`.onDisappear`) is what lets
-/// every menu bar entry point here check before deciding whether to call it.
+/// `openWindow(id:)` has no single-instance behavior for a plain `WindowGroup` — calling it
+/// when a main window already exists opens a duplicate instead of focusing it, hence the
+/// `bridge.isMainWindowOpen` check below (kept in sync by `MainWindowView`'s
+/// `.onAppear`/`.onDisappear`).
 ///
-/// Also closes the menu bar popover itself: a native `NSStatusItem` menu always dismisses after
-/// any item is chosen, but a `menuBarExtraStyle(.window)` popover doesn't — SwiftUI has no public
-/// API to close it, only the built-in "click the status item again" / "click outside" gestures.
-/// Every call site of this helper hands off to the main window (opening a sheet or selecting an
-/// item), so leaving the popover open after that reads as broken, not intentional. Closes
-/// `bridge.menuBarPopoverWindow` directly (captured via `WindowAccessor` below) rather than
-/// guessing at a private window class name or a style-mask heuristic that risks closing the wrong
-/// window (e.g. a sheet that's mid-presentation).
+/// Also closes the menu bar popover: unlike a native `NSStatusItem` menu, a
+/// `menuBarExtraStyle(.window)` popover doesn't auto-dismiss on selection, and SwiftUI has no
+/// public API to close it. Leaving it open after handing off to the main window reads as
+/// broken, so this closes `bridge.menuBarPopoverWindow` directly (captured via `WindowAccessor`
+/// below) rather than guessing at a private window class or style-mask heuristic that risks
+/// closing the wrong window (e.g. a sheet mid-presentation).
 @MainActor
 private func openOrFocusMainWindow(bridge: MenuBarBridge, openWindow: OpenWindowAction) {
     if !bridge.isMainWindowOpen {
@@ -597,21 +595,16 @@ private struct MenuBarMoreButton: View {
 }
 
 /// "Run…" as a submenu (Run Container / Create Machine) rather than opening the main window's
-/// chooser popover — the user already tells us which one they want here, so there's no need for
-/// a second "which kind?" step once the window is open.
+/// chooser popover, since the user already told us which kind here.
 ///
-/// Deliberately custom-built rather than SwiftUI's `Menu`: `Menu` presents its content in a real
-/// native `NSMenu`, which renders with system menu chrome regardless of this view's own styling —
-/// inside our custom dark popover that reads as a mismatched, jarring native bubble, not part of
-/// the app.
+/// Not SwiftUI's `Menu`: it renders in a real native `NSMenu` with system chrome regardless of
+/// this view's styling, which reads as a mismatched native bubble inside our custom dark popover.
 ///
-/// Expands *downward*, in-flow, rather than a sideways flyout like a native submenu: a
-/// `menuBarExtraStyle(.window)` popover is a real `NSWindow`/panel sized to fit its content, so
-/// anything positioned outside that computed frame (an overlay offset to the side, escaping the
-/// popover's bounds like a native submenu would) has nowhere to render — windows clip to their own
-/// frame regardless of what SwiftUI's layout system reports. Same expand-in-place approach already
-/// used for the daemon stop confirmation above, which is proven to work reliably in this exact
-/// panel.
+/// Expands downward, in-flow, rather than a sideways flyout like a native submenu: a
+/// `menuBarExtraStyle(.window)` popover is a real `NSWindow` sized to fit its content, so
+/// anything positioned outside that frame (e.g. a sideways overlay) has nowhere to render —
+/// windows clip to their own frame regardless of what SwiftUI's layout reports. Same
+/// expand-in-place approach as the daemon stop confirmation above, proven reliable here.
 private struct MenuBarRunSubmenu: View {
     let disabled: Bool
     let onSelectContainer: () -> Void

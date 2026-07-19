@@ -153,11 +153,6 @@ struct ContainerImage: Identifiable, Hashable {
 }
 
 extension ContainerImage {
-    /// Fills each image's `usage` by cross-referencing the containers and machines whose
-    /// `image` field names it — the daemon's image list carries no reverse "used by" info,
-    /// so it's reconstructed the same way `Volume.resolvingMounts` reconstructs mounts.
-    /// Machine image refs aren't pre-stripped of a trailing `@digest` the way `Container.image`
-    /// is, so that's normalized here before comparing.
     /// Disk-usage summary for the images list's header bar. Sizes are deduplicated by content
     /// digest: a retag adds a second *name* for the same bytes, not a second copy on disk, so
     /// summing `sizeBytes` per row would double-count. A digest's bytes are reclaimable only
@@ -177,6 +172,11 @@ extension ContainerImage {
         return (total, reclaimable)
     }
 
+    /// Fills each image's `usage` by cross-referencing the containers and machines whose
+    /// `image` field names it — the daemon's image list carries no reverse "used by" info, so
+    /// it's reconstructed the same way `Volume.resolvingMounts` reconstructs mounts. Machine
+    /// image refs aren't pre-stripped of a trailing `@digest` the way `Container.image` is, so
+    /// that's normalized here before comparing.
     nonisolated static func resolvingUsage(_ images: [ContainerImage], containers: [Container], machines: [Machine]) -> [ContainerImage] {
         func strippedDigest(_ ref: String) -> String {
             guard let atIdx = ref.firstIndex(of: "@") else { return ref }

@@ -3,15 +3,16 @@
 
 import SwiftUI
 
-/// The app's command menu. On macOS the menu bar is the canonical command surface — it's where
-/// users discover shortcuts, what the Help menu's search indexes, and the accessibility path to
-/// every action — so each toolbar action is mirrored here, and the *menu items* own the keyboard
-/// shortcuts (the toolbar buttons deliberately don't register their own, to avoid double
-/// registration of the same key).
-///
-/// Actions route through `MenuBarBridge.pendingIntent` exactly like the menu bar extra's entry
-/// points: `MainWindowView` picks the intent up via `.onChange`/`.onAppear`, which also covers
-/// choosing a menu item while no main window exists (the intent survives until the window mounts).
+// The app's command menu. On macOS the menu bar is the canonical command surface — it's where
+// users discover shortcuts, what the Help menu's search indexes, and the accessibility path to
+// every action — so each toolbar action is mirrored here, and the *menu items* own the keyboard
+// shortcuts (the toolbar buttons deliberately don't register their own, to avoid double
+// registration of the same key).
+//
+// Actions route through `MenuBarBridge.pendingIntent` exactly like the menu bar extra's entry
+// points: `MainWindowView` picks the intent up via `.onChange`/`.onAppear`, which also covers
+// choosing a menu item while no main window exists (the intent survives until the window mounts).
+
 /// App-menu entry for Sparkle self-updates, in the standard spot under "About Berthly".
 /// The button lives in a child View (not directly in the CommandGroup) so reading the
 /// `@Observable` updater's `canCheckForUpdates` re-evaluates the menu item when an update

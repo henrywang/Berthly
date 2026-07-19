@@ -885,12 +885,6 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Container Daemon"].exists, "Popover should stay open after stopping")
     }
 
-    /// Repeated sheet open/close is a classic leak source (an `@Observable` view model or a
-    /// `Task` that outlives dismissal), so it's what we churn here rather than idling. Mock mode
-    /// keeps this deterministic and fast — it's measuring the cost of the sheet lifecycle itself,
-    /// not the real daemon. XCTMemoryMetric/XCTCPUMetric have no built-in pass/fail threshold:
-    /// Xcode records a baseline on first run and flags future measurements that regress against
-    /// it (Test Report > set baseline), so this needs a baseline set once after landing.
     /// Regression test for a real crash: `TerminalHostView.Coordinator.sizeChanged` used to force-
     /// convert SwiftTerm's initial `newCols`/`newRows` (0, or momentarily negative, before the
     /// zero-framed `TerminalView` is laid out) straight to `UInt16`, which traps. The mock service
@@ -916,6 +910,12 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    /// Repeated sheet open/close is a classic leak source (an `@Observable` view model or a
+    /// `Task` that outlives dismissal), so it's what we churn here rather than idling. Mock mode
+    /// keeps this deterministic and fast — it's measuring the cost of the sheet lifecycle itself,
+    /// not the real daemon. XCTMemoryMetric/XCTCPUMetric have no built-in pass/fail threshold:
+    /// Xcode records a baseline on first run and flags future measurements that regress against
+    /// it (Test Report > set baseline), so this needs a baseline set once after landing.
     @MainActor
     func testMemoryAndCPUUsageDuringSheetChurn() throws {
         let app = XCUIApplication.berthly()

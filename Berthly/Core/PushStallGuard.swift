@@ -4,13 +4,11 @@
 import Foundation
 import TerminalProgress
 
-/// Whether any event in the batch represents genuine forward progress (an item or byte actually
-/// completed), as opposed to a planning/metadata event like `.addTotalItems`/`.addTotalSize` that
-/// only describes the scope of work and can fire once, immediately, before any network I/O has
-/// happened at all. `PushStallMonitor` must only arm on the former — the daemon plausibly reports
-/// "N blobs, X bytes total" right away, and treating that alone as "progress" would permanently
-/// disarm the stall watchdog even though zero bytes ever move afterward (exactly the bug this
-/// guards against: stuck in a pre-auth retry loop before the first blob transfer even begins).
+/// Whether any event is genuine forward progress (an item/byte actually moved), not a
+/// planning event like `.addTotalItems`/`.addTotalSize` that just describes scope and can
+/// fire once before any I/O happens. `PushStallMonitor` must only arm on the former, or a
+/// daemon reporting "N blobs, X bytes total" up front would disarm the watchdog even while
+/// stuck in a pre-auth retry loop with zero bytes ever moving.
 nonisolated func containsRealProgress(_ events: [ProgressUpdateEvent]) -> Bool {
     events.contains { event in
         switch event {
@@ -21,20 +19,17 @@ nonisolated func containsRealProgress(_ events: [ProgressUpdateEvent]) -> Bool {
     }
 }
 
-/// Watches a transfer for progress and throws if none arrives within a timeout — a safety net for
-/// a real bug in the vendored `ContainerizationOCI` registry client: on a 401/403, it fetches a
-/// fresh Bearer token and retries, with a designed escape hatch ("I already have a token that
-/// should work, stop retrying") gated on `TokenResponse.isValid(scope:)`. That check defaults
-/// `expiresIn` to 0 when a registry's token response omits it (an optional OAuth2 field), which
-/// makes "elapsed < expiresIn" false forever — so the escape hatch never fires. Combined with that
-/// retry branch having no `maxRetries` cap at all (unlike the other retry path), a registry that
-/// keeps issuing scope-insufficient tokens instead of hard-rejecting the request causes an infinite
-/// loop with no thrown error — reproduced pushing to a registry requiring sign-in with none
-/// configured. Not fixable from here: it's Apple's code, not Berthly's.
+/// Safety net for a real bug in the vendored `ContainerizationOCI` registry client: on a
+/// 401/403 it fetches a fresh Bearer token and retries, with an escape hatch
+/// (`TokenResponse.isValid(scope:)`) meant to stop the retries once a good token is in hand.
+/// That check defaults `expiresIn` to 0 when a registry omits it, so "elapsed < expiresIn" is
+/// false forever and the hatch never fires. That retry branch also has no `maxRetries` cap, so
+/// a registry that keeps issuing scope-insufficient tokens loops forever with no thrown error —
+/// reproduced pushing to a registry that requires sign-in with none configured. Not fixable
+/// here: it's Apple's code, not Berthly's.
 ///
-/// A real transfer reports progress well before any reasonable timeout once it's actually under
-/// way, so "zero progress yet" is a safe signal to cancel on — it won't false-positive on a
-/// legitimately large or slow push.
+/// A real transfer reports progress well before any reasonable timeout, so "zero progress yet"
+/// is a safe cancel signal — it won't false-positive on a large or slow push.
 actor PushStallMonitor {
     private var hasProgress = false
 
@@ -42,12 +37,8 @@ actor PushStallMonitor {
         hasProgress = true
     }
 
-    /// Polls every `checkInterval` until progress is recorded — at which point it keeps looping
-    /// harmlessly (never returning normally) so a caller racing this against the real transfer via
-    /// `raceAgainstStall` never has this task "win" the race — or `timeout` total elapses with
-    /// none, in which case it throws `PushStalledError`. Cancellation (once the real transfer
-    /// finishes and this task is cancelled by the caller) exits it via the standard
-    /// `CancellationError`.
+    /// Keeps looping harmlessly after progress arrives (never returns) so it can't "win" the
+    /// race in `raceAgainstStall` — only `timeout` elapsing with zero progress throws.
     func watch(timeout: Duration, checkInterval: Duration = .milliseconds(500)) async throws {
         var elapsedWithoutProgress: Duration = .zero
         while true {
@@ -68,9 +59,9 @@ struct PushStalledError: LocalizedError {
     }
 }
 
-/// Guards `continuation.resume` being called more than once (a runtime crash) when both sides of a
-/// race settle at nearly the same instant — used by `raceAgainstStall`. A plain class with a lock
-/// (not an actor) because `fire()` must be callable synchronously from a non-async `Task` closure.
+/// Guards `continuation.resume` from firing twice (a runtime crash) when both sides of the
+/// `raceAgainstStall` race settle nearly simultaneously. A plain locked class, not an actor,
+/// because `fire()` must be callable synchronously from a non-async `Task` closure.
 private final class OnceGuard: @unchecked Sendable {
     private let lock = NSLock()
     private var fired = false
@@ -82,29 +73,17 @@ private final class OnceGuard: @unchecked Sendable {
     }
 }
 
-/// Runs `operation` racing it against a stall watchdog (`monitor`, see `PushStallMonitor`) —
-/// **without** ever waiting for `operation` to actually finish once the watchdog fires.
+/// Not `withThrowingTaskGroup`: it implicitly awaits every remaining child before returning,
+/// even one that threw the group out early. `operation` is an XPC round-trip to the container
+/// daemon, and Swift's cancellation only works if the callee checks for it — there's no
+/// guarantee Apple's XPC push handler does. If it doesn't, the group's implicit "await
+/// everyone" wedges forever and the watchdog's error can never propagate out. (This is exactly
+/// what happened: that version passed its unit tests, which had no uncancellable sibling to
+/// wedge the teardown, but hung in the real app against an actual unauthenticated push.)
 ///
-/// A first attempt at this used `withThrowingTaskGroup`: add the operation and the watchdog as
-/// child tasks, take whichever finishes first via `group.next()`. That's broken for this use case
-/// specifically because `withThrowingTaskGroup` *implicitly awaits every remaining child* before
-/// it can return — including one that threw the group out via an early exit. `operation` here is
-/// an XPC round-trip to the container daemon; Swift's cooperative cancellation only works if the
-/// callee explicitly checks for it, and there's no reason to assume Apple's XPC push handler does.
-/// If it doesn't, cancelling the push task never makes it finish, so the task group's implicit
-/// "await everyone" wedges forever — the watchdog's error gets thrown *internally* but can never
-/// propagate out, and the caller hangs exactly as if there were no watchdog at all. (This is
-/// exactly what happened: the first fix passed its unit tests, because those tested the watchdog in
-/// isolation with no uncancellable sibling to wedge the teardown — but hung in the real app against
-/// an actual unauthenticated push.)
-///
-/// This version races via a manually-resumed continuation instead of structured concurrency, so
-/// there is no "wait for every child" step. Whichever of `operation`/the watchdog finishes first
-/// resumes the continuation and `raceAgainstStall` returns immediately; the loser is sent a
-/// best-effort `.cancel()` and otherwise abandoned — if `operation` doesn't honor cancellation, it
-/// keeps running invisibly in the background (a leaked task, not a hang), which is the correct
-/// trade-off: the caller gets an answer, at the cost of not being able to prove the abandoned work
-/// actually stopped.
+/// If `operation` loses the race and ignores cancellation, it keeps running invisibly (a
+/// leaked task, not a hang) — the caller gets an answer, at the cost of not being able to
+/// prove the abandoned work stopped.
 func raceAgainstStall<T: Sendable>(
     timeout: Duration,
     monitor: PushStallMonitor,

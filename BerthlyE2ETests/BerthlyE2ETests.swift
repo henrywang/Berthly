@@ -1007,31 +1007,27 @@ final class RegistryJourneyTests: BerthlyE2ETestCase {
         throw XCTSkip("local registry on port \(Self.registryPort) never became ready")
     }
 
-    /// Credentialed counterpart to `testBuildPushPullRoundTripThroughLocalInsecureRegistry`: stands
-    /// up a local registry that REQUIRES sign-in (htpasswd Basic auth — `registry:latest`'s own auth
-    /// mode, matching `container registry login`'s credential model), built and run through the UI
-    /// like every other fixture in this suite (per the user's direction: registry infra goes through
-    /// the Build + Run Container sheets, not `ContainerCLI.run`). Proves: (1) the registry actually
-    /// enforces login — an anonymous push is rejected, not silently hung (distinguishing this from
-    /// the stall class `PushStallGuard.swift` exists for); (2) signing in to an HTTP-only registry on
-    /// a non-standard port needs the insecure toggle — the exact gap `LiveContainerService
-    /// .signInRegistry` used to have (it passed a `host:port` string straight into a host-only
-    /// `RegistryClient` initializer with no scheme override — see `resolveRegistryConnectionTarget`);
-    /// (3) push and pull both succeed once signed in, round-tripping real bytes through the registry.
+    /// Credentialed counterpart to `testBuildPushPullRoundTripThroughLocalInsecureRegistry`: a
+    /// local registry that REQUIRES sign-in (htpasswd Basic auth, matching `container registry
+    /// login`'s credential model), built and run through the UI like every fixture in this suite.
+    /// Proves: (1) the registry enforces login — an anonymous push is rejected, not silently hung
+    /// (distinct from the stall class `PushStallGuard.swift` guards against); (2) signing in to an
+    /// HTTP-only registry on a non-standard port needs the insecure toggle — the exact gap
+    /// `LiveContainerService.signInRegistry` used to have, passing a `host:port` string straight
+    /// into a host-only `RegistryClient` init with no scheme override (see
+    /// `resolveRegistryConnectionTarget`); (3) push and pull both succeed once signed in.
     ///
     /// A verified CLI spike (2026-07-18) showed a plain `container image push`/`pull` against this
-    /// exact fixture can appear to hang indefinitely the first time — not a protocol bug, but macOS
-    /// blocking on a Keychain-access confirmation dialog with no one present to click it. Running
-    /// through the app itself avoids the cross-process case that triggered it (the app creates the
-    /// Keychain item and reads it back in the same process), but the `container registry list`
-    /// CLI-oracle check below is a different process reading that same item and could need one
-    /// manual "Always Allow" the first time this test runs locally — same phenomenon
-    /// `AddRegistrySheet`'s own UI copy already warns about.
+    /// fixture can hang indefinitely the first time — not a protocol bug, but macOS blocking on an
+    /// unattended Keychain-access confirmation dialog. Running through the app avoids the
+    /// cross-process case that triggers it, but the `container registry list` CLI-oracle check
+    /// below reads the same Keychain item from a different process and may need one manual
+    /// "Always Allow" the first time this test runs locally (same warning `AddRegistrySheet`'s UI
+    /// copy already gives).
     ///
-    /// Regression note (2026-07-18): the run-sheet's "Show Container" success button MUST be
-    /// clicked, not just asserted on — left on screen, it swallows the next ⌘K (command palette)
-    /// instead of routing it to the app, which reproduced as a mysterious `commandPaletteSearchField`
-    /// focus failure ~30s into the run, on a step that has nothing to do with the palette itself.
+    /// Regression note (2026-07-18): the run-sheet's "Show Container" button MUST be clicked, not
+    /// just asserted on — left on screen it swallows the next ⌘K instead of routing it to the app,
+    /// which reproduced as a `commandPaletteSearchField` focus failure ~30s into the run.
     @MainActor
     func testCredentialedPushPullRoundTripThroughLocalAuthenticatedRegistry() throws {
         try ContainerCLI.ensureImage(Self.fixtureImage)

@@ -566,12 +566,10 @@ final class MockContainerService: ContainerServiceBase {
         await stopDaemon()
         onLog("Updating to version \(ContainerCompatibility.requiredVersion)...")
         do {
-            // Simulated download/install latency, like pullImage's — also what keeps the progress
-            // screen observable to UI tests asserting it survives the daemon-state transitions.
-            // XCUITest only samples element existence about once per second, so this must hold the
-            // progress screen up for a couple of polls or the assertion races the transition.
-            // Cancellation propagates (no `try?`) so the progress screen's Cancel button behaves
-            // like the live service's: abort, and put the daemon back the way we found it.
+            // Long enough to hold the progress screen up for a couple of XCUITest polls (it only
+            // samples element existence ~once/sec), or an assertion that it survives the
+            // daemon-state transition races it. No `try?`: cancellation propagates so Cancel
+            // behaves like the live service's — abort, and restore the daemon.
             try await Task.sleep(for: .seconds(2))
         } catch {
             await startDaemon()

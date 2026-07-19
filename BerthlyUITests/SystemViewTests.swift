@@ -6,28 +6,24 @@ import XCTest
 /// Mock-mode coverage for the System page's mutating actions — disk-usage prune rows, "Clean Up
 /// All", local DNS domain add/delete, and the builder Stop/Start/Delete lifecycle — none of which
 /// had UI-layer coverage despite being fully reachable through `MockContainerService` (unlike the
-/// E2E suite, where `prune` is permanently descoped as too destructive to run against a real
-/// daemon; see PLAN/E2E-TEST.md §6.4). Same conventions as
-/// BerthlyUITests.swift/SecondaryViewTests.swift: `XCUIApplication.berthly()`,
-/// `UITEST_USE_MOCK_SERVICE`. These rows previously had no accessibility identifiers and their
-/// action buttons only carried `.help()` tooltip text (not a usable XCUITest label) — worse, both
-/// the DNS row and the builder row have their own "Delete" button with the identical label, always
-/// on screen simultaneously (the DNS row's is unconditional), so a bare label query for one can
-/// silently match the other. Added `.accessibilityIdentifier` to each (`prune-<name>`,
-/// `dnsDeleteButton-<domain>`, `builder{Stop,Start,Delete}Button-<id>`) rather than guess at
-/// ordering or scope tricks. Alert-driven confirm buttons are queried via `app.sheets`, not
-/// `app.windows` — the latter can't disambiguate a trigger button from its own same-labeled
-/// confirm button when both are visible at once.
+/// E2E suite, where `prune` is permanently descoped as too destructive against a real daemon; see
+/// PLAN/E2E-TEST.md §6.4). Same conventions as BerthlyUITests.swift/SecondaryViewTests.swift.
 ///
-/// Builder stop/delete was originally dropped from this file (this session found the row's UI
-/// never reflected a confirmed-successful model change, but couldn't tell whether that was a real
-/// bug or an XCUITest artifact). The user reproduced it manually in the real app and confirmed the
-/// daemon-side stop succeeded while the UI stayed wrong until navigating away and back — proving
-/// it was a real SwiftUI reactivity bug: `Builder`'s custom `Equatable` compared only `id`, so
-/// `ForEach(service.builders)` treated a running and a stopped `Builder` with the same id as
-/// unchanged and never redrew the row. Fixed in `Models.swift` (widened `Builder.==` to include
-/// `status`, matching the existing `Container`/`Machine` precedent). The test below is the
-/// regression guard for that fix.
+/// These rows previously had no accessibility identifiers, only `.help()` tooltip text — and the
+/// DNS row and builder row each have their own identically-labeled "Delete" button, both visible
+/// at once, so a bare label query for one could silently match the other. Added
+/// `.accessibilityIdentifier` to each (`prune-<name>`, `dnsDeleteButton-<domain>`,
+/// `builder{Stop,Start,Delete}Button-<id>`) instead. Alert-driven confirm buttons are queried via
+/// `app.sheets`, not `app.windows`, which can't disambiguate a trigger from its same-labeled
+/// confirm button when both are on screen.
+///
+/// Builder stop/delete was initially dropped from this file: the row's UI didn't reflect a
+/// confirmed-successful model change, and it wasn't clear whether that was a real bug or an
+/// XCUITest artifact. The user reproduced it manually — the daemon-side stop succeeded but the UI
+/// stayed wrong until navigating away and back — confirming a real SwiftUI reactivity bug:
+/// `Builder`'s custom `Equatable` compared only `id`, so `ForEach(service.builders)` never redrew
+/// a row whose status changed. Fixed by widening `Builder.==` to include `status` (`Models.swift`,
+/// matching the `Container`/`Machine` precedent). The test below is the regression guard.
 final class SystemViewTests: XCTestCase {
 
     override func setUpWithError() throws {

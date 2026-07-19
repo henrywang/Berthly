@@ -1,3 +1,12 @@
+# Comments
+
+Explain *why*, never *what* — the code already shows what it does. Don't add
+comments that narrate line-by-line behavior, and don't rewrite existing code
+just to attach a comment. Keep what remains extremely concise: strip
+narration, mechanics, hedging, and repetition, but never cut a specific bug
+mechanism, root cause, version number, or measurement — that's the part that
+stops someone from reintroducing a fixed bug.
+
 # Linting — run before every commit
 
 Before committing, run and get clean output from:
