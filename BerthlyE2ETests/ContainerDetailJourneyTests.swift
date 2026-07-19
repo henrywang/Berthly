@@ -131,8 +131,15 @@ final class LogStreamJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(logsTab.waitForExistence(timeout: 10))
         logsTab.click()
 
+        // `.textSelection(.enabled)` on the log list (LogStreamView) surfaces each line's text
+        // as the accessibility *value*, not the label — confirmed via an xcresult hierarchy dump
+        // after a first attempt with `label CONTAINS` alone found nothing despite the marker text
+        // being present in the snapshot. Same label-OR-value pattern as the sidebar-observation
+        // and System Properties checks elsewhere in this suite.
         func markerText() -> XCUIElement {
-            app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", marker)).firstMatch
+            app.staticTexts
+                .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", marker, marker))
+                .firstMatch
         }
 
         // ── 1. Live stdout actually renders — the stream-attach + parse + render path. ──

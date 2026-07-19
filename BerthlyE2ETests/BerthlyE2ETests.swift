@@ -318,7 +318,10 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
             XCTFail("could not read /proc/uptime before restart"); return
         }
         row.rightClick()
-        let restartItem = app.menuItems["Restart"]
+        // Scoped to the window: a bare app.menuItems["Restart"] also matches the Apple menu's
+        // system-wide Restart item (confirmed here — "multiple matching elements" with the menu
+        // open), unlike "Delete…"/"Force Kill" elsewhere in this file, which have no such collision.
+        let restartItem = app.windows.menuItems["Restart"]
         XCTAssertTrue(restartItem.waitForExistence(timeout: 5))
         restartItem.click()
 
