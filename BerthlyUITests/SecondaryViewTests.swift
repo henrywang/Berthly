@@ -5,14 +5,18 @@ import XCTest
 
 /// Mock-mode coverage for secondary sheets and detail panes reached through a menu, overflow
 /// action, or list-row selection rather than a toolbar button: Settings, machine detail/edit/logs,
-/// copy/tag/push on containers and images, and the Registries list. Same conventions as
-/// BerthlyUITests.swift: `XCUIApplication.berthly()`, `UITEST_USE_MOCK_SERVICE`, Escape/Return key
-/// dismissal over coordinate clicks, identifiers over label text where one exists.
+/// copy/tag/push on containers and images, the Registries list, and Save/Load image archive
+/// sheets. Same conventions as BerthlyUITests.swift: `XCUIApplication.berthly()`,
+/// `UITEST_USE_MOCK_SERVICE`, Escape/Return key dismissal over coordinate clicks, identifiers over
+/// label text where one exists.
 ///
-/// LoadImageSheet and SaveImageSheet are deliberately not covered here: both are gated behind a
-/// synchronous NSOpenPanel/NSSavePanel `runModal()` before the sheet body ever renders, and
-/// driving native panels from XCUITest is a known flake source for no coverage payoff — a
-/// cancel-only interaction would dismiss the panel without the sheet ever appearing.
+/// LoadImageSheet and SaveImageSheet are reachable here via `UITEST_SAVE_DESTINATION` /
+/// `UITEST_LOAD_SOURCE` — the same test-only launch-env bypass added for `BerthlyE2ETests`'
+/// `ImageArchiveJourneyTests` (see `promptForArchiveDestination`/`promptForArchiveToLoad`'s doc
+/// comments) — rather than driving the native NSSavePanel/NSOpenPanel these sheets are otherwise
+/// gated behind. `MockContainerService.saveImages`/`loadImages` don't touch real disk (`saveImages`
+/// just records the call; `loadImages` derives a fake reference from the path's filename stem), so
+/// the paths below don't need to exist.
 final class SecondaryViewTests: XCTestCase {
 
     override func setUpWithError() throws {
@@ -261,5 +265,59 @@ final class SecondaryViewTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["ghcr.io"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["registry-1.docker.io"].exists)
+    }
+
+    // MARK: - Image archive (Save/Load)
+
+    /// SaveImageSheet, reached from the row's context menu; the native NSSavePanel is bypassed via
+    /// `UITEST_SAVE_DESTINATION` so the sheet renders immediately in its "writing" state. The mock
+    /// adds a small delay before completing, matching the real save's non-instant nature.
+    @MainActor
+    func testSaveImageSheetSavesImage() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_SAVE_DESTINATION"] = "/tmp/berthly-uitest-web_1.4.tar"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        app.staticTexts["Images"].click()
+        let imageRow = app.staticTexts["local/web:1.4"]
+        XCTAssertTrue(imageRow.waitForExistence(timeout: 10))
+        imageRow.rightClick()
+
+        let saveItem = app.menuItems["Save to Disk…"]
+        XCTAssertTrue(saveItem.waitForExistence(timeout: 5))
+        saveItem.click()
+
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "save should complete")
+        done.click()
+    }
+
+    /// LoadImageSheet, reached via the command palette; the native NSOpenPanel is bypassed via
+    /// `UITEST_LOAD_SOURCE`. The mock derives the loaded reference from the path's filename stem
+    /// (`name_tag.tar` → `name:tag`), so a made-up path is enough to prove the load path end to
+    /// end without any real archive on disk.
+    @MainActor
+    func testLoadImageSheetLoadsImage() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_LOAD_SOURCE"] = "/tmp/loaded_9.9.tar"
+        app.launch()
+
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("Load Image")
+        app.typeKey(.return, modifierFlags: [])
+
+        let done = app.buttons["Done"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), "load should complete")
+        done.click()
+
+        app.staticTexts["Images"].click()
+        XCTAssertTrue(app.staticTexts["loaded:9.9"].waitForExistence(timeout: 5),
+                      "the loaded image should appear in the sidebar")
     }
 }

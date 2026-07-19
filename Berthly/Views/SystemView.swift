@@ -346,6 +346,7 @@ private struct DiskUsageGridRow: View {
                     } else {
                         Button("Prune") { showConfirm = true }
                             .controlSize(.small)
+                            .accessibilityIdentifier("prune-\(name)")
                     }
                 }
             }
@@ -606,6 +607,7 @@ private struct DNSDomainRow: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .help("Delete Domain")
+                .accessibilityIdentifier("dnsDeleteButton-\(domain)")
             }
         } label: {
             Text(domain)
