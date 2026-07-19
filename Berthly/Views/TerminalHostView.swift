@@ -34,25 +34,41 @@ struct TerminalHostView: NSViewRepresentable {
         // This is the terminal's only signpost to the theme picker (also in Settings, ⌘,).
         view.menu = context.coordinator.makeContextMenu()
         context.coordinator.connect(target: target)
-        // By the next runloop tick the representable's view is in the window; grab focus so the
-        // Terminal tab is typable on entry. `updateNSView` handles the same latch for the case
-        // where it lands first — whichever runs earlier wins, the other is a no-op.
-        DispatchQueue.main.async { [weak view, coordinator = context.coordinator] in
-            guard let view, !coordinator.hasFocused, let window = view.window else { return }
-            coordinator.hasFocused = true
-            window.makeFirstResponder(view)
-        }
+        scheduleFocusGrab(of: view, coordinator: context.coordinator)
         return view
     }
 
     func updateNSView(_ nsView: TerminalView, context: Context) {
         applyTheme(theme, to: nsView)
-        // Focus the terminal on first appearance so switching to the Terminal tab lets the user
-        // type immediately, without an extra click to make it first responder. Guarded so a live
-        // theme repaint (another `updateNSView` pass) doesn't yank focus back mid-interaction.
-        if !context.coordinator.hasFocused, let window = nsView.window {
-            context.coordinator.hasFocused = true
-            window.makeFirstResponder(nsView)
+        // Retry path for the rare case where the deferred grab fired before the view was in a
+        // window (see `scheduleFocusGrab`). Guarded so a live theme repaint (another
+        // `updateNSView` pass) doesn't yank focus back mid-interaction.
+        scheduleFocusGrab(of: nsView, coordinator: context.coordinator)
+    }
+
+    /// Focus the terminal so it's typable on entry — but only after the animations committed
+    /// alongside this mount have finished. When a stopped container is started while the
+    /// Terminal tab is (or becomes) selected, this view mounts in the same SwiftUI/CoreAnimation
+    /// transaction that moves the container's row into a (possibly new) RUNNING section; calling
+    /// `makeFirstResponder` while that NSTableView insert animation is in flight freezes the row
+    /// at its mid-animation height — half the row, image line clipped — until it's reselected.
+    /// `CATransaction.setCompletionBlock` registered here joins that same implicit transaction,
+    /// so the grab runs strictly after the row-move animation completes — regardless of how
+    /// late the commit happens (a fixed `asyncAfter` delay proved insufficient under the Xcode
+    /// debugger, where slowed commits pushed the animation past the timer).
+    private func scheduleFocusGrab(of view: TerminalView, coordinator: Coordinator) {
+        guard !coordinator.focusGrabScheduled, !coordinator.hasFocused else { return }
+        coordinator.focusGrabScheduled = true
+        CATransaction.setCompletionBlock { [weak view, weak coordinator] in
+            guard let coordinator else { return }
+            guard let view, let window = view.window else {
+                // Not in a window yet — clear the latch so a later `updateNSView` reschedules.
+                coordinator.focusGrabScheduled = false
+                return
+            }
+            guard !coordinator.hasFocused else { return }
+            coordinator.hasFocused = true
+            window.makeFirstResponder(view)
         }
     }
 
@@ -84,6 +100,8 @@ struct TerminalHostView: NSViewRepresentable {
         /// One-shot latch so we make the terminal first responder only on its first appearance,
         /// not on every `updateNSView` (which also fires for live theme changes).
         var hasFocused = false
+        /// Whether a deferred focus grab is already queued — see `scheduleFocusGrab`.
+        var focusGrabScheduled = false
 
         // MARK: Context menu
 
