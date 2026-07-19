@@ -689,6 +689,7 @@ private struct BuilderRow: View {
                     .controlSize(.small)
                     .disabled(isStopping)
                     .help("Stop Builder")
+                    .accessibilityIdentifier("builderStopButton-\(builder.id)")
                 } else {
                     // Benign and instantly reversible, so no confirmation alert — like
                     // `container builder start`, this just boots the builder VM so the next
@@ -706,6 +707,7 @@ private struct BuilderRow: View {
                     .controlSize(.small)
                     .disabled(isStarting || isDeleting)
                     .help("Start Builder")
+                    .accessibilityIdentifier("builderStartButton-\(builder.id)")
 
                     // Delete only offered once stopped — same stop-first gate as container rows
                     // (the CLI needs --force to delete a running builder; the GUI doesn't offer
@@ -718,6 +720,7 @@ private struct BuilderRow: View {
                     .controlSize(.small)
                     .disabled(isDeleting || isStarting)
                     .help("Delete Builder")
+                    .accessibilityIdentifier("builderDeleteButton-\(builder.id)")
                 }
             }
         } label: {
