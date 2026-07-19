@@ -311,7 +311,9 @@ struct Network: Identifiable, Hashable {
     let backend: String
     let endpoints: [NetworkEndpoint]
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    // Include endpoints so SwiftUI detects the row needing to redraw as containers attach/detach
+    // (same class of fix as Container/Machine's status, Builder's status — see their comments).
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.endpoints == rhs.endpoints }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -355,7 +357,7 @@ struct Machine: Identifiable, Hashable {
 
 // MARK: - Builder
 
-enum BuilderStatus { case running, stopped }
+enum BuilderStatus: Equatable { case running, stopped }
 
 struct Builder: Identifiable, Hashable {
     let id: String
@@ -366,7 +368,10 @@ struct Builder: Identifiable, Hashable {
     var cpus: Int
     var memoryGB: Int
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    // Include status so SwiftUI detects the row needing to redraw after Stop/Start — same reason
+    // Container/Machine include theirs. Hash by id only for stable Set membership across
+    // status transitions.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.status == rhs.status }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
