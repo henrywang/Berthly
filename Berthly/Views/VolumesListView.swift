@@ -168,6 +168,12 @@ private struct VolumeRow: View {
 
                 Spacer()
 
+                // NetworkRow's identical if/else hover-swap reproducibly crashed the app on
+                // context-menu delete (AppKit layout re-entrancy) and was rewritten as a static
+                // ZStack+opacity swap — see its comment for the full story. This row has the same
+                // shape and has never been observed to crash across repeated manual and automated
+                // testing (2026-07-19), but no source-level difference explains why; prefer the
+                // ZStack pattern here too if this row ever needs to change.
                 if isHovered {
                     Button(role: .destructive) { showDeleteConfirm = true } label: {
                         Image(systemName: "trash")
