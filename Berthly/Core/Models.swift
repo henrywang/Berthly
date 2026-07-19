@@ -95,7 +95,7 @@ struct Container: Identifiable, Hashable {
 
 enum ImageSource { case built, pulled }
 
-enum ImageUsage {
+enum ImageUsage: Equatable {
     case usedBy(Int)
     case unused
     case builderImage
@@ -146,7 +146,9 @@ struct ContainerImage: Identifiable, Hashable {
         return "This will remove the image from local storage."
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    // Include usage so SwiftUI detects the row's UsageBadge needing to redraw when a container
+    // starts/stops using this image — same class of fix as Container/Machine/Builder/Network.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.usage == rhs.usage }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -255,7 +257,11 @@ struct Volume: Identifiable, Hashable {
         return Double(usedMB) / Double(allocatedMB)
     }
 
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    // Include mounts so SwiftUI detects the row's mount status needing to redraw as containers
+    // mount/unmount it — same class of fix as Container/Machine/Builder/Network/ContainerImage.
+    // usedMB/allocatedMB deliberately excluded: continuously fluctuating disk stats, same reason
+    // Container excludes cpuPercent/memoryMB from its own widened ==.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.mounts == rhs.mounts }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
