@@ -16,6 +16,10 @@ struct ImageLoadRequest: Identifiable {
 /// Ask which archive to import. Returns `nil` if the user cancels.
 @MainActor
 func promptForArchiveToLoad() -> URL? {
+    // E2E-only bypass — see the matching comment on promptForArchiveDestination.
+    if let path = ProcessInfo.processInfo.environment["UITEST_LOAD_SOURCE"] {
+        return URL(fileURLWithPath: path)
+    }
     let panel = NSOpenPanel()
     panel.canChooseFiles = true
     panel.canChooseDirectories = false
