@@ -309,31 +309,34 @@ final class ContextMenuTests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
-    /// KNOWN CRASH — filed as a real product bug, not a test-writing mistake. Deleting a
-    /// non-default network row through its context menu (confirmed on both "data-net" and
-    /// "app-net", not row-specific) deterministically crashes the app: 3/3 isolated runs threw
-    /// the same AppKit exception, `-[NSWindow(NSDisplayCycle) _postWindowNeedsUpdateConstraints]`
-    /// called re-entrantly from `OutlineListCoordinator.listTableCellView(_:didUpdateIdealHeight:)`
-    /// during the row-removal layout pass ("attempted to change the layout engine while it is
-    /// executing"). A minimal right-click-only repro (open the menu, no delete) is clean 3/3, so
-    /// the trigger is specifically the row being removed from the List mid-transaction, not the
-    /// menu itself. Confirmed NOT mock-specific: reproduces identically (same exception codes)
-    /// against a real daemon in `BerthlyE2ETests`, deleting a freshly created network with zero
-    /// attached containers — rules out both mock-timing and endpoint count as factors. Also ruled
-    /// out: wrapping the List in a `Section` (matching Volumes/Images/Compute's structure) and
-    /// pre-selecting a different row before right-clicking the target (right-click reselects it
-    /// regardless). VolumesListView's row/`.alert`/hover-trash pattern is structurally almost
-    /// identical and deletes cleanly, so root cause is still open — needs its own investigation.
-    /// Skipped rather than deleted so the coverage gap and the bug both stay visible; un-skip once
-    /// NetworksListView's delete path is fixed.
+    /// FIXED CRASH (2026-07-19), formerly known/skipped — deleting a non-default network row
+    /// through its context menu used to deterministically crash the app: AppKit's "layout engine
+    /// changed during its own layout pass" exception, thrown re-entrantly from
+    /// `OutlineListCoordinator.listTableCellView(_:didUpdateIdealHeight:)` while the row was being
+    /// removed. Confirmed not mock-specific (reproduced against a real daemon too) and not
+    /// row-specific (both "data-net" and "app-net"). Bisected to `NetworkRow`'s trailing content
+    /// swapping view identity on hover (`if isHovered { trashButton } else { chips }`): replacing
+    /// it with a `ZStack` + opacity toggle (both branches always mounted, same identity) resolved
+    /// it — confirmed clean 3/3 in mock mode and against a real daemon. Why the identical
+    /// if/else pattern in `VolumesListView`'s row doesn't hit the same bug is still not
+    /// understood, but the fix here is verified rather than theoretical.
     @MainActor
     func testNetworkContextMenuShowsActionsAndDeletes() throws {
-        throw XCTSkip("""
-            Reliably crashes the app (AppKit \"layout engine changed during its own layout pass\" \
-            exception via OutlineListCoordinator.listTableCellView(_:didUpdateIdealHeight:)) when a \
-            non-default network row is deleted via its context menu. Confirmed deterministic \
-            (3/3 data-net, 2/2 app-net, and reproduces against a real daemon) and not row- or \
-            data-specific. See the doc comment above.
-            """)
+        let app = launchMock()
+        app.staticTexts["Networks"].click()
+        let row = app.staticTexts["data-net"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.rightClick()
+
+        XCTAssertTrue(app.menuItems["Copy Subnet"].waitForExistence(timeout: 5))
+        let deleteItem = app.menuItems["Delete…"]
+        XCTAssertTrue(deleteItem.isEnabled)
+        deleteItem.click()
+
+        let confirm = app.windows.buttons["Delete"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.click()
+
+        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
     }
 }

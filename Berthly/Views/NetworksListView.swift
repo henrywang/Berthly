@@ -199,7 +199,24 @@ private struct NetworkRow: View {
 
                 Spacer()
 
-                if isHovered {
+                // Both branches stay mounted (opacity swap, not an if/else view-identity swap) —
+                // an if/else here reproducibly crashed the app when the row was removed via
+                // context-menu delete: AppKit throws "layout engine changed during its own layout
+                // pass" from the List's row-height recompute racing the row's removal animation.
+                // Confirmed by bisection (2026-07-19): the crash disappeared once this became
+                // static content, and reappeared with the if/else restored. Root cause of *why*
+                // the view-identity churn triggers it isn't fully understood (VolumesListView's
+                // row has the identical if/else pattern and doesn't crash), but this shape avoids
+                // it entirely while keeping identical visual behavior.
+                ZStack(alignment: .trailing) {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        RowChip(text: network.driver.rawValue,
+                                color: network.driver == .nat ? .berthlyAccent : .statusPaused)
+                        endpointStatus(endpoints)
+                    }
+                    .opacity(isHovered ? 0 : 1)
+                    .allowsHitTesting(!isHovered)
+
                     Button(role: .destructive) { showDeleteConfirm = true } label: {
                         Image(systemName: "trash")
                             .foregroundStyle(network.isDefault ? Color.secondary : Color.red)
@@ -207,12 +224,8 @@ private struct NetworkRow: View {
                     .buttonStyle(.hoverIcon)
                     .disabled(network.isDefault)
                     .help(network.isDefault ? "The default network can't be deleted" : "Delete Network")
-                } else {
-                    VStack(alignment: .trailing, spacing: 3) {
-                        RowChip(text: network.driver.rawValue,
-                                color: network.driver == .nat ? .berthlyAccent : .statusPaused)
-                        endpointStatus(endpoints)
-                    }
+                    .opacity(isHovered ? 1 : 0)
+                    .allowsHitTesting(isHovered)
                 }
             }
             .padding(.vertical, 2)
