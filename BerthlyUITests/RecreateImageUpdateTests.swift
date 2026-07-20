@@ -111,7 +111,7 @@ final class RecreateImageUpdateTests: XCTestCase {
 
         XCTAssertTrue(app.staticTexts["recreatePhaseLabel"].waitForExistence(timeout: 5))
         let cancel = app.sheets.buttons["Cancel"].firstMatch
-        XCTAssertTrue(cancel.exists)
+        XCTAssertTrue(cancel.waitForExistence(timeout: 2))
         expectation(for: NSPredicate(format: "isEnabled == false"), evaluatedWith: cancel)
         waitForExpectations(timeout: 10)
 

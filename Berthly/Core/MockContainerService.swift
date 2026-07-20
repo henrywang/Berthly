@@ -198,13 +198,17 @@ final class MockContainerService: ContainerServiceBase {
         try Task.checkCancellation()
 
         // No cancellation checks past this point — same replace-window semantics as the live
-        // service, so the sheet's cancel-gating is exercised honestly in mock mode.
+        // service, so the sheet's cancel-gating is exercised honestly in mock mode. 1200ms/step
+        // (not the original 150ms): a CI run of testRecreatePullPhaseDisablesCancelInReplaceWindow
+        // showed ~1s+ per accessibility-tree query round-trip on the runner, longer than the old
+        // 600ms total replace window — the whole flow could finish before a single poll caught it
+        // still in progress, so `cancel.exists` (checked with no retry) saw the sheet already done.
         let steps: [RecreatePhase] = wasRunning
             ? [.stoppingContainer, .deletingContainer, .creatingContainer, .startingContainer]
             : [.deletingContainer, .creatingContainer]
         for step in steps {
             onPhase(step)
-            try? await Task.sleep(for: .milliseconds(150))
+            try? await Task.sleep(for: .milliseconds(1200))
         }
         let newDigest = images.first { $0.id == container.image || $0.fullName == container.image }?.digest ?? oldDigest
         // A non-running container lands stopped regardless of what it was (paused/error state
