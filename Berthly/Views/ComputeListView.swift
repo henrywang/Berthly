@@ -182,6 +182,7 @@ private struct ContainerComputeRow: View {
     @State private var isDeleting = false
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var showRecreateSheet = false
 
     private var isRunning: Bool { container.status == .running }
 
@@ -199,11 +200,15 @@ private struct ContainerComputeRow: View {
                     // Unambiguous handle for the sidebar row (E2E lifecycle journey): the
                     // detail view shows the same name, so tests can't query by text alone.
                     .accessibilityIdentifier("computeRow-\(container.name)")
-                Text(container.image)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fontDesign(.monospaced)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(container.image)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fontDesign(.monospaced)
+                        .lineLimit(1)
+                    ContainerStalenessGlyph(staleness: service.staleness(of: container),
+                                            containerName: container.name)
+                }
             }
 
             Spacer()
@@ -274,6 +279,9 @@ private struct ContainerComputeRow: View {
             // otherwise, so the capability stays discoverable with the gate implied.
             Button("Export Filesystem…") { exportFilesystem() }
                 .disabled(container.status != .stopped)
+            // Always enabled, not just when the badge shows: with no update it's the
+            // "reset to a fresh container" action, which is just as legitimate.
+            Button("Recreate with Latest Image…") { showRecreateSheet = true }
             Divider()
             // No accessibilityIdentifier: it doesn't survive the SwiftUI→NSMenu bridge for
             // context-menu items — tests query menuItems["Delete…"] by label instead.
@@ -295,6 +303,9 @@ private struct ContainerComputeRow: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This can't be undone.")
+        }
+        .sheet(isPresented: $showRecreateSheet) {
+            RecreateContainerSheet(container: container)
         }
         .errorAlert($errorMessage)
     }

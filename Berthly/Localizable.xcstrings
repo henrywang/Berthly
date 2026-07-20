@@ -22,6 +22,9 @@
     "/app" : {
 
     },
+    "%@" : {
+
+    },
     "%@ · %@" : {
       "localizations" : {
         "en" : {
@@ -53,6 +56,9 @@
       }
     },
     "%@ is running — changes take effect after you stop and start it." : {
+
+    },
+    "%@ will be stopped, recreated, and started again." : {
 
     },
     "%@, %@" : {
@@ -133,6 +139,18 @@
 
     },
     "A NAT or host-only network for containers" : {
+
+    },
+    "A newer image is available for this tag — it will be pulled first." : {
+
+    },
+    "A newer image is published for %@" : {
+
+    },
+    "A newer image was already pulled — the container will be recreated from it." : {
+
+    },
+    "A newer image was pulled — recreate the container to apply it" : {
 
     },
     "A vmlinux binary already on disk." : {
@@ -288,7 +306,13 @@
     "Changes take effect the next time the machine boots." : {
 
     },
+    "Check for Updates" : {
+
+    },
     "Check for Updates…" : {
+
+    },
+    "Check images for updates" : {
 
     },
     "Choose a folder…" : {
@@ -361,6 +385,9 @@
 
     },
     "Container Not Installed" : {
+
+    },
+    "Container recreated" : {
 
     },
     "Container System Stopped" : {
@@ -451,6 +478,9 @@
 
     },
     "Creates an additional name for this image" : {
+
+    },
+    "Creating container from new image…" : {
 
     },
     "Creating…" : {
@@ -669,6 +699,9 @@
     "Forward SSH agent" : {
 
     },
+    "Freed %@" : {
+
+    },
     "General" : {
 
     },
@@ -715,6 +748,9 @@
 
     },
     "Image tagged" : {
+
+    },
+    "Image Updates" : {
 
     },
     "Images" : {
@@ -970,6 +1006,9 @@
     "Path" : {
 
     },
+    "Periodically compares your pulled images against their registries and badges the ones with a newer version. You can always check manually from the Images page." : {
+
+    },
     "Pin" : {
 
     },
@@ -1015,6 +1054,9 @@
     "Pull Image…" : {
 
     },
+    "Pull Latest" : {
+
+    },
     "Pull latest base images" : {
 
     },
@@ -1022,6 +1064,12 @@
 
     },
     "Pulling image" : {
+
+    },
+    "Pulling latest image" : {
+
+    },
+    "Pulling latest image…" : {
 
     },
     "Pulls from Docker Hub or any public registry — no sign-in" : {
@@ -1049,6 +1097,24 @@
 
     },
     "Rebuild" : {
+
+    },
+    "Reclaim Old Image Space" : {
+
+    },
+    "Reclaiming…" : {
+
+    },
+    "Recreate" : {
+
+    },
+    "Recreate %@" : {
+
+    },
+    "Recreate with Latest Image…" : {
+
+    },
+    "Recreating…" : {
 
     },
     "Refresh" : {
@@ -1088,6 +1154,12 @@
 
     },
     "Removes unused images and stopped containers in one step. Volumes are never touched here — use the Volumes row's own Prune if you're sure you don't need their data." : {
+
+    },
+    "Removing old container…" : {
+
+    },
+    "Replacing the container — this step can't be cancelled." : {
 
     },
     "Required" : {
@@ -1286,6 +1358,9 @@
     "Start the container to copy files" : {
 
     },
+    "Starting container…" : {
+
+    },
     "Start the container to open a shell." : {
 
     },
@@ -1317,6 +1392,9 @@
 
     },
     "Stop the container daemon?" : {
+
+    },
+    "Stopping container…" : {
 
     },
     "Stop the container first" : {
@@ -1391,10 +1469,16 @@
     "The container daemon is installed but not running." : {
 
     },
+    "The container is deleted and recreated from its image. Changes inside the container's own filesystem are discarded. Data on volumes is kept." : {
+
+    },
     "The default network can't be deleted" : {
 
     },
     "The exact vminit and builder image versions this install of Berthly is built against — these must match what the installed container CLI expects." : {
+
+    },
+    "The image is up to date — this recreates the container in a fresh state." : {
 
     },
     "The installed container (v%@) is newer than this version of Berthly supports (v%@).\nUpdate Berthly to keep using it — your container installation won't be touched." : {
@@ -1408,6 +1492,9 @@
       }
     },
     "The log stream ended unexpectedly — the daemon connection may have been lost." : {
+
+    },
+    "The previous image version is no longer used." : {
 
     },
     "This can't be undone." : {
@@ -1489,7 +1576,13 @@
     "Unused" : {
 
     },
+    "update" : {
+
+    },
     "Update" : {
+
+    },
+    "Update available — pull and recreate to apply it" : {
 
     },
     "Update Berthly" : {

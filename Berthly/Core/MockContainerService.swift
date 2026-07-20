@@ -4,6 +4,20 @@
 import Foundation
 import TerminalProgress
 
+/// Mock-only: the runtime fields a lifecycle flip resets, in one place. Replaces four positional
+/// 15-argument `Container(...)` reconstructions that kept drifting as `Container` gained fields —
+/// three of them silently dropped `imageDigest` the day it was added.
+extension Container {
+    fileprivate func withRuntimeReset(status: ContainerStatus, imageDigest: String? = nil,
+                                      uptime: String = "–", startedDate: Date? = nil) -> Container {
+        Container(id: id, name: name, image: image, imageDigest: imageDigest ?? self.imageDigest,
+                  status: status, ports: ports, cpuPercent: 0, memoryMB: 0,
+                  memoryLimitMB: memoryLimitMB, networkIOString: "–", uptime: uptime,
+                  command: command, mounts: mounts, networks: networks, environment: environment,
+                  startedDate: startedDate)
+    }
+}
+
 @MainActor
 final class MockContainerService: ContainerServiceBase {
 
@@ -15,13 +29,13 @@ final class MockContainerService: ContainerServiceBase {
         // initializers would triple the section's height for no clarity gain.
         // swiftlint:disable line_length
         containers = [
-            Container(id: "3f9a2b7c1d", name: "web-frontend", image: "local/web:1.4", status: .running, ports: [PortMapping(host: 3000, container: 3000)], cpuPercent: 12, memoryMB: 184, memoryLimitMB: 1024, networkIOString: "1.2 MB/s", uptime: "2h 41m", command: #"nginx -g "daemon off;""#, mounts: [ContainerMount(source: "./src", destination: "/app")], networks: ["app-net"], environment: ["NODE_ENV=production", "PORT=3000", "API_URL=http://api-service:8080"], startedDate: Date().addingTimeInterval(-(2*3600 + 41*60))),
-            Container(id: "a17c44e9b2", name: "api-service", image: "local/api:2.1", status: .running, ports: [PortMapping(host: 8080, container: 8080)], cpuPercent: 34, memoryMB: 320, memoryLimitMB: 2048, networkIOString: "3.4 MB/s", uptime: "5h 12m", command: "node server.js", mounts: [], networks: ["app-net", "data-net"], environment: ["NODE_ENV=production"], startedDate: Date().addingTimeInterval(-(5*3600 + 12*60))),
-            Container(id: "c20e81f7a4", name: "datastore", image: "local/datastore:15", status: .running, ports: [PortMapping(host: 5432, container: 5432)], cpuPercent: 8, memoryMB: 512, memoryLimitMB: 1024, networkIOString: "0.8 MB/s", uptime: "1d 3h", command: "postgres", mounts: [], networks: ["data-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
-            Container(id: "7b3d09c5e1", name: "cache", image: "local/cache:7", status: .running, ports: [PortMapping(host: 6379, container: 6379)], cpuPercent: 2, memoryMB: 64, memoryLimitMB: 512, networkIOString: "0.2 MB/s", uptime: "1d 3h", command: "redis-server", mounts: [], networks: ["app-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
-            Container(id: "d4e5f6a7b8", name: "worker", image: "local/worker:1.0", status: .stopped, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "python worker.py", mounts: [], networks: ["data-net"], environment: []),
-            Container(id: "b4c8d2e6f0", name: "edge-proxy", image: "local/proxy:1.25", status: .error, ports: [PortMapping(host: 80, container: 80), PortMapping(host: 443, container: 443)], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 256, networkIOString: "–", uptime: "–", command: "nginx", mounts: [], networks: ["default"], environment: []),
-            Container(id: "1a2b3c4d5e", name: "sandbox", image: "local/base:latest", status: .paused, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "/bin/bash", mounts: [], networks: [], environment: [])
+            Container(id: "3f9a2b7c1d", name: "web-frontend", image: "local/web:1.4", imageDigest: "sha256:3f9a2b7c1d", status: .running, ports: [PortMapping(host: 3000, container: 3000)], cpuPercent: 12, memoryMB: 184, memoryLimitMB: 1024, networkIOString: "1.2 MB/s", uptime: "2h 41m", command: #"nginx -g "daemon off;""#, mounts: [ContainerMount(source: "./src", destination: "/app")], networks: ["app-net"], environment: ["NODE_ENV=production", "PORT=3000", "API_URL=http://api-service:8080"], startedDate: Date().addingTimeInterval(-(2*3600 + 41*60))),
+            Container(id: "a17c44e9b2", name: "api-service", image: "local/api:2.1", imageDigest: "sha256:a17c44e9b2", status: .running, ports: [PortMapping(host: 8080, container: 8080)], cpuPercent: 34, memoryMB: 320, memoryLimitMB: 2048, networkIOString: "3.4 MB/s", uptime: "5h 12m", command: "node server.js", mounts: [], networks: ["app-net", "data-net"], environment: ["NODE_ENV=production"], startedDate: Date().addingTimeInterval(-(5*3600 + 12*60))),
+            Container(id: "c20e81f7a4", name: "datastore", image: "local/datastore:15", imageDigest: "sha256:00olddig00", status: .running, ports: [PortMapping(host: 5432, container: 5432)], cpuPercent: 8, memoryMB: 512, memoryLimitMB: 1024, networkIOString: "0.8 MB/s", uptime: "1d 3h", command: "postgres", mounts: [], networks: ["data-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
+            Container(id: "7b3d09c5e1", name: "cache", image: "local/cache:7", imageDigest: "sha256:7b3d09c5e1", status: .running, ports: [PortMapping(host: 6379, container: 6379)], cpuPercent: 2, memoryMB: 64, memoryLimitMB: 512, networkIOString: "0.2 MB/s", uptime: "1d 3h", command: "redis-server", mounts: [], networks: ["app-net"], environment: [], startedDate: Date().addingTimeInterval(-(27*3600))),
+            Container(id: "d4e5f6a7b8", name: "worker", image: "local/worker:1.0", imageDigest: "sha256:d4e5f6a7b8", status: .stopped, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "python worker.py", mounts: [], networks: ["data-net"], environment: []),
+            Container(id: "b4c8d2e6f0", name: "edge-proxy", image: "local/proxy:1.25", imageDigest: "sha256:b4c8d2e6f0", status: .error, ports: [PortMapping(host: 80, container: 80), PortMapping(host: 443, container: 443)], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 256, networkIOString: "–", uptime: "–", command: "nginx", mounts: [], networks: ["default"], environment: []),
+            Container(id: "1a2b3c4d5e", name: "sandbox", image: "local/base:latest", imageDigest: "sha256:1a2b3c4d5e", status: .paused, ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 512, networkIOString: "–", uptime: "–", command: "/bin/bash", mounts: [], networks: [], environment: [])
         ]
         images = [
             ContainerImage(id: "local/web:1.4", repository: "local/web", tag: "1.4", digest: "sha256:3f9a2b7c1d", arch: ["arm64", "amd64"], sizeBytes: 182 * 1_048_576, created: "2h ago", source: .built, usage: .usedBy(3)),
@@ -62,6 +76,11 @@ final class MockContainerService: ContainerServiceBase {
             Registry(host: "ghcr.io", username: "apple-bot"),
             Registry(host: "registry-1.docker.io", username: "berthly")
         ]
+        // Two staleness fixtures without adding rows (UI perf tests count rows): `sandbox`'s
+        // image has a seeded remote update (badge on both the image row and the container row),
+        // and `datastore`'s imageDigest above lags its image (recreate-without-pull path).
+        imageUpdateInfo = ["local/base:latest": ImageUpdateInfo(remoteDigest: "sha256:feed5eed01", localImageDigest: "sha256:1a2b3c4d5e", isUpdateAvailable: true, checkedAt: Date())]
+        lastImageUpdateCheck = Date()
         imageInspectData = Self.mockInspectData()
         buildContexts = [
             "local/web:1.4": BuildContext(contextPath: "/Users/dev/projects/web", dockerfilePath: nil),
@@ -104,23 +123,13 @@ final class MockContainerService: ContainerServiceBase {
         // while these are in flight, which an instant flip would make invisible in mock mode.
         try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
-        let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .running,
-                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
-                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "0m",
-                                  command: c.command, mounts: c.mounts, networks: c.networks,
-                                  environment: c.environment)
+        containers[i] = containers[i].withRuntimeReset(status: .running, uptime: "0m")
     }
 
     override func stopContainer(_ id: String) async throws {
         try? await Task.sleep(for: .milliseconds(600))
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
-        let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped,
-                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
-                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–",
-                                  command: c.command, mounts: c.mounts, networks: c.networks,
-                                  environment: c.environment)
+        containers[i] = containers[i].withRuntimeReset(status: .stopped)
     }
 
     override func restartContainer(_ id: String) async throws {
@@ -131,17 +140,86 @@ final class MockContainerService: ContainerServiceBase {
     override func killContainer(_ id: String) async throws {
         // No simulated latency, unlike stopContainer: SIGKILL is immediate — that's its point.
         guard let i = containers.firstIndex(where: { $0.id == id }) else { return }
-        let c = containers[i]
-        containers[i] = Container(id: c.id, name: c.name, image: c.image, status: .stopped,
-                                  ports: c.ports, cpuPercent: 0, memoryMB: 0,
-                                  memoryLimitMB: c.memoryLimitMB, networkIOString: "–", uptime: "–",
-                                  command: c.command, mounts: c.mounts, networks: c.networks,
-                                  environment: c.environment)
+        containers[i] = containers[i].withRuntimeReset(status: .stopped)
     }
 
     override func deleteContainer(_ id: String) async throws {
         containers.removeAll { $0.id == id }
         pinnedContainerIDs.remove(id)
+    }
+
+    override func checkForImageUpdates(force: Bool = false) async {
+        guard !isCheckingImageUpdates else { return }
+        isCheckingImageUpdates = true
+        // Long enough for the toolbar spinner to be visible (and waitable in UI tests).
+        try? await Task.sleep(for: .milliseconds(300))
+        isCheckingImageUpdates = false
+        lastImageUpdateCheck = Date()
+        // Re-assert the seeded verdict: in mock mode the registry always says what init said.
+        if let base = images.first(where: { $0.id == "local/base:latest" }) {
+            imageUpdateInfo["local/base:latest"] = ImageUpdateInfo(
+                remoteDigest: "sha256:feed5eed01", localImageDigest: base.digest,
+                isUpdateAvailable: base.digest != "sha256:feed5eed01", checkedAt: Date()
+            )
+        }
+    }
+
+    override func recreateContainer(_ id: String, pullFirst: Bool, progress: ProgressUpdateHandler? = nil,
+                                    onPhase: @MainActor @escaping (RecreatePhase) -> Void) async throws -> RecreateResult {
+        guard let index = containers.firstIndex(where: { $0.id == id }) else {
+            throw ContainerCLIError(exitCode: 1, message: "container \(id) not found")
+        }
+        let container = containers[index]
+        let wasRunning = container.status == .running
+        let oldDigest = container.imageDigest ?? ""
+
+        // Pull only when the registry actually has something newer — mirroring the live gate,
+        // and modeling what a same-tag re-pull really does: *replace* the reference's digest
+        // (unlike mock pullImage, which appends a row for a brand-new reference).
+        var didPull = false
+        if pullFirst, staleness(of: container) == .remoteUpdateAvailable,
+           let imageIndex = images.firstIndex(where: { $0.id == container.image || $0.fullName == container.image }) {
+            onPhase(.pullingImage)
+            let old = images[imageIndex]
+            await progress?([.addTotalItems(4), .addTotalSize(old.sizeBytes)])
+            for _ in 0..<4 {
+                try await Task.sleep(for: .milliseconds(200))
+                try Task.checkCancellation()
+                await progress?([.addItems(1), .addSize(old.sizeBytes / 4)])
+            }
+            let remoteDigest = imageUpdateInfo[old.id]?.remoteDigest ?? "sha256:\(UUID().uuidString.prefix(12).lowercased())"
+            images[imageIndex] = ContainerImage(id: old.id, repository: old.repository, tag: old.tag,
+                                                digest: remoteDigest, arch: old.arch, sizeBytes: old.sizeBytes,
+                                                created: "just now", source: old.source, usage: old.usage)
+            imageUpdateInfo[old.id] = ImageUpdateInfo(remoteDigest: remoteDigest, localImageDigest: remoteDigest,
+                                                      isUpdateAvailable: false, checkedAt: Date())
+            didPull = true
+        }
+        try Task.checkCancellation()
+
+        // No cancellation checks past this point — same replace-window semantics as the live
+        // service, so the sheet's cancel-gating is exercised honestly in mock mode.
+        let steps: [RecreatePhase] = wasRunning
+            ? [.stoppingContainer, .deletingContainer, .creatingContainer, .startingContainer]
+            : [.deletingContainer, .creatingContainer]
+        for step in steps {
+            onPhase(step)
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+        let newDigest = images.first { $0.id == container.image || $0.fullName == container.image }?.digest ?? oldDigest
+        // A non-running container lands stopped regardless of what it was (paused/error state
+        // doesn't survive being replaced by a fresh container).
+        containers[index] = container.withRuntimeReset(status: wasRunning ? .running : .stopped,
+                                                       imageDigest: newDigest,
+                                                       uptime: wasRunning ? "0m" : "–",
+                                                       startedDate: wasRunning ? Date() : nil)
+        return RecreateResult(wasRunning: wasRunning, didPull: didPull,
+                              oldImageDigest: oldDigest, newImageDigest: newDigest)
+    }
+
+    override func reclaimOrphanedImageBlobs() async throws -> UInt64 {
+        try? await Task.sleep(for: .milliseconds(200))
+        return 96 * 1_048_576
     }
 
     // Records the arguments of the last copy so tests and previews can assert what the UI asked
@@ -498,6 +576,7 @@ final class MockContainerService: ContainerServiceBase {
             id: id,
             name: id,
             image: options.reference,
+            imageDigest: images.first { $0.id == options.reference || $0.fullName == options.reference }?.digest,
             status: isRunning ? .running : .stopped,
             ports: ports,
             cpuPercent: 0,

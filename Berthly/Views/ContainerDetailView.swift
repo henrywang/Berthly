@@ -32,6 +32,7 @@ private struct ContainerDetailContent: View {
     @State private var isWorking    = false
     @State private var errorMessage: String?
     @State private var showCopySheet     = false
+    @State private var showRecreateSheet = false
 
     // Reads directly from service so every `container.xxx` access in body/computed-props
     // is tracked by @Observable — re-renders immediately when status/stats change.
@@ -88,6 +89,9 @@ private struct ContainerDetailContent: View {
         .sheet(isPresented: $showCopySheet) {
             CopyFilesSheet(service: service, containerID: container.id, targetName: container.name)
         }
+        .sheet(isPresented: $showRecreateSheet) {
+            RecreateContainerSheet(container: container)
+        }
         // Palette "Open Shell" routing. `.onChange` covers the already-selected container;
         // `.onAppear` covers the usual case where selecting this container mounts the view fresh
         // (with the request already set), which `.onChange` would miss.
@@ -120,11 +124,15 @@ private struct ContainerDetailContent: View {
                         .lineLimit(1)
                     StatusBadge(status: container.status)
                 }
-                Text(container.image)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fontDesign(.monospaced)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(container.image)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fontDesign(.monospaced)
+                        .lineLimit(1)
+                    ContainerStalenessGlyph(staleness: service.staleness(of: container),
+                                            containerName: container.name)
+                }
             }
             .layoutPriority(1)
             Spacer(minLength: 8)
@@ -135,6 +143,14 @@ private struct ContainerDetailContent: View {
             }
             .buttonStyle(.bordered)
             .help(service.isContainerPinned(container.id) ? "Unpin" : "Pin")
+            .hoverScale()
+
+            Button { showRecreateSheet = true } label: {
+                Image(systemName: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("containerRecreateButton")
+            .help("Recreate with Latest Image…")
             .hoverScale()
 
             Button { showCopySheet = true } label: {
@@ -298,6 +314,9 @@ private struct InspectSection: View {
         return [
             ("Status", "\(container.status.label)\(container.status == .running ? " · up \(container.uptime)" : "")"),
             ("Image", container.image),
+            // Makes staleness legible: this is the digest the container was created from, which
+            // the badge compares against the tag's current local image.
+            ("Image digest", container.imageDigest ?? "–"),
             ("Container ID", container.id),
             ("Command", container.command),
             ("Ports", container.ports.isEmpty ? "–" : container.ports.map(\.displayString).joined(separator: ", ")),
@@ -322,7 +341,7 @@ private struct InspectSection: View {
                             .foregroundStyle(.secondary)
                             .frame(width: 120, alignment: .leading)
                         Text(val)
-                            .fontDesign(["Container ID", "Command", "Ports", "Mounts"].contains(key) ? .monospaced : .default)
+                            .fontDesign(["Image digest", "Container ID", "Command", "Ports", "Mounts"].contains(key) ? .monospaced : .default)
                             .textSelection(.enabled)
                         Spacer()
                     }

@@ -115,6 +115,17 @@ struct ImagesListView: View {
         // that frees it belongs here too, not only in System > Disk Usage.
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                if service.isCheckingImageUpdates {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Button("Check for Updates") {
+                        Task { await service.checkForImageUpdates(force: true) }
+                    }
+                    .help(checkForUpdatesHelp)
+                    .accessibilityIdentifier("checkImageUpdatesButton")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
                 if isPruning {
                     ProgressView().controlSize(.small)
                 } else {
@@ -154,6 +165,13 @@ struct ImagesListView: View {
 
     private var deleteTarget: ContainerImage? {
         service.images.first(where: { $0.id == deleteTargetID })
+    }
+
+    private var checkForUpdatesHelp: String {
+        guard let last = service.lastImageUpdateCheck else {
+            return "Compare local images against their registries"
+        }
+        return "Compare local images against their registries (last checked \(last.formatted(.relative(presentation: .named))))"
     }
 
     private var deleteConfirmTitle: String {
@@ -205,10 +223,15 @@ private struct ImageRow: View {
     @State private var errorMessage: String?
     @State private var showRunSheet = false
     @State private var showTagSheet = false
+    @State private var showPullSheet = false
     @State private var saveRequest: ImageSaveRequest?
 
     private var image: ContainerImage? {
         service.images.first(where: { $0.id == imageID })
+    }
+
+    private var hasUpdate: Bool {
+        image.map { service.updateAvailability(for: $0) == .updateAvailable } ?? false
     }
 
     var body: some View {
@@ -238,12 +261,23 @@ private struct ImageRow: View {
                                 .foregroundStyle(.tertiary)
                         }
                         UsageBadge(usage: image.usage)
+                        if hasUpdate {
+                            UpdateAvailableBadge(image: image)
+                        }
                     }
                 }
 
                 Spacer()
 
                 if isHovered {
+                    if hasUpdate {
+                        Button { showPullSheet = true } label: {
+                            Image(systemName: "arrow.down.circle")
+                        }
+                        .buttonStyle(.hoverIcon)
+                        .help("Pull Latest")
+                        .accessibilityLabel("Pull Latest")
+                    }
                     Button { showRunSheet = true } label: {
                         Image(systemName: "play.fill")
                     }
@@ -273,6 +307,9 @@ private struct ImageRow: View {
             .onHover { isHovered = $0 }
             .contextMenu {
                 Button("Run from This Image…") { showRunSheet = true }
+                if hasUpdate {
+                    Button("Pull Latest") { showPullSheet = true }
+                }
                 Divider()
                 Button("Tag…") { showTagSheet = true }
                 Button("Save to Disk…") {
@@ -301,6 +338,10 @@ private struct ImageRow: View {
             }
             .sheet(isPresented: $showRunSheet) {
                 RunContainerSheet(service: service, initialReference: image.fullName)
+            }
+            .sheet(isPresented: $showPullSheet) {
+                PullImageSheet(initialReference: image.fullName,
+                              initiallyInsecure: service.isKnownInsecureRegistry(forReference: image.fullName))
             }
             .sheet(isPresented: $showTagSheet) {
                 TagImageSheet(image: image)

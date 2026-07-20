@@ -43,6 +43,20 @@ struct ModelEquatableTests {
         #expect(a != b, "same id, different image must compare unequal (late-arriving image data)")
     }
 
+    @Test func containerInequalityOnImageDigestChange() {
+        let old = Container(
+            id: "c1", name: "web", image: "local/web:1.0", imageDigest: "sha256:old", status: .running,
+            ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 0, networkIOString: "-", uptime: "-",
+            command: "", mounts: [], networks: [], environment: []
+        )
+        let recreated = Container(
+            id: "c1", name: "web", image: "local/web:1.0", imageDigest: "sha256:new", status: .running,
+            ports: [], cpuPercent: 0, memoryMB: 0, memoryLimitMB: 0, networkIOString: "-", uptime: "-",
+            command: "", mounts: [], networks: [], environment: []
+        )
+        #expect(old != recreated, "same id, different imageDigest must compare unequal (staleness badge redraw)")
+    }
+
     @Test func machineInequalityOnStatusChange() {
         let running = Machine(
             id: "m1", name: "dev", image: "debian:12", status: .running, isUtility: false,
@@ -119,5 +133,20 @@ struct ModelEquatableTests {
             arch: ["arm64"], sizeBytes: 0, created: "-", source: .pulled, usage: .usedBy(1)
         )
         #expect(unused != used, "same id, different usage must compare unequal (UsageBadge redraw)")
+    }
+
+    @Test func containerImageInequalityOnDigestChange() {
+        // Regression test for a real-daemon E2E finding (2026-07-20): after Pull Latest re-pulls
+        // the same reference, only `digest` changes — ForEach considered the row unchanged and
+        // never re-invoked ImageRow's body, so imageUpdateBadge silently never cleared.
+        let before = ContainerImage(
+            id: "localhost:1/repo:latest", repository: "localhost:1/repo", tag: "latest", digest: "sha256:old",
+            arch: ["arm64"], sizeBytes: 0, created: "-", source: .pulled, usage: .unused
+        )
+        let after = ContainerImage(
+            id: "localhost:1/repo:latest", repository: "localhost:1/repo", tag: "latest", digest: "sha256:new",
+            arch: ["arm64"], sizeBytes: 0, created: "-", source: .pulled, usage: .unused
+        )
+        #expect(before != after, "same id, different digest must compare unequal (imageUpdateBadge redraw)")
     }
 }

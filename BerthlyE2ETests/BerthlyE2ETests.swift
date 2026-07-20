@@ -856,8 +856,10 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
 /// the anonymous push/pull case (credentialed sign-in stays descoped for the same reason: it
 /// would need real secrets in a local test suite).
 final class RegistryJourneyTests: BerthlyE2ETestCase {
-    private static let fixtureImage = "alpine:latest"
-    private static let registryImage = "registry:latest"
+    // Not `private`: RecreateWatchtowerJourneyTests.swift extends this class from a separate
+    // file, and Swift's `private` is file-scoped, not type-scoped.
+    static let fixtureImage = "alpine:latest"
+    static let registryImage = "registry:latest"
     /// Arbitrary, uncommon high port — avoids macOS's own AirPlay Receiver (5000/7000) and
     /// anything else plausibly already listening on a dev machine.
     private static let registryPort = 18581
@@ -993,9 +995,10 @@ final class RegistryJourneyTests: BerthlyE2ETestCase {
     /// Polls the freshly-started registry until it accepts pushes. `container run -d` returning
     /// doesn't mean the distribution server inside has bound its port yet; retries a real (cheap,
     /// already-local) push rather than an HTTP probe, since that's the exact path the journey
-    /// itself exercises.
-    private func waitForRegistryReady(timeout: TimeInterval = 30) throws {
-        let probeRef = "localhost:\(Self.registryPort)/berthly-e2e/ready-probe:1"
+    /// itself exercises. Not `private`: `RecreateWatchtowerJourneyTests.swift` extends this class
+    /// from a separate file, and Swift's `private` is file-scoped, not type-scoped.
+    func waitForRegistryReady(port: Int = RegistryJourneyTests.registryPort, timeout: TimeInterval = 30) throws {
+        let probeRef = "localhost:\(port)/berthly-e2e/ready-probe:1"
         _ = try ContainerCLI.run(["image", "tag", Self.fixtureImage, probeRef])
         let deadline = Date(timeIntervalSinceNow: timeout)
         repeat {
@@ -1004,7 +1007,7 @@ final class RegistryJourneyTests: BerthlyE2ETestCase {
             }
             Thread.sleep(forTimeInterval: 1)
         } while Date() < deadline
-        throw XCTSkip("local registry on port \(Self.registryPort) never became ready")
+        throw XCTSkip("local registry on port \(port) never became ready")
     }
 
     /// Credentialed counterpart to `testBuildPushPullRoundTripThroughLocalInsecureRegistry`: a

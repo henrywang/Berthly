@@ -148,6 +148,15 @@ final class LiveContainerService: ContainerServiceBase {
             daemonState = ContainerCompatibility.isCompatible(installed: installedVersion)
                 ? .connected
                 : .versionMismatch(installed: installedVersion, required: ContainerCompatibility.requiredVersion)
+            // Piggybacked here (not its own timer) so checks only happen while connected; the
+            // isCheckDue gate keeps the registry traffic at on-connect + every 6h, never per tick.
+            // The Settings toggle only gates this automatic path — manual checks (Images
+            // toolbar) and the recreate action always work regardless.
+            if case .connected = daemonState,
+               ImageStaleness.automaticCheckEnabled(userDefaultValue: UserDefaults.standard.object(forKey: "checkImagesForUpdates")),
+               ImageStaleness.isCheckDue(lastCheck: lastImageUpdateCheck, now: .now) {
+                Task { await checkForImageUpdates() }
+            }
         } catch {
             daemonState = .afterFailedPing(
                 isConnectionFailure: isXPCConnectionError(error),
@@ -826,6 +835,7 @@ final class LiveContainerService: ContainerServiceBase {
             id: snap.id,
             name: snap.id,
             image: image,
+            imageDigest: snap.configuration.image.digest,
             status: mapStatus(snap.status),
             ports: snap.configuration.publishedPorts.map {
                 PortMapping(host: Int($0.hostPort), container: Int($0.containerPort))
@@ -1824,6 +1834,9 @@ final class LiveContainerService: ContainerServiceBase {
         } catch let error as KeychainQuery.Error {
             throw Self.friendlyError(for: error, host: host) ?? error
         }
+        if insecure {
+            Self.rememberInsecureHost(ImageStaleness.foldedBareHost(host))
+        }
         await loadRegistries()
     }
 
@@ -1871,6 +1884,34 @@ final class LiveContainerService: ContainerServiceBase {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 continuation.resume(with: Result { try registryKeychain.delete(hostname: hostname) })
+            }
+        }
+    }
+
+    /// Remembers `host` (already canonicalized by the caller via `ImageStaleness.registryHost`/
+    /// `foldedBareHost`) as one the user has explicitly told Berthly is insecure — so the
+    /// background update checker and recreate's own pull can use HTTP for it later without
+    /// re-asking. Deliberately **not** `nonisolated`: it inherits this class's `@MainActor`
+    /// isolation like every other instance-triggered write here, which statically guarantees no
+    /// two callers' read-merge-write of `UserDefaults` can interleave — MainActor code only
+    /// yields at `await`, and this function has none, so each call runs to completion before
+    /// anything else on MainActor can touch the key. UserDefaults itself needs no background-
+    /// queue offload the way Keychain does (no Security-framework IPC involved).
+    private static func rememberInsecureHost(_ host: String) {
+        let existing = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
+        UserDefaults.standard.set(ImageStaleness.addingInsecureHost(host, to: existing),
+                                  forKey: ImageStaleness.insecureHostsDefaultsKey)
+    }
+
+    /// Same offload as `keychainList`/`keychainSave`/`keychainDelete` — used by the background
+    /// image-update check, which runs several of these concurrently in a task group. Without the
+    /// offload, a slow Security-framework IPC or an ACL prompt would block the calling
+    /// cooperative-thread-pool thread, and with only a handful of threads in the pool, a few
+    /// concurrent private-registry checks could stall the whole pool indefinitely.
+    private nonisolated static func keychainLookup(hostname: String) async throws -> Authentication {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                continuation.resume(with: Result { try registryKeychain.lookup(hostname: hostname) })
             }
         }
     }
@@ -2486,6 +2527,10 @@ final class LiveContainerService: ContainerServiceBase {
         let createOptions = ContainerCreateOptions(autoRemove: options.remove)
         try await client.create(configuration: containerConfig, options: createOptions, kernel: kernel, initImage: initImage)
 
+        if options.insecureRegistry, let host = ImageStaleness.registryHost(for: options.reference) {
+            Self.rememberInsecureHost(host)
+        }
+
         if let cidFile = options.cidFile, !cidFile.isEmpty {
             FileManager.default.createFile(
                 atPath: cidFile,
@@ -2645,6 +2690,12 @@ final class LiveContainerService: ContainerServiceBase {
             throw error
         }
 
+        // A host's transport insecurity isn't tied to what you pulled from it — remember it here
+        // too so a later container pull/push against the same registry doesn't need re-asking.
+        if options.insecureRegistry, let host = ImageStaleness.registryHost(for: options.reference) {
+            Self.rememberInsecureHost(host)
+        }
+
         // From here on, a machine exists — checked cancellation points below (rather than just
         // relying on setDefault/bootMachineNatively's own awaits) mean a cancelled create doesn't
         // silently keep going through setDefault/boot; on cancellation the catch below deletes the
@@ -2731,7 +2782,227 @@ final class LiveContainerService: ContainerServiceBase {
         )
         onUnpacking?()
         try await image.unpack(platform: ociPlatform)
+        if insecure, let host = ImageStaleness.registryHost(for: reference) {
+            Self.rememberInsecureHost(host)
+        }
         await refresh()
+    }
+
+    override func isKnownInsecureRegistry(forReference reference: String) -> Bool {
+        let knownInsecureHosts = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
+        return ImageStaleness.isHostInsecure(reference: reference, knownInsecureHosts: knownInsecureHosts)
+    }
+
+    override func checkForImageUpdates(force: Bool = false) async {
+        guard isConnected, !isCheckingImageUpdates else { return }
+        if !force, !ImageStaleness.isCheckDue(lastCheck: lastImageUpdateCheck, now: .now) { return }
+        isCheckingImageUpdates = true
+        defer { isCheckingImageUpdates = false }
+        lastImageUpdateCheck = .now
+
+        let config = await resolvedSystemConfig()
+        let dnsDomain = config.dns.domain
+        // Credentials are attempted only for hosts with a stored login: a Keychain lookup for a
+        // never-signed-in host can still hit ACL prompts/errors, and anonymous works for public
+        // registries (RegistryClient runs the token flow itself).
+        let signedInHosts = Set(registries.map(\.host))
+        let knownInsecureHosts = Set(UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? [])
+        let eligible = ImageStaleness.eligibleReferences(images: images)
+
+        var results: [String: ImageUpdateInfo] = [:]
+        await withTaskGroup(of: (String, ImageUpdateInfo)?.self) { group in
+            var iterator = eligible.makeIterator()
+            func addNext() {
+                guard let reference = iterator.next() else { return }
+                group.addTask {
+                    await Self.checkOneImageUpdate(reference: reference, signedInHosts: signedInHosts,
+                                                   knownInsecureHosts: knownInsecureHosts,
+                                                   internalDnsDomain: dnsDomain, systemConfig: config)
+                }
+            }
+            // Window of 4: enough parallelism to keep a large image list quick, small enough to
+            // not burst-hammer a single registry host.
+            for _ in 0..<4 { addNext() }
+            for await result in group {
+                if let (id, info) = result { results[id] = info }
+                addNext()
+            }
+        }
+        // A badge must be a *currently confirmable* claim: clear every reference this batch
+        // checked before merging, so a reference whose check failed loses its old verdict
+        // instead of pinning a stale "update available" indefinitely.
+        for reference in eligible { imageUpdateInfo[reference] = nil }
+        imageUpdateInfo.merge(results) { _, new in new }
+    }
+
+    /// One registry HEAD comparison. Returns `nil` on any failure — a background check must
+    /// never surface an error; a missing entry simply means no badge.
+    private nonisolated static func checkOneImageUpdate(
+        reference: String, signedInHosts: Set<String>, knownInsecureHosts: Set<String>,
+        internalDnsDomain: String?, systemConfig: ContainerSystemConfig
+    ) async -> (String, ImageUpdateInfo)? {
+        do {
+            let ref = try Reference.parse(reference)
+            guard let domain = ref.resolvedDomain, let tag = ref.tag else { return nil }
+            // The canonicalized lookup key (case/trailing-dot folded) is used only to consult
+            // the insecure-hosts memory — the raw `domain` still drives the actual connection,
+            // so this can't have any side effect on DNS/URL construction.
+            let isInsecure = knownInsecureHosts.contains(ImageStaleness.registryHost(for: reference) ?? domain)
+            let target = try resolveRegistryConnectionTarget(
+                host: domain, insecure: isInsecure, internalDnsDomain: internalDnsDomain
+            )
+            // try? on the lookup: a CLI-owned Keychain item Berthly can't read (see
+            // errSecInvalidOwnerEdit above) degrades to an anonymous check, not a failure.
+            // Offloaded (keychainLookup, not a direct registryKeychain.lookup call) — several of
+            // these run concurrently in checkForImageUpdates' task group, and the synchronous
+            // Security-framework call would otherwise tie up the cooperative thread pool.
+            let auth: Authentication? = signedInHosts.contains(domain)
+                ? try? await Self.keychainLookup(hostname: domain)
+                : nil
+            let client = RegistryClient(
+                host: target.host,
+                scheme: target.scheme.rawValue,
+                port: target.port,
+                authentication: auth,
+                retryOptions: RetryOptions(maxRetries: 1, retryInterval: 300_000_000, shouldRetry: { $0.status.code >= 500 })
+            )
+            let remote = try await client.resolve(name: ref.path, tag: tag)
+            let local = try await ClientImage.get(reference: reference, containerSystemConfig: systemConfig)
+            let comparable = ImageStaleness.comparableLocalDigest(ownDigest: local.digest, index: try await local.index())
+            return (reference, ImageUpdateInfo(
+                remoteDigest: remote.digest,
+                localImageDigest: local.digest,
+                isUpdateAvailable: remote.digest != comparable,
+                checkedAt: .now
+            ))
+        } catch {
+            return nil
+        }
+    }
+
+    /// The stored configuration pins the digest the container was *created* from — reusing it
+    /// verbatim would recreate the old container byte-for-byte. Everything else (id, mounts,
+    /// networks, DNS, resources, labels, init process) is already resolved and carries over.
+    nonisolated static func recreatedConfiguration(
+        from config: ContainerConfiguration, imageDescriptor: Descriptor
+    ) -> ContainerConfiguration {
+        var newConfig = config
+        newConfig.image = ImageDescription(reference: config.image.reference, descriptor: imageDescriptor)
+        return newConfig
+    }
+
+    override func recreateContainer(_ id: String, pullFirst: Bool, progress: ProgressUpdateHandler? = nil,
+                                    onPhase: @MainActor @escaping (RecreatePhase) -> Void) async throws -> RecreateResult {
+        let client = ContainerClient()
+        let snapshot = try await client.get(id: id)
+        let originalConfig = snapshot.configuration
+        let wasRunning = snapshot.status == .running
+        let reference = originalConfig.image.reference
+        let containerSystemConfig = await resolvedSystemConfig()
+
+        // Pull phase — the only cancellable window: nothing destructive has happened yet, and a
+        // pulled-but-unused image is harmless. Platform nil (all variants) so the stored digest
+        // stays an index digest, comparable to what checkForImageUpdates checks against.
+        // The same insecure-host lookup checkOneImageUpdate uses — without it, this pull has the
+        // identical hardcoded-.auto bug the checker had: a badge could correctly appear for a
+        // private HTTP registry, then this exact call would fail against it.
+        let knownInsecureHosts = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
+        let pullScheme: RequestScheme = ImageStaleness.isHostInsecure(reference: reference, knownInsecureHosts: knownInsecureHosts) ? .http : .auto
+        var didPull = false
+        if pullFirst, (try? Reference.parse(reference))?.domain != nil {
+            onPhase(.pullingImage)
+            let pulled = try await ClientImage.pull(reference: reference, platform: nil, scheme: pullScheme,
+                                                    containerSystemConfig: containerSystemConfig,
+                                                    progressUpdate: progress)
+            try await pulled.unpack(platform: nil)
+            didPull = true
+        }
+        try Task.checkCancellation()
+
+        let image = try await ClientImage.fetch(reference: reference, scheme: pullScheme, containerSystemConfig: containerSystemConfig)
+        _ = try await image.getCreateSnapshot(platform: originalConfig.platform)
+        let newConfig = Self.recreatedConfiguration(from: originalConfig, imageDescriptor: image.descriptor)
+        let kernel = try await ClientKernel.getDefaultKernel(for: .current)
+        let initImage = containerSystemConfig.vminit.image
+
+        // Last cancellation point: a cancel racing the fetch/kernel awaits above must land here,
+        // not mid-replacement — the XPC calls below don't reliably honor cancellation, so a
+        // cancel that slipped past would dismiss the sheet while the replacement continues.
+        try Task.checkCancellation()
+
+        // From here to the final start there are deliberately no cancellation checks: the old
+        // container is being replaced, and aborting between delete and create would strand the
+        // user with no container at all. The sheet only enables Cancel during the pull phase.
+        if wasRunning {
+            onPhase(.stoppingContainer)
+            try await client.stop(id: id)
+        }
+        onPhase(.deletingContainer)
+        do {
+            try await client.delete(id: id)
+        } catch let deleteError {
+            // `ContainerClient.delete` wraps every failure as `.internalError` with the real
+            // error buried in `cause`, so a notFound can't be matched directly. An --rm
+            // container deletes itself on stop (autoRemove isn't part of the snapshot, so it
+            // can't be detected up front — or preserved; the recreated container is plain);
+            // post-stop absence is therefore success here.
+            //
+            // The follow-up `get` must distinguish a *confirmed* absence from a failed lookup:
+            // `get` throws `.notFound` directly only when the container list came back empty —
+            // any other outcome (the container still exists, or the lookup itself failed —
+            // e.g. a transient XPC hiccup, which `list` wraps as `.internalError`) means absence
+            // was never established, so proceeding to `create` could collide with a container
+            // that's still there. Only a confirmed `.notFound` excuses the original delete error.
+            var confirmedAbsent = false
+            do {
+                _ = try await client.get(id: id)
+            } catch let lookupError as ContainerizationError where lookupError.isCode(.notFound) {
+                confirmedAbsent = true
+            } catch {
+                // Lookup itself failed (or threw some other error) — absence is unconfirmed.
+            }
+            guard confirmedAbsent else { throw deleteError }
+        }
+        onPhase(.creatingContainer)
+        do {
+            try await client.create(configuration: newConfig, options: .default, kernel: kernel, initImage: initImage)
+        } catch let createError {
+            // Roll back to the original configuration — its image blobs are guaranteed present
+            // (orphaned-blob GC only runs on explicit user request, after success).
+            let restored: Bool
+            do {
+                try await client.create(configuration: originalConfig, options: .default, kernel: kernel, initImage: initImage)
+                if wasRunning {
+                    let process = try await client.bootstrap(id: id, stdio: [nil, nil, nil])
+                    try await process.start()
+                }
+                restored = true
+            } catch {
+                restored = false
+            }
+            await refresh()
+            throw ContainerCLIError(exitCode: 1, message: restored
+                ? "Couldn't create the updated container: \(createError.localizedDescription) The previous container was restored."
+                : "Couldn't create the updated container: \(createError.localizedDescription) Restoring the previous container also failed — run it again manually from its image.")
+        }
+        if wasRunning {
+            onPhase(.startingContainer)
+            let process = try await client.bootstrap(id: id, stdio: [nil, nil, nil])
+            try await process.start()
+        }
+        await refresh()
+        return RecreateResult(wasRunning: wasRunning, didPull: didPull,
+                              oldImageDigest: originalConfig.image.digest, newImageDigest: image.digest)
+    }
+
+    override func reclaimOrphanedImageBlobs() async throws -> UInt64 {
+        // A same-tag re-pull *replaces* the reference in the image store, so there's no dangling
+        // image row to delete — the old version is just unreferenced blobs, and this is blob GC
+        // (the same call pruneImages finishes with), not an image delete.
+        let (_, blobBytes) = try await ClientImage.cleanUpOrphanedBlobs()
+        await refresh()
+        try? await fetchDiskUsage()
+        return blobBytes
     }
 
     override func pushImage(reference: String, destination: String? = nil, platform: String? = nil,
@@ -2772,6 +3043,9 @@ final class LiveContainerService: ContainerServiceBase {
                 containerSystemConfig: config,
                 progressUpdate: watchedProgress
             )
+        }
+        if insecure, let host = ImageStaleness.registryHost(for: destination ?? reference) {
+            Self.rememberInsecureHost(host)
         }
         // A retag created a new local reference — surface it in the list.
         await refresh()
