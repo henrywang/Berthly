@@ -206,6 +206,10 @@ struct SheetSubmitFooter: View {
     var showsBusyButton: Bool = true
     /// Working-phase Cancel action; `nil` keeps the idle behavior of dismissing the sheet.
     var onCancel: (() -> Void)?
+    /// Set to disable the working-phase Cancel with this tooltip — for flows whose work enters a
+    /// non-cancellable window (recreate's stop→delete→create) rather than being cancelable end
+    /// to end. Disabled, not hidden: the button vanishing mid-operation reads as a glitch.
+    var workingCancelDisabledHelp: LocalizedStringKey?
     var onSubmit: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
@@ -225,6 +229,8 @@ struct SheetSubmitFooter: View {
             case .working:
                 Button("Cancel") { (onCancel ?? { dismiss() })() }
                     .keyboardShortcut(.cancelAction)
+                    .disabled(workingCancelDisabledHelp != nil)
+                    .help(workingCancelDisabledHelp ?? "")
                 if showsBusyButton {
                     Button {} label: {
                         HStack(spacing: 6) {
@@ -253,7 +259,13 @@ struct SheetSubmitFooter: View {
 // MARK: - Shared option controls
 
 /// The "Allow insecure registry" checkbox with its warning subtext — identical wherever a
-/// sheet talks to a registry (pull, push, machine create, run).
+/// sheet talks to a registry (pull, push, machine create, run, sign-in).
+///
+/// Checking this once remembers the host as insecure (Settings > Image Updates lists and can
+/// forget it) — not just for this one operation. The copy says so explicitly: silently turning
+/// a per-operation choice into a standing HTTP downgrade for that host would mean a later
+/// operation (including one carrying credentials, e.g. sign-in) could go out over plaintext
+/// without the user ever seeing this checkbox again.
 struct InsecureRegistryToggle: View {
     @Binding var isOn: Bool
 
@@ -262,7 +274,7 @@ struct InsecureRegistryToggle: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Allow insecure registry")
                     .font(.caption.weight(.medium))
-                Text("Forces HTTP instead of HTTPS. Only use for private registries without TLS.")
+                Text("Forces HTTP instead of HTTPS and remembers this host as insecure for future update checks. Only use for private registries without TLS.")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }

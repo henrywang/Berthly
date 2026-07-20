@@ -49,6 +49,10 @@ around the *workflow*, with a tier of features the CLI doesn't have:
   toolchain, then start and monitor the daemon for you.
 - **Disk hygiene at a glance** — reclaimable-space badges on Images and
   Volumes, with confirmed one-click pruning.
+- **Image updates, Watchtower-style** — Berthly periodically compares your
+  pulled tags against their registries and badges stale images and the
+  containers running them; "Recreate with Latest Image" pulls and rebuilds the
+  container with its exact configuration, volumes intact.
 
 And yes — Berthly also covers the `container` CLI's full feature surface — see
 [PARITY.md](PARITY.md) for the subcommand-by-subcommand mapping and the few

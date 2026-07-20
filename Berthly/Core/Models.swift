@@ -66,6 +66,10 @@ struct Container: Identifiable, Hashable {
     let id: String
     let name: String
     let image: String
+    /// The content digest the container was created from (`configuration.image.descriptor`) —
+    /// what staleness compares against the tag's current local image. Defaulted so the many
+    /// fixture call sites don't all name it.
+    var imageDigest: String?
     let status: ContainerStatus
     let ports: [PortMapping]
     let cpuPercent: Double
@@ -79,9 +83,13 @@ struct Container: Identifiable, Hashable {
     let environment: [String]
     var startedDate: Date?
 
-    // Include status and image so SwiftUI detects section changes and late-arriving image data.
+    // Include status and image so SwiftUI detects section changes and late-arriving image data,
+    // and imageDigest because a recreate changes the digest while status and image stay equal —
+    // rows take Container by value from ForEach, so a narrower == freezes their staleness badge.
     // Hash by id only for stable Set membership across status/image transitions.
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.status == rhs.status && lhs.image == rhs.image }
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.id == rhs.id && lhs.status == rhs.status && lhs.image == rhs.image && lhs.imageDigest == rhs.imageDigest
+    }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 
     var portsDisplayString: String {
@@ -93,9 +101,12 @@ struct Container: Identifiable, Hashable {
 
 // MARK: - Image
 
-enum ImageSource { case built, pulled }
+// `nonisolated`: read by `ImageStaleness.eligibleReferences`, a nonisolated pure function —
+// without it, their derived `Equatable` is MainActor-isolated under this module's default
+// isolation and a nonisolated caller warns (error under Swift 6 mode).
+nonisolated enum ImageSource { case built, pulled }
 
-enum ImageUsage: Equatable {
+nonisolated enum ImageUsage: Equatable {
     case usedBy(Int)
     case unused
     case builderImage
@@ -148,7 +159,13 @@ struct ContainerImage: Identifiable, Hashable {
 
     // Include usage so SwiftUI detects the row's UsageBadge needing to redraw when a container
     // starts/stops using this image — same class of fix as Container/Machine/Builder/Network.
-    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.usage == rhs.usage }
+    // Also include digest: a real-daemon E2E investigation (2026-07-20) found that after a
+    // same-reference re-pull (Pull Latest) changes `digest` alone, ForEach — which diffs
+    // ContainerImage by value even though ImageRow re-resolves the model live by id — considered
+    // the row unchanged and never re-invoked its body, so imageUpdateBadge silently never
+    // cleared. A prior investigation had called Image immune to this bug class, but that
+    // predates the update-badge feature: nothing rendered depended on digest alone until now.
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id && lhs.usage == rhs.usage && lhs.digest == rhs.digest }
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
@@ -193,6 +210,62 @@ extension ContainerImage {
             )
         }
     }
+}
+
+// MARK: - Image updates (Watchtower-style)
+
+/// Result of one remote registry digest check, keyed in the service by `ContainerImage.id`.
+nonisolated struct ImageUpdateInfo: Equatable {
+    let remoteDigest: String
+    /// The local digest the check was computed against — the invalidation key: once the image's
+    /// digest moves (pull/rebuild), this info describes bytes that no longer exist locally and
+    /// `ImageStaleness.availability` reports `.unknown` instead of a stale verdict.
+    let localImageDigest: String
+    let isUpdateAvailable: Bool
+    let checkedAt: Date
+}
+
+nonisolated enum ImageUpdateAvailability: Equatable { case unknown, upToDate, updateAvailable }
+
+/// Why a container lags its image tag — drives the badge's help text and the recreate sheet's
+/// context line.
+nonisolated enum ContainerImageStaleness: Equatable {
+    case current
+    /// The tag's local image is newer than the container's pinned digest (pulled, not recreated).
+    case localImageNewer
+    /// The registry has a newer digest for the tag than the local image.
+    case remoteUpdateAvailable
+}
+
+/// Recreate progress steps, reported to the sheet via `onPhase`. Everything from
+/// `.stoppingContainer` on is the non-cancellable window (the old container is being replaced),
+/// which the sheet uses to disable its Cancel button.
+nonisolated enum RecreatePhase: Equatable {
+    case pullingImage, stoppingContainer, deletingContainer, creatingContainer, startingContainer
+
+    /// `LocalizedStringResource`, not `String` (matching `ContainerImage.deleteWarning`'s
+    /// precedent) — this feeds `Text(phase.logLine)` directly as the visible phase caption, and
+    /// `Text(String)` never consults the string catalog at runtime even if the literal is
+    /// extracted into it, so a plain `String` here would silently never localize.
+    var logLine: LocalizedStringResource {
+        switch self {
+        case .pullingImage:      return "Pulling latest image…"
+        case .stoppingContainer: return "Stopping container…"
+        case .deletingContainer: return "Removing old container…"
+        case .creatingContainer: return "Creating container from new image…"
+        case .startingContainer: return "Starting container…"
+        }
+    }
+}
+
+nonisolated struct RecreateResult: Equatable {
+    let wasRunning: Bool
+    let didPull: Bool
+    let oldImageDigest: String
+    let newImageDigest: String
+    /// Whether the recreate actually moved to different bytes — only then does the success UI
+    /// offer to reclaim the old digest's now-orphaned blobs.
+    var oldImageReclaimable: Bool { oldImageDigest != newImageDigest }
 }
 
 /// Outcome of loading an OCI tar archive: one archive can carry several images, and the client

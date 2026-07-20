@@ -24,6 +24,14 @@ class ContainerServiceBase {
     var pinnedContainerIDs: Set<String> = []
     var pinnedMachineIDs: Set<String> = []
 
+    /// Remote digest-check results, keyed by `ContainerImage.id`. Lives here (not on the model)
+    /// so badge views observe the dictionary through `@Environment` and re-render on check
+    /// results without widening `ContainerImage.==`.
+    var imageUpdateInfo: [String: ImageUpdateInfo] = [:]
+    var lastImageUpdateCheck: Date?
+    /// Drives the Images toolbar's check-in-progress spinner.
+    var isCheckingImageUpdates = false
+
     /// Set when `startDaemon()` connects fine but a background bootstrap step (installing the
     /// vminit filesystem image or default kernel) failed — the daemon reports `.connected`
     /// regardless (it's the correct state for most purposes), so without this the failure is
@@ -123,6 +131,36 @@ class ContainerServiceBase {
     func deleteBuilder(_ id: String) async throws {}
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false,
                    progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
+
+    func updateAvailability(for image: ContainerImage) -> ImageUpdateAvailability {
+        ImageStaleness.availability(image: image, info: imageUpdateInfo[image.id])
+    }
+    func staleness(of container: Container) -> ContainerImageStaleness {
+        ImageStaleness.staleness(containerImageRef: container.image, containerImageDigest: container.imageDigest,
+                                 images: images, updateInfo: imageUpdateInfo)
+    }
+    /// Whether `reference`'s registry host has been remembered as insecure (Pull/Push/Run/
+    /// Sign-in's "Allow insecure registry" toggle) — used to prefill Pull Latest's own toggle so
+    /// re-pulling a known-insecure host's tag doesn't need re-asking. Base `false`: mock mode has
+    /// no real registries to remember anything about.
+    func isKnownInsecureRegistry(forReference reference: String) -> Bool { false }
+    /// Compare each eligible local image's digest against its registry (HEAD manifest, no pull)
+    /// and record the results in `imageUpdateInfo`. Failures are silent per image — a background
+    /// nicety must never alert; a failed check just means no badge.
+    func checkForImageUpdates(force: Bool = false) async {}
+    /// Watchtower-style update: optionally pull the container's tag, then stop/delete/recreate it
+    /// from the stored configuration with the fresh image digest, restoring the prior run state.
+    /// `onPhase` narrates steps for the sheet; only the pull phase honors cancellation.
+    @discardableResult
+    func recreateContainer(_ id: String, pullFirst: Bool, progress: ProgressUpdateHandler? = nil,
+                           onPhase: @MainActor @escaping (RecreatePhase) -> Void) async throws -> RecreateResult {
+        RecreateResult(wasRunning: false, didPull: false, oldImageDigest: "", newImageDigest: "")
+    }
+    /// Garbage-collect content blobs no longer referenced by any image — what a same-tag re-pull
+    /// leaves behind (apple/container *replaces* the reference, so there's no dangling image row
+    /// to delete, only orphaned bytes). Returns freed bytes.
+    @discardableResult
+    func reclaimOrphanedImageBlobs() async throws -> UInt64 { 0 }
     /// Create an additional local reference for an existing image (like `container image tag`).
     /// Returns the reference actually created: normalization can add a default registry host,
     /// a `library/` namespace, or `:latest` — the UI shows the result so that isn't a surprise.

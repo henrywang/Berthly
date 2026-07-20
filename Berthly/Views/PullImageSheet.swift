@@ -22,6 +22,12 @@ struct PullImageSheet: View {
     @State private var pullProgress = TransferProgressState.pull()
     @State private var pullTask: Task<Void, Never>?
 
+    init(initialReference: String = "", initiallyInsecure: Bool = false, onOpenRegistries: @escaping () -> Void = {}) {
+        self.onOpenRegistries = onOpenRegistries
+        _reference = State(initialValue: initialReference)
+        _allowInsecure = State(initialValue: initiallyInsecure)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             SheetHeader(

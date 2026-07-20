@@ -29,6 +29,15 @@ private struct GeneralSettingsTab: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var errorMessage: String?
     @Environment(UpdaterService.self) private var updater
+    /// Read by `LiveContainerService.poll()` to gate the automatic registry-digest check —
+    /// manual checks (Images toolbar) and the recreate action itself are never gated by this.
+    @AppStorage("checkImagesForUpdates") private var checkImagesForUpdates = true
+    /// Hosts remembered as insecure by the "Allow insecure registry" toggle on Pull/Push/Run/
+    /// Sign-in/Machine Create (`ImageStaleness.registryHost`/`rememberInsecureHost`). A one-time
+    /// snapshot, not `@AppStorage` (no native `[String]` support) — doesn't live-update if
+    /// another window adds one while Settings is open, same limitation `launchAtLogin`'s
+    /// snapshot already accepts.
+    @State private var insecureHosts = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
 
     var body: some View {
         @Bindable var updater = updater
@@ -56,6 +65,43 @@ private struct GeneralSettingsTab: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section {
+                Toggle("Check images for updates", isOn: $checkImagesForUpdates)
+            } header: {
+                Text("Image Updates")
+            } footer: {
+                Text("""
+                Periodically compares your pulled images against their registries and badges \
+                the ones with a newer version. You can always check manually from the Images page.
+                """)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            if !insecureHosts.isEmpty {
+                Section {
+                    ForEach(insecureHosts, id: \.self) { host in
+                        HStack {
+                            Text(host)
+                                .font(.callout.monospaced())
+                            Spacer()
+                            Button("Remove") { removeInsecureHost(host) }
+                                .buttonStyle(.borderless)
+                                .foregroundStyle(.red)
+                        }
+                    }
+                } header: {
+                    Text("Insecure Registries")
+                } footer: {
+                    Text("""
+                    Hosts you've told Berthly to trust over HTTP instead of HTTPS. Remove one to \
+                    require HTTPS again — you'll be asked to allow it again the next time it's needed.
+                    """)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
         .formStyle(.grouped)
         .alert("Couldn't Change Login Item", isPresented: Binding(
@@ -66,6 +112,11 @@ private struct GeneralSettingsTab: View {
         } message: {
             Text(errorMessage ?? "")
         }
+    }
+
+    private func removeInsecureHost(_ host: String) {
+        insecureHosts.removeAll { $0 == host }
+        UserDefaults.standard.set(insecureHosts, forKey: ImageStaleness.insecureHostsDefaultsKey)
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

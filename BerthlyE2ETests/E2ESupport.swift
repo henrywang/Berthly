@@ -245,6 +245,19 @@ class BerthlyE2ETestCase: XCTestCase {
     private(set) var volumeName = ""
     private(set) var networkName = ""
 
+    /// The real app's UserDefaults suite — E2E drives the actual `LiveContainerService`, not a
+    /// mock, so any test that checks "Allow insecure registry" (Pull/Push/Run/Sign-in/Machine
+    /// Create) writes to the developer's REAL, persistent preferences. Snapshotted in setUp and
+    /// restored verbatim in tearDown so a local E2E run never permanently pollutes it — this must
+    /// live in the shared base class, not just one test, since every registry-touching E2E test
+    /// now has this side effect.
+    private static let berthlyDefaults = UserDefaults(suiteName: "app.berthly.Berthly")!
+    /// Must match `ImageStaleness.insecureHostsDefaultsKey` — this target only `import XCTest`,
+    /// no `@testable import Berthly`, so the Swift constant isn't reachable here.
+    private static let insecureHostsKey = "insecureRegistryHosts"
+    private var didSnapshotInsecureHosts = false
+    private var savedInsecureHosts: [String]?
+
     override func setUpWithError() throws {
         continueAfterFailure = false
 
@@ -282,6 +295,11 @@ class BerthlyE2ETestCase: XCTestCase {
             """)
         }
 
+        // Snapshot before anything in this run could possibly write to it (see the property's
+        // doc comment) — restored verbatim in tearDown regardless of what this test does.
+        savedInsecureHosts = Self.berthlyDefaults.stringArray(forKey: Self.insecureHostsKey)
+        didSnapshotInsecureHosts = true
+
         // Same rationale as BerthlyUITests.setUpWithError: a stray instance from a manual
         // launch or crashed run makes launch() adopt nothing and every wait time out.
         let killer = Process()
@@ -311,6 +329,16 @@ class BerthlyE2ETestCase: XCTestCase {
             ContainerCLI.sweepNetworks(prefix: Self.resourcePrefix)
             ContainerCLI.sweepImages(prefix: Self.resourcePrefix)
             ContainerCLI.sweepMachines(prefix: Self.resourcePrefix)
+        }
+        // Restore exactly what was there before this run — preserves any real entries the
+        // developer already had, only reverts what this test itself added (or unsets the key
+        // again if it was never set to begin with).
+        if didSnapshotInsecureHosts {
+            if let savedInsecureHosts {
+                Self.berthlyDefaults.set(savedInsecureHosts, forKey: Self.insecureHostsKey)
+            } else {
+                Self.berthlyDefaults.removeObject(forKey: Self.insecureHostsKey)
+            }
         }
     }
 

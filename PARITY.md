@@ -43,6 +43,12 @@ interactive/tty, ssh, shm-size, Rosetta, virtualization.
 Berthly additionally persists each image's build context and settings, so
 **Rebuild** re-runs a build without re-entering anything — no CLI equivalent.
 
+Also CLI-less: **update detection** (a background registry HEAD comparison
+badges images whose tag has a newer digest, plus the containers running them)
+and **Recreate with Latest Image** on a container (pull, then delete/recreate
+from its stored configuration, restoring the prior run state) — the CLI would
+need a manual `pull` + `delete` + a re-typed `run` for the same result.
+
 ## Registries
 
 `login`, `logout`, `list` — the Registries page, using the same Keychain
