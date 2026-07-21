@@ -147,7 +147,7 @@ private struct VolumeDetailContent: View {
                         Text("/ \(formatVolumeMB(volume.allocatedMB))")
                             .font(.system(.callout, design: .monospaced))
                             .foregroundStyle(.secondary)
-                        Text("\(Int((volume.usagePercent * 100).rounded()))%")
+                        Text(volume.usagePercent.formatted(.percent.precision(.fractionLength(0))))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(barColor(volume))
                             .padding(.horizontal, 6)
