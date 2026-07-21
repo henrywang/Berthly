@@ -35,16 +35,6 @@
         }
       }
     },
-    "%@ · %lld%%" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$@ · %2$lld%%"
-          }
-        }
-      }
-    },
     "%@ · gw %@" : {
       "localizations" : {
         "en" : {
@@ -94,9 +84,6 @@
 
     },
     "%lld running" : {
-
-    },
-    "%lld%%" : {
 
     },
     "→ gw %@" : {
@@ -693,7 +680,7 @@
     "Force re-install" : {
 
     },
-    "Forces HTTP instead of HTTPS. Only use for private registries without TLS." : {
+    "Forces HTTP instead of HTTPS and remembers this host as insecure for future update checks. Only use for private registries without TLS." : {
 
     },
     "Forward SSH agent" : {
@@ -721,6 +708,9 @@
 
     },
     "Host-only" : {
+
+    },
+    "Hosts you've told Berthly to trust over HTTP instead of HTTPS. Remove one to require HTTPS again — you'll be asked to allow it again the next time it's needed." : {
 
     },
     "Image" : {
@@ -763,6 +753,9 @@
 
     },
     "Infrastructure Images" : {
+
+    },
+    "Insecure Registries" : {
 
     },
     "INSPECT" : {
@@ -1358,13 +1351,13 @@
     "Start the container to copy files" : {
 
     },
-    "Starting container…" : {
-
-    },
     "Start the container to open a shell." : {
 
     },
     "Start the machine to open a shell." : {
+
+    },
+    "Starting container…" : {
 
     },
     "Status" : {
@@ -1394,9 +1387,6 @@
     "Stop the container daemon?" : {
 
     },
-    "Stopping container…" : {
-
-    },
     "Stop the container first" : {
 
     },
@@ -1404,6 +1394,9 @@
 
     },
     "STOPPED %lld" : {
+
+    },
+    "Stopping container…" : {
 
     },
     "Storage" : {
@@ -1469,7 +1462,7 @@
     "The container daemon is installed but not running." : {
 
     },
-    "The container is deleted and recreated from its image. Changes inside the container's own filesystem are discarded. Data on volumes is kept." : {
+    "The container is deleted and recreated from its image. Changes inside the container's own filesystem are discarded. Data on volumes is kept. If \"Remove when stopped\" was enabled, that setting cannot be preserved by recreation." : {
 
     },
     "The default network can't be deleted" : {

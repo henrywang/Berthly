@@ -329,7 +329,7 @@ private struct DiskUsageGridRow: View {
                 .monospacedDigit()
                 .gridColumnAlignment(.trailing)
 
-            Text("\(formatDiskBytes(category.reclaimableBytes)) · \(category.reclaimablePercent)%")
+            Text("\(formatDiskBytes(category.reclaimableBytes)) · \((Double(category.reclaimablePercent) / 100).formatted(.percent.precision(.fractionLength(0))))")
                 .monospacedDigit()
                 .foregroundStyle(category.reclaimableBytes > 0 ? Color.statusPaused : .secondary)
                 .gridColumnAlignment(.trailing)
