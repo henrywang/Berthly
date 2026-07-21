@@ -224,6 +224,7 @@ private struct ImageRow: View {
     @State private var showRunSheet = false
     @State private var showTagSheet = false
     @State private var showPullSheet = false
+    @State private var showPushSheet = false
     @State private var saveRequest: ImageSaveRequest?
 
     private var image: ContainerImage? {
@@ -312,6 +313,7 @@ private struct ImageRow: View {
                 }
                 Divider()
                 Button("Tag…") { showTagSheet = true }
+                Button("Push…") { showPushSheet = true }
                 Button("Save to Disk…") {
                     if let destination = promptForArchiveDestination(imageName: image.fullName) {
                         saveRequest = ImageSaveRequest(reference: image.fullName, destination: destination)
@@ -345,6 +347,9 @@ private struct ImageRow: View {
             }
             .sheet(isPresented: $showTagSheet) {
                 TagImageSheet(image: image)
+            }
+            .sheet(isPresented: $showPushSheet) {
+                PushImageSheet(image: image)
             }
             .sheet(item: $saveRequest) { request in
                 SaveImageSheet(request: request)
