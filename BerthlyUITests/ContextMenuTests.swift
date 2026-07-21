@@ -213,6 +213,7 @@ final class ContextMenuTests: XCTestCase {
 
         XCTAssertTrue(app.menuItems["Run from This Image…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.menuItems["Tag…"].exists)
+        XCTAssertTrue(app.menuItems["Push…"].exists)
         XCTAssertTrue(app.menuItems["Save to Disk…"].exists)
         XCTAssertTrue(app.menuItems["Copy Reference"].exists)
         XCTAssertTrue(app.menuItems["Copy Digest"].exists)
@@ -240,6 +241,27 @@ final class ContextMenuTests: XCTestCase {
         let imageField = app.windows.textFields["runImageField"]
         XCTAssertTrue(imageField.waitForExistence(timeout: 5), "Run sheet should appear")
         XCTAssertEqual(imageField.value as? String, "local/api:2.1")
+
+        app.typeKey(.escape, modifierFlags: [])
+    }
+
+    /// "Push…" opens PushImageSheet prefilled with the row's own reference — the row-context-menu
+    /// path into the Push sheet, distinct from the toolbar Push button
+    /// (`testPushImageSheetPushesImage`) which is reached via ImageDetailView instead.
+    @MainActor
+    func testImageContextMenuPushOpensPushSheetPrefilled() throws {
+        let app = launchMock()
+        app.staticTexts["Images"].click()
+        let row = app.staticTexts["local/api:2.1"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.rightClick()
+        let pushItem = app.menuItems["Push…"]
+        XCTAssertTrue(pushItem.waitForExistence(timeout: 5))
+        pushItem.click()
+
+        let destinationField = app.textFields["pushDestinationField"]
+        XCTAssertTrue(destinationField.waitForExistence(timeout: 5), "Push sheet should appear")
+        XCTAssertEqual(destinationField.value as? String, "local/api:2.1")
 
         app.typeKey(.escape, modifierFlags: [])
     }
