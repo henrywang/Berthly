@@ -27,6 +27,14 @@ internal import ContainerPlugin
 // plumbing has a single seam. Splitting it is a known future refactor, not a lint fix.
 // swiftlint:disable file_length type_body_length
 
+/// Fields `mapImage`/inspect views need out of an `ImageResource`, decoded once per digest.
+private struct CachedImageMetadata {
+    let arch: [String]
+    let sizeBytes: Int64
+    let created: String
+    let inspectData: ImageInspectData
+}
+
 @MainActor
 final class LiveContainerService: ContainerServiceBase {
 
@@ -39,6 +47,12 @@ final class LiveContainerService: ContainerServiceBase {
     private var privilegedProcess: Foundation.Process?
     private var isBuilding = false
     private var systemConfig: ContainerSystemConfig?
+    /// Decoded per-digest image metadata, keyed by `ClientImage.digest` (content-addressed,
+    /// immutable). `toImageResource` walks the content store for the manifest index + OCI config
+    /// of every platform variant — expensive enough that redoing it for every image on every 5s
+    /// poll tick dominates steady-state CPU. Since a digest's content never changes, once decoded
+    /// it's cached here and reused until the image is removed (evicted in `fetchImages`).
+    private var imageMetadataCache: [String: CachedImageMetadata] = [:]
     private static let log = Logger(label: "app.berthly.container")
     private nonisolated static let pushOperationTracker = PushOperationTracker()
 
@@ -919,15 +933,28 @@ final class LiveContainerService: ContainerServiceBase {
         let initImage    = config.vminit.image
         let clientImages = try await ClientImage.list()
             .filter { !Utility.isInfraImage(name: $0.reference, builderImage: builderImage, initImage: initImage) }
-        var result: [ContainerImage] = []
-        var inspectData: [String: ImageInspectData] = [:]
-        for img in clientImages {
-            let resource = try? await img.toImageResource(containerSystemConfig: config)
-            if let resource { inspectData[img.digest] = makeInspectData(resource) }
-            result.append(mapImage(img, resource: resource))
+
+        // Multiple references (retags) can share a digest — keep the first image seen per
+        // digest to decode from, so a digest is fetched/decoded at most once this poll.
+        var imageByDigest: [String: ClientImage] = [:]
+        for img in clientImages where imageByDigest[img.digest] == nil {
+            imageByDigest[img.digest] = img
         }
-        imageInspectData = inspectData
-        return result
+
+        let (results, newCache) = await ImageMetadataCacheReconciler.reconcile(
+            digests: clientImages.map(\.digest),
+            cache: imageMetadataCache
+        ) { digest in
+            guard let img = imageByDigest[digest],
+                  let resource = try? await img.toImageResource(containerSystemConfig: config) else {
+                return nil
+            }
+            return self.makeCachedMetadata(resource)
+        }
+
+        imageMetadataCache = newCache
+        imageInspectData = newCache.mapValues(\.inspectData)
+        return clientImages.map { mapImage($0, metadata: results[$0.digest]) }
     }
 
     private func fetchVolumes() async throws -> [Volume] {
@@ -987,11 +1014,24 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    private func makeInspectData(_ resource: ImageResource) -> ImageInspectData {
+    /// Decodes everything `mapImage`/inspect views need from a fetched `ImageResource` once,
+    /// so the result can be cached per digest instead of re-decoded on every poll tick.
+    private func makeCachedMetadata(_ resource: ImageResource) -> CachedImageMetadata {
         let supportedArch = Set(["arm64", "amd64"])
         let displayVariants = resource.variants.filter {
             supportedArch.contains($0.platform.architecture)
         }
+        let sizedVariants = resource.variants.filter {
+            !($0.platform.os == "unknown" && $0.platform.architecture == "unknown")
+        }
+        let sizeBytes = sizedVariants.reduce(0) { $0 + $1.size }
+        let arch = Array(Set(sizedVariants.map { $0.platform.architecture }).intersection(supportedArch)).sorted()
+        let created: String = {
+            let date = resource.configuration.creationDate
+            guard date.timeIntervalSince1970 > 0 else { return "–" }
+            return date.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
+        }()
+
         let variants = (displayVariants.isEmpty ? resource.variants : displayVariants).map {
             ImageVariantInfo(arch: $0.platform.architecture, archVariant: $0.platform.variant,
                              sizeBytes: $0.size, digest: $0.digest)
@@ -1010,7 +1050,7 @@ final class LiveContainerService: ContainerServiceBase {
             if s.hasPrefix("#(nop) ") { s = String(s.dropFirst("#(nop) ".count)) }
             return s.trimmingCharacters(in: .whitespaces)
         }
-        return ImageInspectData(
+        let inspectData = ImageInspectData(
             variants: variants,
             command: (ep + cmd).joined(separator: " "),
             workDir: cfg?.workingDir ?? "",
@@ -1020,27 +1060,16 @@ final class LiveContainerService: ContainerServiceBase {
             labels: cfg?.labels ?? [:],
             history: history
         )
+        return CachedImageMetadata(arch: arch, sizeBytes: sizeBytes, created: created, inspectData: inspectData)
     }
 
-    private func mapImage(_ img: ClientImage, resource: ImageResource?) -> ContainerImage {
+    private func mapImage(_ img: ClientImage, metadata: CachedImageMetadata?) -> ContainerImage {
         let ref = img.reference
         let atIdx = ref.firstIndex(of: "@")
         let base = atIdx.map { String(ref[ref.startIndex ..< $0]) } ?? ref
         let colonIdx = base.lastIndex(of: ":")
         let repository = colonIdx.map { String(base[base.startIndex ..< $0]) } ?? base
         let tag = colonIdx.map { idx -> String in String(base[base.index(after: idx)...]) } ?? "latest"
-
-        let variants = resource?.variants.filter {
-            !($0.platform.os == "unknown" && $0.platform.architecture == "unknown")
-        } ?? []
-        let sizeBytes = variants.reduce(0) { $0 + $1.size }
-        let supportedArch: Set<String> = ["arm64", "amd64"]
-        let arch = Array(Set(variants.map { $0.platform.architecture }).intersection(supportedArch)).sorted()
-        let created: String = {
-            guard let date = resource?.configuration.creationDate,
-                  date.timeIntervalSince1970 > 0 else { return "–" }
-            return date.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))
-        }()
 
         let isBuilt = img.description.descriptor.annotations?[AnnotationKeys.containerizationImageName] != nil
 
@@ -1053,9 +1082,9 @@ final class LiveContainerService: ContainerServiceBase {
             repository: repository,
             tag: tag,
             digest: img.digest,
-            arch: arch,
-            sizeBytes: sizeBytes,
-            created: created,
+            arch: metadata?.arch ?? [],
+            sizeBytes: metadata?.sizeBytes ?? 0,
+            created: metadata?.created ?? "–",
             source: isBuilt ? .built : .pulled,
             usage: .unused  // resolved against containers/machines by ContainerImage.resolvingUsage in refreshAll
         )
