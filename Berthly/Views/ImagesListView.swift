@@ -115,15 +115,26 @@ struct ImagesListView: View {
         // that frees it belongs here too, not only in System > Disk Usage.
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                if service.isCheckingImageUpdates {
-                    ProgressView().controlSize(.small)
-                } else {
-                    Button("Check for Updates") {
-                        Task { await service.checkForImageUpdates(force: true) }
+                // Always a labeled Button, even while checking — an icon-only ProgressView here
+                // visually fuses into the same rounded capsule as the (also icon-only) Refresh
+                // toolbar button, making the spinner look like it's running inside Refresh.
+                Button {
+                    Task { await service.checkForImageUpdates(force: true) }
+                } label: {
+                    if service.isCheckingImageUpdates {
+                        Label {
+                            Text("Checking…")
+                        } icon: {
+                            ProgressView().controlSize(.small)
+                        }
+                        .labelStyle(.titleAndIcon)
+                    } else {
+                        Text("Check for Updates")
                     }
-                    .help(checkForUpdatesHelp)
-                    .accessibilityIdentifier("checkImageUpdatesButton")
                 }
+                .disabled(service.isCheckingImageUpdates)
+                .help(checkForUpdatesHelp)
+                .accessibilityIdentifier("checkImageUpdatesButton")
             }
             ToolbarItem(placement: .primaryAction) {
                 if isPruning {
