@@ -66,10 +66,8 @@ struct PushOperationTrackerTests {
 
         #expect(await tracker.begin("registry.example/app:latest"))
         #expect(!(await tracker.begin("registry.example/app:latest")))
-        #expect(await tracker.isRunning("registry.example/app:latest"))
 
         await tracker.finish("registry.example/app:latest")
-        #expect(!(await tracker.isRunning("registry.example/app:latest")))
         #expect(await tracker.begin("registry.example/app:latest"))
     }
 }

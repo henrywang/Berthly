@@ -24,14 +24,15 @@ final class BuildJob: Identifiable {
         case failed(message: String)
     }
 
+    nonisolated static let maxLogLineCount = 5_000
+    private nonisolated static let logTrimCount = 1_000
+
     let id = UUID()
     let reference: String
     let startedAt = Date()
     private(set) var finishedAt: Date?
     private(set) var logLines: [LogLine] = []
     private(set) var status: Status = .building
-    nonisolated static let maxLogLineCount = 5_000
-    private nonisolated static let logTrimCount = 1_000
 
     /// Whether the user has already seen this job's final state (watched it finish in the
     /// sheet, or opened the builds popover). Drives the toolbar badge.

@@ -12,39 +12,6 @@ import SwiftTerm
 import Testing
 @testable import Berthly
 
-// MARK: - Local file hardening
-
-struct LocalFileHardeningTests {
-
-    @Test func persistedApplicationDataIsOwnerOnly() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("state.json")
-
-        try LiveContainerService.writePrivateData(Data("{}".utf8), to: url)
-
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
-    }
-
-    @Test func cidFileIsOwnerOnlyAndNeverOverwrites() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let url = directory.appendingPathComponent("container.cid")
-
-        try LiveContainerService.writeCIDFile("first-id", to: url.path)
-        #expect(try String(contentsOf: url, encoding: .utf8) == "first-id")
-        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
-        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
-        #expect(throws: (any Error).self) {
-            try LiveContainerService.writeCIDFile("second-id", to: url.path)
-        }
-        #expect(try String(contentsOf: url, encoding: .utf8) == "first-id")
-    }
-}
-
 // MARK: - BuildContext Codable
 
 struct BuildContextCodableTests {

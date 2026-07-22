@@ -12,6 +12,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 import MachineAPIClient
@@ -104,8 +105,45 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     nonisolated static func writePrivateData(_ data: Data, to url: URL) throws {
-        try data.write(to: url, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
+        try writeOwnerOnlyData(data, to: url, replaceExisting: true)
+    }
+
+    private nonisolated static func writeOwnerOnlyData(
+        _ data: Data,
+        to destination: URL,
+        replaceExisting: Bool
+    ) throws {
+        let writeURL = replaceExisting
+            ? destination.deletingLastPathComponent().appendingPathComponent(".berthly-\(UUID().uuidString).tmp")
+            : destination
+        let descriptor = open(writeURL.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var shouldRemove = true
+        defer {
+            close(descriptor)
+            if shouldRemove { unlink(writeURL.path) }
+        }
+
+        try data.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else { return }
+            var offset = 0
+            while offset < bytes.count {
+                let written = Darwin.write(descriptor, baseAddress.advanced(by: offset), bytes.count - offset)
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+                guard written > 0 else { throw POSIXError(.EIO) }
+                offset += written
+            }
+        }
+
+        if replaceExisting {
+            guard rename(writeURL.path, destination.path) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        }
+        shouldRemove = false
     }
 
     override func togglePinContainer(_ id: String) {
@@ -440,28 +478,38 @@ final class LiveContainerService: ContainerServiceBase {
             && appleExecutableSignatureMarkers.allSatisfy { signatureOutput.contains($0) }
     }
 
-    private nonisolated static func verifyContainerExecutableForPrivilege() async throws {
+    nonisolated static func hierarchyPaths(startingAt path: String) -> [String] {
+        var paths: [String] = []
+        var currentURL = URL(fileURLWithPath: path)
+        while currentURL.path != "/" {
+            paths.append(currentURL.path)
+            currentURL.deleteLastPathComponent()
+        }
+        return paths
+    }
+
+    nonisolated static func isRootOwnedHierarchy(_ entries: [(ownerID: UInt32, permissions: Int)]) -> Bool {
+        !entries.isEmpty && entries.allSatisfy { $0.ownerID == 0 && $0.permissions & 0o022 == 0 }
+    }
+
+    private nonisolated static func verifyContainerExecutableForDNSPrivilege() async throws {
         let path = containerExecutablePath
         let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        func validateRootOwnedHierarchy(_ startingPath: String) throws {
-            var currentURL = URL(fileURLWithPath: startingPath)
-            while currentURL.path != "/" {
-                let currentAttributes = try FileManager.default.attributesOfItem(atPath: currentURL.path)
-                let currentOwnerID = (currentAttributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max
-                let currentPermissions = (currentAttributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
-                guard currentOwnerID == 0, currentPermissions & 0o022 == 0 else {
-                    throw ContainerizationError(
-                        .invalidState,
-                        message: "The container executable or one of its parent directories is writable by a non-root user. "
-                            + "Reinstall Apple's container package before changing DNS domains."
-                    )
-                }
-                currentURL.deleteLastPathComponent()
+        for hierarchyStart in Set([path, resolvedPath]) {
+            let entries = try hierarchyPaths(startingAt: hierarchyStart).map { currentPath in
+                let attributes = try FileManager.default.attributesOfItem(atPath: currentPath)
+                return (
+                    ownerID: (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max,
+                    permissions: (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
+                )
             }
-        }
-        try validateRootOwnedHierarchy(path)
-        if resolvedPath != path {
-            try validateRootOwnedHierarchy(resolvedPath)
+            guard isRootOwnedHierarchy(entries) else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "The container executable or one of its parent directories is writable by a non-root user. "
+                        + "Reinstall Apple's container package before changing DNS domains."
+                )
+            }
         }
         let attributes = try FileManager.default.attributesOfItem(atPath: resolvedPath)
         let ownerID = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max
@@ -1834,13 +1882,13 @@ final class LiveContainerService: ContainerServiceBase {
         if let problem = Self.validateDNSDomainName(domain) {
             throw ContainerizationError(.invalidArgument, message: problem)
         }
-        try await Self.verifyContainerExecutableForPrivilege()
+        try await Self.verifyContainerExecutableForDNSPrivilege()
         try await runPrivilegedShellCommand(Self.dnsCreateShellCommand(domain: domain)) { _ in }
         await fetchDNSDomains()
     }
 
     override func deleteDNSDomain(_ name: String) async throws {
-        try await Self.verifyContainerExecutableForPrivilege()
+        try await Self.verifyContainerExecutableForDNSPrivilege()
         try await runPrivilegedShellCommand(Self.dnsDeleteShellCommand(domain: name)) { _ in }
         await fetchDNSDomains()
     }
@@ -2585,14 +2633,7 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     nonisolated static func writeCIDFile(_ id: String, to path: String) throws {
-        let url = URL(fileURLWithPath: path)
-        try Data(id.utf8).write(to: url, options: .withoutOverwriting)
-        do {
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
-        } catch {
-            try? FileManager.default.removeItem(at: url)
-            throw error
-        }
+        try writeOwnerOnlyData(Data(id.utf8), to: URL(fileURLWithPath: path), replaceExisting: false)
     }
 
     /// Native (XPC API, no CLI shelling) implementation of `container run`/`container create`.

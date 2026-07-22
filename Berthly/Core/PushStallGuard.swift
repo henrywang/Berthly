@@ -64,7 +64,8 @@ struct PushAlreadyInProgressError: LocalizedError {
     let destination: String
 
     var errorDescription: String? {
-        "A push to \(destination) is already running or still stopping after a timeout."
+        "A push to \(destination) is already running or still stopping after a timeout. "
+            + "If this continues indefinitely, restart Berthly to clear the blocked destination."
     }
 }
 
@@ -77,10 +78,6 @@ actor PushOperationTracker {
 
     func finish(_ destination: String) {
         destinations.remove(destination)
-    }
-
-    func isRunning(_ destination: String) -> Bool {
-        destinations.contains(destination)
     }
 }
 
