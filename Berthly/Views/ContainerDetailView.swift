@@ -3,7 +3,6 @@
 
 import Charts
 import ContainerAPIClient
-import ContainerResource
 import SwiftUI
 
 // MARK: - Container Detail View
@@ -328,36 +327,10 @@ private struct InspectSection: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("INSPECT")
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.tertiary)
-                .padding(.bottom, 8)
-
-            VStack(spacing: 0) {
-                ForEach(rows, id: \.0) { key, val in
-                    HStack(alignment: .top, spacing: 0) {
-                        Text(key)
-                            .foregroundStyle(.secondary)
-                            .frame(width: 120, alignment: .leading)
-                        Text(val)
-                            .fontDesign(["Image digest", "Container ID", "Command", "Ports", "Mounts"].contains(key) ? .monospaced : .default)
-                            .textSelection(.enabled)
-                        Spacer()
-                    }
-                    .font(.callout)
-                    .padding(.vertical, 10)
-                    .padding(.horizontal, 16)
-
-                    if key != rows.last?.0 {
-                        Divider().padding(.horizontal, 16)
-                    }
-                }
-            }
-            .background(.background)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
-            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
-        }
+        InspectTable(
+            rows: rows,
+            monospacedKeys: ["Image digest", "Container ID", "Command", "Ports", "Mounts"]
+        )
     }
 }
 
@@ -437,23 +410,7 @@ private struct MetricCard: View {
 
 private struct TerminalNotRunningTab: View {
     var body: some View {
-        ZStack {
-            Color.codeBackground
-            VStack(spacing: 14) {
-                Image(systemName: "terminal")
-                    .font(.system(size: 40))
-                    .foregroundStyle(Color.codePrompt)
-                Text("Terminal")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-                Text("Start the container to open a shell.")
-                    .font(.callout)
-                    .foregroundStyle(Color.white.opacity(0.5))
-                    .multilineTextAlignment(.center)
-            }
-            .padding(40)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        TerminalUnavailableView(message: "Start the container to open a shell.")
     }
 }
 
@@ -482,12 +439,7 @@ struct StatusBadge: View {
 /// the machine detail header.
 struct DefaultChip: View {
     var body: some View {
-        Text("DEFAULT")
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+        TintedChip(text: "DEFAULT", color: .secondary)
     }
 }
 

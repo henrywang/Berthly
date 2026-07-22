@@ -89,10 +89,10 @@ private struct VolumeDetailContent: View {
                         .fontDesign(.monospaced)
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    VolumeChip(text: volume.type == .named ? "named" : "anonymous",
+                    TintedChip(text: volume.type == .named ? "named" : "anonymous",
                                color: volume.type == .named ? .statusRunning : .purple)
                     if volume.reclaimable {
-                        VolumeChip(text: "RECLAIMABLE", color: .statusPaused)
+                        TintedChip(text: "RECLAIMABLE", color: .statusPaused)
                     }
                 }
                 if !volume.source.isEmpty {
@@ -267,7 +267,7 @@ private struct VolumeDetailContent: View {
                     }
                 }
                 Spacer(minLength: 8)
-                VolumeChip(text: mount.mode, color: mount.mode == "RO" ? .statusPaused : .berthlyAccent)
+                TintedChip(text: mount.mode, color: mount.mode == "RO" ? .statusPaused : .berthlyAccent)
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -403,28 +403,10 @@ private struct VolumeDetailContent: View {
                 .truncationMode(.middle)
                 .textSelection(.enabled)
             Spacer()
-            VolumeChip(text: mount.mode, color: mount.mode == "RO" ? .statusPaused : .berthlyAccent)
+            TintedChip(text: mount.mode, color: mount.mode == "RO" ? .statusPaused : .berthlyAccent)
         }
         .padding(.vertical, 10)
         .padding(.horizontal, 16)
-    }
-}
-
-// MARK: - Chip
-
-/// Small tinted tag (driver, type, mode, RECLAIMABLE) used across the volume detail header
-/// and mount cards — same recipe as the arch badges on image rows.
-private struct VolumeChip: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
     }
 }
 

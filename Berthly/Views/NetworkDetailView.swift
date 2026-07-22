@@ -87,10 +87,10 @@ private struct NetworkDetailContent: View {
                         .font(.title3.weight(.semibold))
                         .lineLimit(1)
                         .truncationMode(.middle)
-                    NetworkChip(text: network.driver.rawValue,
+                    TintedChip(text: network.driver.rawValue,
                                 color: network.driver == .nat ? .berthlyAccent : .statusPaused)
                     if network.isDefault {
-                        NetworkChip(text: "DEFAULT", color: .secondary)
+                        TintedChip(text: "DEFAULT", color: .secondary)
                     }
                 }
                 HStack(spacing: 4) {
@@ -241,7 +241,7 @@ private struct NetworkDetailContent: View {
                 Text(endpoint.ipv4)
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
-                NetworkChip(text: endpoint.kind, color: .secondary)
+                TintedChip(text: endpoint.kind, color: .secondary)
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -349,7 +349,7 @@ private struct NetworkDetailContent: View {
                     .truncationMode(.middle)
                 // The chip keeps its intrinsic width inside the fixed column — without this the
                 // column squeezes the chip's text into a wrap before the name truncates.
-                NetworkChip(text: endpoint.kind, color: .secondary)
+                TintedChip(text: endpoint.kind, color: .secondary)
                     .fixedSize()
             }
             .frame(width: 170, alignment: .leading)
@@ -450,23 +450,6 @@ private struct DotGridBackground: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Chip
-
-/// Small tinted tag (driver, DEFAULT, endpoint kind) — same recipe as VolumeDetailView's chip.
-private struct NetworkChip: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
     }
 }
 

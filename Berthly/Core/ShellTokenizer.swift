@@ -1,8 +1,6 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
-import Foundation
-
 /// Splits a typed command line into argv words the way a POSIX shell lexes them, so a command
 /// like `sh -c "echo hello world"` becomes `["sh", "-c", "echo hello world"]` instead of five
 /// broken words. Used by the Run Container sheet's Command field, which feeds an exec-style API.

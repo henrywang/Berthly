@@ -95,19 +95,10 @@
     "=" : {
 
     },
-    "1g" : {
-
-    },
-    "2" : {
-
-    },
     "2g" : {
 
     },
     "4" : {
-
-    },
-    "8G" : {
 
     },
     "10G" : {
@@ -483,9 +474,6 @@
 
     },
     "Daemon Logs" : {
-
-    },
-    "DEFAULT" : {
 
     },
     "Defaults to Dockerfile or Containerfile in the build context." : {
@@ -1239,6 +1227,9 @@
     "Save to Disk…" : {
 
     },
+    "Saved for Rebuild. Use Secrets below for tokens, passwords, and other sensitive values." : {
+
+    },
     "Saves as  %@" : {
 
     },
@@ -1561,9 +1552,6 @@
       }
     },
     "ubuntu:24.04" : {
-
-    },
-    "Unchanged" : {
 
     },
     "Unpin" : {

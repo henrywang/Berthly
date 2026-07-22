@@ -36,26 +36,13 @@ struct MachineEditSheet: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("CPUs")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("Unchanged", text: $cpus)
-                            .accessibilityIdentifier("machineEditCpusField")
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Memory")
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                        TextField("Unchanged", text: $memory)
-                            .accessibilityIdentifier("machineEditMemoryField")
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                    }
-                }
+                ComputeResourceFields(
+                    cpus: $cpus,
+                    memory: $memory,
+                    cpuPlaceholder: "Unchanged",
+                    memoryPlaceholder: "Unchanged",
+                    identifierPrefix: "machineEdit"
+                )
 
                 HStack {
                     Text("Home directory mount")

@@ -22,14 +22,7 @@ final class SecondaryViewTests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
 
-        let killer = Process()
-        killer.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
-        killer.arguments = ["-9", "Berthly"]
-        killer.standardOutput = FileHandle.nullDevice
-        killer.standardError = FileHandle.nullDevice
-        if (try? killer.run()) != nil {
-            killer.waitUntilExit()
-        }
+        XCUIApplication.terminateRunningBerthly()
     }
 
     /// Settings lives in a separate NSWindow (SwiftUI `Settings {}` scene, not a sheet) — ⌘,

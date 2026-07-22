@@ -3,6 +3,38 @@
 
 import SwiftUI
 
+struct ComputeResourceFields: View {
+    @Binding var cpus: String
+    @Binding var memory: String
+    let cpuPlaceholder: String
+    let memoryPlaceholder: String
+    let identifierPrefix: String
+
+    var body: some View {
+        HStack(spacing: 20) {
+            field("CPUs", placeholder: cpuPlaceholder, text: $cpus, identifier: "\(identifierPrefix)CpusField")
+            field("Memory", placeholder: memoryPlaceholder, text: $memory, identifier: "\(identifierPrefix)MemoryField")
+        }
+    }
+
+    private func field(
+        _ label: LocalizedStringKey,
+        placeholder: String,
+        text: Binding<String>,
+        identifier: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(.secondary)
+            TextField(placeholder, text: text)
+                .accessibilityIdentifier(identifier)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 100)
+        }
+    }
+}
+
 // MARK: - Key/value row editor (build args, labels, env vars)
 
 struct KeyValuePair: Identifiable {

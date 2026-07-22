@@ -130,26 +130,13 @@ struct MachineCreateSheet: View {
                 .fontDesign(.monospaced)
         }
 
-        HStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("CPUs")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                TextField("4", text: $cpus)
-                    .accessibilityIdentifier("machineCpusField")
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Memory")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                TextField("8G", text: $memory)
-                    .accessibilityIdentifier("machineMemoryField")
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
-            }
-        }
+        ComputeResourceFields(
+            cpus: $cpus,
+            memory: $memory,
+            cpuPlaceholder: "4",
+            memoryPlaceholder: "8G",
+            identifierPrefix: "machine"
+        )
 
         PlatformPicker(title: "Platform", selection: $platformChoice)
 

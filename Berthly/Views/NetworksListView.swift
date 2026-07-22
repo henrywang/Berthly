@@ -189,7 +189,7 @@ private struct NetworkRow: View {
                             .lineLimit(1)
                             .truncationMode(.middle)
                         if network.isDefault {
-                            RowChip(text: "DEFAULT", color: .secondary)
+                            TintedChip(text: "DEFAULT", color: .secondary)
                         }
                     }
                     Text(network.subnet)
@@ -210,7 +210,7 @@ private struct NetworkRow: View {
                 // it entirely while keeping identical visual behavior.
                 ZStack(alignment: .trailing) {
                     VStack(alignment: .trailing, spacing: 3) {
-                        RowChip(text: network.driver.rawValue,
+                        TintedChip(text: network.driver.rawValue,
                                 color: network.driver == .nat ? .berthlyAccent : .statusPaused)
                         endpointStatus(endpoints)
                     }
@@ -279,23 +279,6 @@ private struct NetworkRow: View {
             .font(.caption)
             .foregroundStyle(.secondary)
         }
-    }
-}
-
-// MARK: - Row chip
-
-/// Small tinted tag (driver, DEFAULT) — list-row sibling of NetworkDetailView's chip.
-private struct RowChip: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-            .foregroundStyle(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
     }
 }
 

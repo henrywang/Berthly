@@ -95,8 +95,6 @@ struct Container: Identifiable, Hashable {
     var portsDisplayString: String {
         ports.map(\.displayString).joined(separator: ", ")
     }
-
-    var shortID: String { String(id.prefix(8)) }
 }
 
 // MARK: - Image
@@ -420,11 +418,6 @@ struct Machine: Identifiable, Hashable {
     /// Whether this is the daemon's default machine — the one `container machine run` targets
     /// when no ID is given. Exactly one machine holds it; set at create time or via Set as Default.
     var isDefault: Bool = false
-
-    var diskUsagePercent: Double {
-        guard diskTotalGB > 0 else { return 0 }
-        return diskUsedGB / diskTotalGB
-    }
 
     // isDefault participates so a Set as Default action re-renders both affected rows (the
     // newly-default machine and the one that lost the badge), same reason status participates.

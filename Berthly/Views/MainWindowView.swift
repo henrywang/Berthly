@@ -3,7 +3,6 @@
 
 import AppKit
 import SwiftUI
-import TerminalProgress
 import UniformTypeIdentifiers
 
 /// A request to open the build sheet, however it was triggered — sidebar/palette/toolbar (empty),

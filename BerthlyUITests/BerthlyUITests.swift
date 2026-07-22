@@ -14,17 +14,8 @@ extension XCUIApplication {
         app.launchArguments += ["-ApplePersistenceIgnoreState", "YES"]
         return app
     }
-}
 
-final class BerthlyUITests: XCTestCase {
-
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-
-        // Kill any stray instance left over from a manual launch, a crash, or a
-        // previous run that never reached tearDown — XCUIApplication().launch()
-        // can't reliably adopt an instance it didn't start itself, which leads to
-        // a window that never appears and every assertion below failing/skipping.
+    static func terminateRunningBerthly() {
         let killer = Process()
         killer.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
         killer.arguments = ["-9", "Berthly"]
@@ -33,6 +24,16 @@ final class BerthlyUITests: XCTestCase {
         if (try? killer.run()) != nil {
             killer.waitUntilExit()
         }
+    }
+}
+
+final class BerthlyUITests: XCTestCase {
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+
+        // XCUITest cannot reliably adopt an instance left by a manual launch or crashed test.
+        XCUIApplication.terminateRunningBerthly()
     }
 
     /// Environment-independent: sidebar/toolbar render regardless of daemon connection state,

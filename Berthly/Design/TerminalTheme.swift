@@ -1,8 +1,8 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import Foundation
 import SwiftTerm
-import SwiftUI
 
 /// A terminal's full color set: base background/foreground/cursor/selection plus the
 /// standard 16-value ANSI palette. All dark-only — see `TerminalTheme` for why.

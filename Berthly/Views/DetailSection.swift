@@ -3,6 +3,82 @@
 
 import SwiftUI
 
+struct TintedChip: View {
+    let text: String
+    let color: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold, design: .monospaced))
+            .foregroundStyle(color)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+    }
+}
+
+struct InspectTable: View {
+    let rows: [(String, String)]
+    let monospacedKeys: Set<String>
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("INSPECT")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.bottom, 8)
+
+            VStack(spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                    HStack(alignment: .top, spacing: 0) {
+                        Text(row.0)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 120, alignment: .leading)
+                        Text(row.1)
+                            .fontDesign(monospacedKeys.contains(row.0) ? .monospaced : .default)
+                            .textSelection(.enabled)
+                        Spacer()
+                    }
+                    .font(.callout)
+                    .padding(.vertical, 10)
+                    .padding(.horizontal, 16)
+
+                    if index < rows.count - 1 {
+                        Divider().padding(.horizontal, 16)
+                    }
+                }
+            }
+            .background(.background)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(.separator, lineWidth: 0.5))
+        }
+    }
+}
+
+struct TerminalUnavailableView: View {
+    let message: LocalizedStringKey
+
+    var body: some View {
+        ZStack {
+            Color.codeBackground
+            VStack(spacing: 14) {
+                Image(systemName: "terminal")
+                    .font(.system(size: 40))
+                    .foregroundStyle(Color.codePrompt)
+                Text("Terminal")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(message)
+                    .font(.callout)
+                    .foregroundStyle(Color.white.opacity(0.5))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(40)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
 /// Title-above-content wrapper for a detail-pane section. `.caption2`/`.tertiary`/`.semibold`
 /// title matches the section-header convention used across the app's other detail panes
 /// (Image/Machine/Compute detail views).

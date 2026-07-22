@@ -2,7 +2,6 @@
 // Licensed under the Apache License, Version 2.0
 
 import SwiftUI
-import TerminalProgress
 
 // MARK: - Push Image Sheet
 

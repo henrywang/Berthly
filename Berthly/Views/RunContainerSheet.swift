@@ -439,26 +439,13 @@ struct RunContainerSheet: View {
 
     @ViewBuilder
     private var resourcesFields: some View {
-        HStack(spacing: 20) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("CPUs")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                TextField("2", text: $cpus)
-                    .accessibilityIdentifier("runCpusField")
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
-            }
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Memory")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(.secondary)
-                TextField("1g", text: $memory)
-                    .accessibilityIdentifier("runMemoryField")
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 100)
-            }
-        }
+        ComputeResourceFields(
+            cpus: $cpus,
+            memory: $memory,
+            cpuPlaceholder: "2",
+            memoryPlaceholder: "1g",
+            identifierPrefix: "run"
+        )
         VStack(alignment: .leading, spacing: 6) {
             Text("Shared memory size")
                 .font(.caption.weight(.medium))

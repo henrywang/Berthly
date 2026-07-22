@@ -1,7 +1,6 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
-import Foundation
 import TerminalProgress
 
 /// Turns a download's `ProgressUpdateEvent` stream into occasional, human-readable lines for an
