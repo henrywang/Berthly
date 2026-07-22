@@ -24,8 +24,6 @@ struct MainWindowView: View {
     @State private var selectedImageID: String?
     @State private var selectedVolumeID: String?
     @State private var selectedNetworkID: String?
-    @State private var isRefreshing = false
-    @State private var refreshRotation = 0.0
     @State private var showPullSheet = false
     @State private var showRunMenu = false
     @State private var showRunSheet = false
@@ -533,11 +531,9 @@ struct MainWindowView: View {
     @ToolbarContentBuilder
     private var toolbarContent: some ToolbarContent {
         // `.titleAndIcon` on the primary actions: macOS toolbars render Labels icon-only by
-        // default, which left three ambiguities — Run's play.fill collides with every row's
-        // "start this container" button, Pull's arrow.down.circle sits next to Refresh's
-        // arrow.clockwise, and the contextual + changes meaning per section. Text resolves all
-        // three (Finder/Mail label their primary toolbar actions the same way); Refresh stays
-        // icon-only in its own group — secondary and universally understood.
+        // default, which left two ambiguities — Run's play.fill collides with every row's
+        // "start this container" button, and the contextual + changes meaning per section. Text
+        // resolves both (Finder/Mail label their primary toolbar actions the same way).
         ToolbarItemGroup(placement: .primaryAction) {
             Button {
                 showRunMenu = true
@@ -626,25 +622,6 @@ struct MainWindowView: View {
             }
         }
 
-        ToolbarItem(placement: .automatic) {
-            Button {
-                guard !isRefreshing else { return }
-                isRefreshing = true
-                withAnimation(.linear(duration: 0.6).repeatForever(autoreverses: false)) {
-                    refreshRotation = 360
-                }
-                Task {
-                    await service.refresh()
-                    withAnimation(.default) { refreshRotation = 0 }
-                    isRefreshing = false
-                }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise")
-                    .rotationEffect(.degrees(refreshRotation))
-            }
-            .disabled(!service.isConnected)
-            .help("Refresh")
-        }
     }
 
 }
