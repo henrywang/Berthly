@@ -34,6 +34,7 @@ struct BuildImageSheet: View {
     @State private var pull: Bool = false
 
     @State private var job: BuildJob?
+    @FocusState private var isTagFieldFocused: Bool
 
     init(
         service: ContainerServiceBase,
@@ -134,6 +135,13 @@ struct BuildImageSheet: View {
         }
         .onAppear {
             if existingJob?.isFinished == true { existingJob?.seen = true }
+            // Setting `@FocusState` synchronously in `.onAppear` is unreliable for a freshly
+            // presented sheet on macOS — the request lands before the sheet's window/view is
+            // actually installed, and gets silently dropped. Deferring one runloop tick, after
+            // that installation has finished, is what makes it stick.
+            if job == nil {
+                DispatchQueue.main.async { isTagFieldFocused = true }
+            }
         }
     }
 
@@ -160,6 +168,7 @@ struct BuildImageSheet: View {
                     .textFieldStyle(.plain)
                     .fontDesign(.monospaced)
                     .accessibilityIdentifier("buildTagField")
+                    .focused($isTagFieldFocused)
                 // Existing local tags as one-click suggestions — rebuilding an image you
                 // already have is the common case, so don't make the user retype the tag.
                 if !service.images.isEmpty {

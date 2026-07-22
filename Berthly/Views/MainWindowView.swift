@@ -1,8 +1,20 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import AppKit
 import SwiftUI
 import TerminalProgress
+import UniformTypeIdentifiers
+
+/// A request to open the build sheet, however it was triggered — sidebar/palette/toolbar (empty),
+/// builds popover (`existingJob`), or a successful drag-and-drop (`prefillContext`). `Identifiable`
+/// so `.sheet(item:)` re-presents a fresh sheet even if two requests happen to carry the same data.
+private struct BuildSheetRequest: Identifiable {
+    let id = UUID()
+    var prefillTag: String?
+    var prefillContext: BuildContext?
+    var existingJob: BuildJob?
+}
 
 struct MainWindowView: View {
     @Environment(ContainerServiceBase.self) private var service
@@ -16,7 +28,6 @@ struct MainWindowView: View {
     @State private var isRefreshing = false
     @State private var refreshRotation = 0.0
     @State private var showPullSheet = false
-    @State private var showBuildSheet = false
     @State private var showRunMenu = false
     @State private var showRunSheet = false
     @State private var showMachineCreateSheet = false
@@ -25,7 +36,20 @@ struct MainWindowView: View {
     @State private var showAddRegistrySheet = false
     @State private var loadImageRequest: ImageLoadRequest?
     @State private var showBuildsPopover = false
-    @State private var viewedBuildJob: BuildJob?
+    /// One request drives every entry point that opens the build sheet (sidebar, palette,
+    /// toolbar, builds popover, and drag-and-drop) so a stale prefill from one path can't leak
+    /// into an unrelated later Build click.
+    @State private var buildSheetRequest: BuildSheetRequest?
+    @State private var dropHoverState: BuildDropHoverState?
+    @State private var isDropInFlight = false
+    @State private var dropRejectionMessage: String?
+    @State private var dropRejectionDismissTask: Task<Void, Never>?
+    /// Bumped synchronously by `BuildDropDelegate.performDrop` the instant each drop starts (not
+    /// here, and not after loading finishes — see that property's doc comment for why timing
+    /// matters). `handleBuildDrop` compares its captured generation against this after resolving,
+    /// so a resolve that's still running when a newer drop lands can tell it's stale and skip
+    /// presenting.
+    @State private var dropGeneration = 0
     @State private var showCommandPalette = false
     /// Last `commandPaletteToken` this window has acted on, so a ⌘K that predates the window's mount
     /// is presented exactly once via `.onAppear` (see `presentPaletteIfRequested()`).
@@ -138,6 +162,27 @@ struct MainWindowView: View {
             } // end GeometryReader
         }
         .navigationTitle("Berthly")
+        // Drag a Dockerfile/Containerfile from Finder anywhere onto the window — sidebar included —
+        // to jump straight into a pre-filled Build sheet (PLAN/PLAN-drag-drop-build.md §3.1 scopes
+        // this to "the whole main window content area"). Attached at the NavigationSplitView level,
+        // not inside the detail column, so the sidebar is a drop target too.
+        .onDrop(of: [.fileURL], delegate: BuildDropDelegate(
+            hoverState: $dropHoverState,
+            isDropInFlight: $isDropInFlight,
+            dropGeneration: $dropGeneration,
+            isConnected: { service.isConnected },
+            onDrop: handleBuildDrop))
+        .overlay {
+            if let state = dropHoverState {
+                BuildDropHoverOverlay(state: state)
+            }
+        }
+        .overlay {
+            if let message = dropRejectionMessage {
+                BuildDropRejectionBanner(message: message)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: dropRejectionMessage)
         // ⎋ backs out one level: close the palette if it's up, else collapse the detail pane by
         // clearing the selection. A hidden key-equivalent button, not `.onExitCommand` — key
         // equivalents resolve window-wide regardless of focus, while cancelOperation only reaches
@@ -171,9 +216,6 @@ struct MainWindowView: View {
             }
             .environment(service as ContainerServiceBase)
         }
-        .sheet(isPresented: $showBuildSheet) {
-            BuildImageSheet(service: service)
-        }
         .sheet(isPresented: $showRunSheet) {
             RunContainerSheet(service: service)
         }
@@ -192,8 +234,12 @@ struct MainWindowView: View {
         .sheet(item: $loadImageRequest) { request in
             LoadImageSheet(archiveURL: request.url)
         }
-        .sheet(item: $viewedBuildJob) { job in
-            BuildImageSheet(service: service, existingJob: job)
+        .sheet(item: $buildSheetRequest) { request in
+            BuildImageSheet(
+                service: service,
+                prefillTag: request.prefillTag,
+                prefillContext: request.prefillContext,
+                existingJob: request.existingJob)
         }
         // Lets the menu bar tell whether a main window already exists before deciding whether to
         // call `openWindow(id:)` — that API has no built-in single-instance behavior for a plain
@@ -263,7 +309,7 @@ struct MainWindowView: View {
             sidebarSelection = sidebarSelection(for: section)
         case .runContainer:    showRunSheet = true
         case .createMachine:   showMachineCreateSheet = true
-        case .buildImage:      showBuildSheet = true
+        case .buildImage:      buildSheetRequest = BuildSheetRequest()
         case .pullImage:       showPullSheet = true
         case .loadImage:       promptLoadImage()
         case .createVolume:    showVolumeCreateSheet = true
@@ -293,6 +339,71 @@ struct MainWindowView: View {
     private func promptLoadImage() {
         if let url = promptForArchiveToLoad() {
             loadImageRequest = ImageLoadRequest(url: url)
+        }
+    }
+
+    /// `BuildDropDelegate`'s `onDrop` callback. `BuildDropDelegate` only loads providers into
+    /// candidates (§3.3 step 1); the filename/symlink/regular-file walk (steps 2–5) happens right
+    /// below, in the `BuildDropResolver.resolve` call — this function implements §3.3 steps 2–7
+    /// end to end. `BuildDropResolver` never touches the main actor, so it's dispatched via
+    /// `Task.detached`.
+    private func handleBuildDrop(generation: Int, candidates: [BuildDropCandidate]) {
+        Task {
+            let outcome = await Task.detached {
+                BuildDropResolver.resolve(candidates: candidates)
+            }.value
+            // A newer drop landed while this one was resolving — its outcome is stale, so this
+            // one's is the one that should win instead. Not observable behavior a test can assert
+            // on, but this must run first, before `outcome` is even inspected.
+            guard generation == dropGeneration else { return }
+            present(outcome)
+        }
+    }
+
+    /// Connectivity is checked first, before `outcome` — a disconnect that happens *during*
+    /// resolution (which runs concurrently with anything else that could change
+    /// `service.isConnected`) always produces the disconnected message, regardless of what the
+    /// resolver itself returned.
+    private func present(_ outcome: Result<BuildDropResolution, BuildDropRejection>) {
+        guard service.isConnected else {
+            showDropRejection("Connect to the container service to build.")
+            return
+        }
+        switch outcome {
+        case .success(let resolution):
+            dropRejectionDismissTask?.cancel()
+            dropRejectionMessage = nil
+            // Accepting a drop doesn't activate the app the way a click does — Finder (the drag's
+            // source) can stay frontmost the whole time, and macOS doesn't bring the destination
+            // window forward just because it accepted a drop. Without this, the sheet opens behind
+            // an inactive window: it renders fine, but isn't key, so the Tag field's focus grab
+            // (`BuildImageSheet`'s `.onAppear`) has no key window to actually land in.
+            NSApp.activate(ignoringOtherApps: true)
+            buildSheetRequest = BuildSheetRequest(prefillContext: BuildContext(
+                contextPath: resolution.contextPath,
+                dockerfilePath: resolution.dockerfilePath))
+        case .failure(.unsupportedFile):
+            showDropRejection("Drop a Dockerfile or Containerfile to build.")
+        case .failure(.unreadableFile):
+            showDropRejection("Couldn't read the dropped file.")
+        }
+    }
+
+    /// Shows a transient rejection banner and (re)schedules its dismissal. Cancelling the previous
+    /// dismissal task before setting the new message matters: without it, a second rejected drop
+    /// arriving while the first message is still showing would start a second timer, but the
+    /// first — already in flight — would still fire partway through and clear the second, newer
+    /// message early.
+    private func showDropRejection(_ message: String) {
+        dropRejectionDismissTask?.cancel()
+        dropRejectionMessage = message
+        // The banner is purely visual and gone in ~3s — without an explicit announcement, VoiceOver
+        // has no reason to read it, since nothing moved focus to it.
+        AccessibilityNotification.Announcement(message).post()
+        dropRejectionDismissTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            dropRejectionMessage = nil
         }
     }
 
@@ -362,7 +473,7 @@ struct MainWindowView: View {
         case .openCreateMachineSheet:
             showMachineCreateSheet = true
         case .openBuildSheet:
-            showBuildSheet = true
+            buildSheetRequest = BuildSheetRequest()
         case .openPullSheet:
             showPullSheet = true
         case .openLoadImageSheet:
@@ -462,7 +573,7 @@ struct MainWindowView: View {
             )
 
             Button {
-                showBuildSheet = true
+                buildSheetRequest = BuildSheetRequest()
             } label: {
                 Label("Build", systemImage: "hammer")
                     .labelStyle(.titleAndIcon)
@@ -508,7 +619,7 @@ struct MainWindowView: View {
                     PopoverAnchor(isPresented: $showBuildsPopover) {
                         BuildsPopover(manager: buildManager) { job in
                             showBuildsPopover = false
-                            viewedBuildJob = job
+                            buildSheetRequest = BuildSheetRequest(existingJob: job)
                         }
                     }
                 )
