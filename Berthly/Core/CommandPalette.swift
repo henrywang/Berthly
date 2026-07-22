@@ -30,7 +30,6 @@ nonisolated enum PaletteAction: Equatable {
     case createVolume
     case createNetwork
     case addRegistry
-    case refresh
 
     case selectContainer(String)
     case selectMachine(String)
@@ -175,9 +174,7 @@ func buildPaletteCommands(isConnected: Bool, containers: [Container], machines: 
         PaletteCommand(id: "action.createNetwork", title: "Create Network…", systemImage: "arrow.triangle.branch",
                        keywords: ["new"], action: .createNetwork),
         PaletteCommand(id: "action.addRegistry", title: "Add Registry…", systemImage: "plus.circle",
-                       keywords: ["login", "sign in"], action: .addRegistry),
-        PaletteCommand(id: "action.refresh", title: "Refresh", systemImage: "arrow.clockwise",
-                       keywords: ["reload"], action: .refresh)
+                       keywords: ["login", "sign in"], action: .addRegistry)
     ]
 
     for container in containers {
