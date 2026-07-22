@@ -42,7 +42,7 @@ jobs:
       - name: Resolve package dependencies
         run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
 
-      - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           languages: swift
           build-mode: manual
@@ -88,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
 
-      - uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4
+      - uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81 # v4
         with:
           languages: actions
           build-mode: none
