@@ -10,7 +10,7 @@ import Testing
 
     /// A minimal command whose only interesting fields are what the matcher reads.
     private func cmd(_ id: String, _ title: String, subtitle: String? = nil, keywords: [String] = []) -> PaletteCommand {
-        PaletteCommand(id: id, title: title, subtitle: subtitle, systemImage: "circle", keywords: keywords, action: .refresh)
+        PaletteCommand(id: id, title: title, subtitle: subtitle, systemImage: "circle", keywords: keywords, action: .addRegistry)
     }
 
     @Test func emptyQueryReturnsAllInOriginalOrder() {
@@ -105,7 +105,6 @@ import Testing
         #expect(actions.contains(.runContainer))
         #expect(actions.contains(.buildImage))
         #expect(actions.contains(.pullImage))
-        #expect(actions.contains(.refresh))
     }
 
     @Test func runningContainerGetsStopAndRestartNotStart() {

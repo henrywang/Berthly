@@ -23,8 +23,6 @@ struct RegistriesListView: View {
         Group {
             if service.registries.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    scopeBar
-                        .padding(.top, 8)
                     infoBanner
                         .padding(.horizontal, 20)
                         .padding(.top, 8)
@@ -42,8 +40,6 @@ struct RegistriesListView: View {
                 }
             } else if filtered.isEmpty {
                 VStack(alignment: .leading, spacing: 0) {
-                    scopeBar
-                        .padding(.top, 8)
                     infoBanner
                         .padding(.horizontal, 20)
                         .padding(.top, 8)
@@ -62,8 +58,6 @@ struct RegistriesListView: View {
                 // divider under the toolbar that Compute/Networks (List with no header) don't have.
                 .safeAreaInset(edge: .top) {
                     VStack(alignment: .leading, spacing: 0) {
-                        scopeBar
-                            .padding(.top, 8)
                         infoBanner
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
@@ -83,21 +77,6 @@ struct RegistriesListView: View {
     }
 
     // MARK: - Header
-
-    // A quiet, icon-anchored context strip under the toolbar title — same tier as Volumes'
-    // usage strip. Not an in-content large title (the toolbar already says "Registries"); the
-    // SF Symbol + caption/secondary styling makes it read as pane identity, not a stray subtitle.
-    private var scopeBar: some View {
-        HStack(spacing: 8) {
-            Label("Credentials for pushing & pulling images",
-                  systemImage: "building.columns")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-    }
 
     private var infoBanner: some View {
         HStack(alignment: .top, spacing: 10) {

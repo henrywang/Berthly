@@ -312,7 +312,6 @@ struct MainWindowView: View {
         case .createVolume:    showVolumeCreateSheet = true
         case .createNetwork:   showNetworkCreateSheet = true
         case .addRegistry:     showAddRegistrySheet = true
-        case .refresh:         Task { await service.refresh() }
         case .selectContainer(let id): selectCompute(.container(id))
         case .selectMachine(let id):   selectCompute(.machine(id))
         case .openContainerShell(let id): openShell(.container(id))
@@ -504,6 +503,16 @@ struct MainWindowView: View {
         }
     }
 
+    /// Build/Pull only make sense while looking at images or the containers they build/pull
+    /// into — Volumes/Networks/Registries/System keep the toolbar to Run + their own add action.
+    /// Still reachable from anywhere via the ⌘K palette.
+    private var showsBuildAndPullActions: Bool {
+        switch sidebarSelection {
+        case .compute, .images: true
+        default:                false
+        }
+    }
+
     // MARK: - Content pane (list)
 
     @ViewBuilder
@@ -567,23 +576,25 @@ struct MainWindowView: View {
                 }
             )
 
-            Button {
-                buildSheetRequest = BuildSheetRequest()
-            } label: {
-                Label("Build", systemImage: "hammer")
-                    .labelStyle(.titleAndIcon)
-            }
-            .disabled(!service.isConnected)
-            .help("Build an image from a Dockerfile")
+            if showsBuildAndPullActions {
+                Button {
+                    buildSheetRequest = BuildSheetRequest()
+                } label: {
+                    Label("Build", systemImage: "hammer")
+                        .labelStyle(.titleAndIcon)
+                }
+                .disabled(!service.isConnected)
+                .help("Build an image from a Dockerfile")
 
-            Button {
-                showPullSheet = true
-            } label: {
-                Label("Pull", systemImage: "arrow.down.circle")
-                    .labelStyle(.titleAndIcon)
+                Button {
+                    showPullSheet = true
+                } label: {
+                    Label("Pull", systemImage: "arrow.down.circle")
+                        .labelStyle(.titleAndIcon)
+                }
+                .disabled(!service.isConnected)
+                .help("Pull an image from a registry")
             }
-            .disabled(!service.isConnected)
-            .help("Pull an image from a registry")
 
             // One home for section-scoped create actions (Finder/Notes keep primary actions in
             // the toolbar), instead of each list view growing its own in-content button bar.
