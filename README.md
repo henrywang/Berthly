@@ -38,6 +38,9 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 A GUI that only mirrored commands wouldn't be worth installing. Berthly is built
 around the *workflow*, with a tier of features the CLI doesn't have:
 
+- **Drag-and-drop builds** — drag a `Dockerfile`/`Containerfile` from Finder
+  onto the window to open the Build sheet pre-filled with the resolved
+  context and Dockerfile path.
 - **Rebuild in one click** — every image build's context and flags are
   remembered, so re-running a build never means re-entering anything.
 - **Watch without watching** — live CPU/memory/network charts per container,
