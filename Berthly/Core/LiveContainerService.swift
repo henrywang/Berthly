@@ -12,6 +12,7 @@ import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import ContainerizationOS
+import Darwin
 import Foundation
 import Logging
 import MachineAPIClient
@@ -39,6 +40,7 @@ final class LiveContainerService: ContainerServiceBase {
     private var isBuilding = false
     private var systemConfig: ContainerSystemConfig?
     private static let log = Logger(label: "app.berthly.container")
+    private nonisolated static let pushOperationTracker = PushOperationTracker()
 
     private func resolvedSystemConfig() async -> ContainerSystemConfig {
         if systemConfig == nil {
@@ -86,7 +88,7 @@ final class LiveContainerService: ContainerServiceBase {
     override func saveBuildContext(_ ctx: BuildContext, for reference: String) {
         super.saveBuildContext(ctx, for: reference)
         guard let data = try? JSONEncoder().encode(buildContexts) else { return }
-        try? data.write(to: Self.contextsURL, options: .atomic)
+        try? Self.writePrivateData(data, to: Self.contextsURL)
     }
 
     private func loadPinnedItems() {
@@ -99,7 +101,49 @@ final class LiveContainerService: ContainerServiceBase {
     private func savePinnedItems() {
         let items = PinnedItems(containers: pinnedContainerIDs, machines: pinnedMachineIDs)
         guard let data = try? JSONEncoder().encode(items) else { return }
-        try? data.write(to: Self.pinnedItemsURL, options: .atomic)
+        try? Self.writePrivateData(data, to: Self.pinnedItemsURL)
+    }
+
+    nonisolated static func writePrivateData(_ data: Data, to url: URL) throws {
+        try writeOwnerOnlyData(data, to: url, replaceExisting: true)
+    }
+
+    private nonisolated static func writeOwnerOnlyData(
+        _ data: Data,
+        to destination: URL,
+        replaceExisting: Bool
+    ) throws {
+        let writeURL = replaceExisting
+            ? destination.deletingLastPathComponent().appendingPathComponent(".berthly-\(UUID().uuidString).tmp")
+            : destination
+        let descriptor = open(writeURL.path, O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, S_IRUSR | S_IWUSR)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        var shouldRemove = true
+        defer {
+            close(descriptor)
+            if shouldRemove { unlink(writeURL.path) }
+        }
+
+        try data.withUnsafeBytes { bytes in
+            guard let baseAddress = bytes.baseAddress else { return }
+            var offset = 0
+            while offset < bytes.count {
+                let written = Darwin.write(descriptor, baseAddress.advanced(by: offset), bytes.count - offset)
+                if written < 0 {
+                    if errno == EINTR { continue }
+                    throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+                }
+                guard written > 0 else { throw POSIXError(.EIO) }
+                offset += written
+            }
+        }
+
+        if replaceExisting {
+            guard rename(writeURL.path, destination.path) == 0 else {
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+        }
+        shouldRemove = false
     }
 
     override func togglePinContainer(_ id: String) {
@@ -171,6 +215,7 @@ final class LiveContainerService: ContainerServiceBase {
     // main actor. Without `nonisolated` they'd be MainActor-isolated (this is a `@MainActor` class)
     // and every off-actor read would warn under Swift 6 concurrency.
     private nonisolated static let apiServerExecutablePath = "/usr/local/bin/container-apiserver"
+    private nonisolated static let containerExecutablePath = "/usr/local/bin/container"
     // `InstallRoot.defaultPath` derives this from `CommandLine.executablePath`, which for a GUI
     // .app resolves to Berthly's own bundle path, not the `container` CLI's install location —
     // hardcode the layout the CLI's own installer uses instead (`container-apiserver` lives next
@@ -310,11 +355,10 @@ final class LiveContainerService: ContainerServiceBase {
         }
     }
 
-    /// Stops the daemon, runs the upstream `update-container.sh` (already handles GitHub release
-    /// lookup, signed-vs-unsigned package selection, and download — reimplementing that natively
-    /// would just duplicate already-correct upstream logic) elevated via `osascript`'s native
-    /// admin-password prompt, then restarts the daemon. Callers must confirm with the user before
-    /// invoking this — `stopDaemon()` stops every running container on the machine.
+    /// Stops the daemon, downloads the pinned signed installer, verifies Apple's identity before
+    /// and after root-owned staging, then restarts. The upstream update script is deliberately not
+    /// used because it selects a release asset by filename without enforcing the signing identity.
+    /// Callers must confirm first because `stopDaemon()` stops every container on the machine.
     override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         await stopDaemon()
         guard case .installedButStopped = daemonState else {
@@ -322,8 +366,8 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         do {
-            try await runPrivilegedShellCommand(
-                "/usr/local/bin/update-container.sh -v \(ContainerCompatibility.requiredVersion)",
+            try await installSignedContainerPackage(
+                version: ContainerCompatibility.requiredVersion,
                 onLog: onLog
             )
         } catch {
@@ -337,18 +381,28 @@ final class LiveContainerService: ContainerServiceBase {
         await startDaemon(onLog: onLog)
     }
 
-    /// First-time install: downloads the pinned release's signed installer pkg, verifies its
-    /// signature, and runs `installer` elevated. The upstream `update-container.sh` can't be used
-    /// here — that script is installed *by* the pkg, so on a machine without `container` it
-    /// doesn't exist yet. `startDaemon()` afterwards bootstraps the default kernel, so a fresh
-    /// Mac goes straight to a working setup.
+    /// First-time install uses the same pinned, double-verified package path as an upgrade.
+    /// `startDaemon()` afterwards bootstraps the default kernel, so a fresh Mac goes straight to
+    /// a working setup.
     override func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
-        let version = ContainerCompatibility.requiredVersion
+        try await installSignedContainerPackage(
+            version: ContainerCompatibility.requiredVersion,
+            onLog: onLog
+        )
+        onLog("Starting container system…")
+        await startDaemon(onLog: onLog)
+    }
+
+    private func installSignedContainerPackage(
+        version: String,
+        onLog: @MainActor @escaping (String) -> Void
+    ) async throws {
         let pkgName = "container-\(version)-installer-signed.pkg"
         let url = URL(string: "https://github.com/apple/container/releases/download/\(version)/\(pkgName)")!
 
         onLog("Downloading \(pkgName)…")
         let pkgPath = try await Self.downloadFile(from: url, suggestedName: pkgName)
+        defer { try? FileManager.default.removeItem(atPath: pkgPath) }
         onLog("Downloaded to \(pkgPath)")
 
         onLog("Verifying package signature…")
@@ -359,9 +413,6 @@ final class LiveContainerService: ContainerServiceBase {
             Self.stagedInstallCommand(pkgPath: pkgPath),
             onLog: onLog
         )
-
-        onLog("Starting container system…")
-        await startDaemon(onLog: onLog)
     }
 
     private nonisolated static func downloadFile(from url: URL, suggestedName: String) async throws -> String {
@@ -388,6 +439,10 @@ final class LiveContainerService: ContainerServiceBase {
     nonisolated static let appleSignatureMarkers = [
         "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
     ]
+    nonisolated static let appleExecutableSignatureMarkers = [
+        "Authority=Developer ID Application: Apple Inc. - Containerization (UPBK2H6LZM)",
+        "TeamIdentifier=UPBK2H6LZM"
+    ]
 
     /// The acceptance predicate for `pkgutil --check-signature`, extracted pure so the
     /// security-critical decision is testable without spawning a process.
@@ -407,6 +462,81 @@ final class LiveContainerService: ContainerServiceBase {
             throw ContainerizationError(
                 .internalError,
                 message: "The downloaded installer package failed signature verification — refusing to install it.\n\(output)"
+            )
+        }
+    }
+
+    nonisolated static func isTrustedPrivilegedExecutable(
+        ownerID: UInt32,
+        permissions: Int,
+        signatureOutput: String,
+        terminationStatus: Int32
+    ) -> Bool {
+        ownerID == 0
+            && permissions & 0o022 == 0
+            && terminationStatus == 0
+            && appleExecutableSignatureMarkers.allSatisfy { signatureOutput.contains($0) }
+    }
+
+    nonisolated static func hierarchyPaths(startingAt path: String) -> [String] {
+        var paths: [String] = []
+        var currentURL = URL(fileURLWithPath: path)
+        while currentURL.path != "/" {
+            paths.append(currentURL.path)
+            currentURL.deleteLastPathComponent()
+        }
+        return paths
+    }
+
+    nonisolated static func isRootOwnedHierarchy(_ entries: [(ownerID: UInt32, permissions: Int)]) -> Bool {
+        !entries.isEmpty && entries.allSatisfy { $0.ownerID == 0 && $0.permissions & 0o022 == 0 }
+    }
+
+    private nonisolated static func verifyContainerExecutableForDNSPrivilege() async throws {
+        let path = containerExecutablePath
+        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        for hierarchyStart in Set([path, resolvedPath]) {
+            let entries = try hierarchyPaths(startingAt: hierarchyStart).map { currentPath in
+                let attributes = try FileManager.default.attributesOfItem(atPath: currentPath)
+                return (
+                    ownerID: (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max,
+                    permissions: (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
+                )
+            }
+            guard isRootOwnedHierarchy(entries) else {
+                throw ContainerizationError(
+                    .invalidState,
+                    message: "The container executable or one of its parent directories is writable by a non-root user. "
+                        + "Reinstall Apple's container package before changing DNS domains."
+                )
+            }
+        }
+        let attributes = try FileManager.default.attributesOfItem(atPath: resolvedPath)
+        let ownerID = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max
+        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
+        let (verificationStatus, _) = try await runProcessCollectingOutput(
+            executablePath: "/usr/bin/codesign",
+            arguments: ["--verify", "--strict", "--verbose=2", resolvedPath]
+        )
+        guard verificationStatus == 0 else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "The container executable's code signature is invalid. Reinstall Apple's container package before changing DNS domains."
+            )
+        }
+        let (status, output) = try await runProcessCollectingOutput(
+            executablePath: "/usr/bin/codesign",
+            arguments: ["-dv", "--verbose=4", resolvedPath]
+        )
+        guard isTrustedPrivilegedExecutable(
+            ownerID: ownerID,
+            permissions: permissions,
+            signatureOutput: output,
+            terminationStatus: status
+        ) else {
+            throw ContainerizationError(
+                .invalidState,
+                message: "The container executable isn't a trusted, root-owned Apple binary. Reinstall Apple's container package before changing DNS domains."
             )
         }
     }
@@ -467,18 +597,14 @@ final class LiveContainerService: ContainerServiceBase {
     /// Builds the AppleScript source for an elevated shell command. The command is embedded in
     /// an AppleScript string literal, so backslashes and double quotes are escaped — without
     /// that, a command containing a quoted path would terminate the literal early and execute a
-    /// mangled script. `do shell script` runs with a minimal PATH
-    /// (`/usr/bin:/bin:/usr/sbin:/sbin`) that omits `/usr/local/bin` — which made the upstream
-    /// update script's final `container --version` self-check exit 1 *after* the update had
-    /// already succeeded. `/usr/local/bin` is *appended* (not prepended) so container's binaries
-    /// resolve there while the system directories still win any name collision: `/usr/local/bin`
-    /// is world-writable on Intel Homebrew installs, and prepending it would let an attacker who
-    /// planted a binary there shadow a system tool inside this root shell.
+    /// mangled script. The elevated shell gets a fixed system-only PATH. Every non-system
+    /// executable is invoked by an absolute path after its ownership and signature have been
+    /// checked, so a writable package-manager directory can never provide a root command.
     nonisolated static func privilegedAppleScript(for shellCommand: String) -> String {
         let escaped = shellCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        return "do shell script \"export PATH=$PATH:/usr/local/bin; \(escaped)\" with administrator privileges"
+        return "do shell script \"export PATH=/usr/bin:/bin:/usr/sbin:/sbin; \(escaped)\" with administrator privileges"
     }
 
     /// `osascript` reports the user dismissing the admin-password dialog as
@@ -1734,11 +1860,11 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     nonisolated static func dnsCreateShellCommand(domain: String) -> String {
-        "container system dns create \(shellQuoted(domain))"
+        "\(containerExecutablePath) system dns create \(shellQuoted(domain))"
     }
 
     nonisolated static func dnsDeleteShellCommand(domain: String) -> String {
-        "container system dns delete \(shellQuoted(domain))"
+        "\(containerExecutablePath) system dns delete \(shellQuoted(domain))"
     }
 
     override func fetchDNSDomains() async {
@@ -1756,11 +1882,13 @@ final class LiveContainerService: ContainerServiceBase {
         if let problem = Self.validateDNSDomainName(domain) {
             throw ContainerizationError(.invalidArgument, message: problem)
         }
+        try await Self.verifyContainerExecutableForDNSPrivilege()
         try await runPrivilegedShellCommand(Self.dnsCreateShellCommand(domain: domain)) { _ in }
         await fetchDNSDomains()
     }
 
     override func deleteDNSDomain(_ name: String) async throws {
+        try await Self.verifyContainerExecutableForDNSPrivilege()
         try await runPrivilegedShellCommand(Self.dnsDeleteShellCommand(domain: name)) { _ in }
         await fetchDNSDomains()
     }
@@ -2089,7 +2217,7 @@ final class LiveContainerService: ContainerServiceBase {
         cpus: Int64?,
         memory: String?,
         onLog: @MainActor @escaping (String) -> Void
-    ) async throws -> ContainerBuild.Builder {
+    ) async throws -> (builder: ContainerBuild.Builder, group: MultiThreadedEventLoopGroup) {
         let deadline = Date().addingTimeInterval(300)
         // Whether we've had to start the builder this call. Gates the user-facing messages so the
         // common fast path (builder already running → first dial succeeds) stays silent, and the
@@ -2098,11 +2226,16 @@ final class LiveContainerService: ContainerServiceBase {
         while true {
             do {
                 let socket = try await ContainerClient().dial(id: ContainerBuild.Builder.builderContainerId, port: 8088)
-                let group = MultiThreadedEventLoopGroup(numberOfThreads: System.coreCount)
-                let builder = try ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
-                _ = try await builder.info()
-                if announcedStart { onLog("Build environment ready.") }
-                return builder
+                let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+                do {
+                    let builder = try ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
+                    _ = try await builder.info()
+                    if announcedStart { onLog("Build environment ready.") }
+                    return (builder, group)
+                } catch {
+                    try? await group.shutdownGracefully()
+                    throw error
+                }
             } catch {
                 guard Date() < deadline else {
                     throw ContainerizationError(.timeout, message: "Timed out waiting for the builder to start.")
@@ -2281,9 +2414,16 @@ final class LiveContainerService: ContainerServiceBase {
         let platforms = try Self.buildPlatforms(for: options)
 
         let containerSystemConfig = await resolvedSystemConfig()
-        let builder = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig,
-                                                   cpus: options.cpus.map { Int64($0) },
-                                                   memory: options.memory, onLog: onLog)
+        let builderConnection = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig,
+                                                             cpus: options.cpus.map { Int64($0) },
+                                                             memory: options.memory, onLog: onLog)
+        let builder = builderConnection.builder
+        let builderGroup = builderConnection.group
+        defer {
+            Task.detached {
+                try? await builderGroup.shutdownGracefully()
+            }
+        }
 
         let systemHealth = try await ClientHealthCheck.ping(timeout: .seconds(10))
         let buildID = UUID().uuidString
@@ -2492,6 +2632,10 @@ final class LiveContainerService: ContainerServiceBase {
         Flags.Registry(scheme: options.insecureRegistry ? "http" : "auto")
     }
 
+    nonisolated static func writeCIDFile(_ id: String, to path: String) throws {
+        try writeOwnerOnlyData(Data(id.utf8), to: URL(fileURLWithPath: path), replaceExisting: false)
+    }
+
     /// Native (XPC API, no CLI shelling) implementation of `container run`/`container create`.
     /// Reuses the vendored package's own `Utility.containerConfigFromFlags` — the same image
     /// fetch/unpack, kernel resolution, volume/network/DNS resolution the CLI itself runs — so
@@ -2532,11 +2676,12 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         if let cidFile = options.cidFile, !cidFile.isEmpty {
-            FileManager.default.createFile(
-                atPath: cidFile,
-                contents: id.data(using: .utf8),
-                attributes: [.posixPermissions: 0o644]
-            )
+            do {
+                try Self.writeCIDFile(id, to: cidFile)
+            } catch {
+                try? await client.delete(id: id, force: true)
+                throw error
+            }
         }
 
         guard options.start else {
@@ -3036,13 +3181,23 @@ final class LiveContainerService: ContainerServiceBase {
         // `raceAgainstStall`'s operation runs on a separate, concurrently-executing Task — capture
         // an immutable snapshot of the (possibly just-retagged) image rather than the `var`.
         let imageToPush = image
+        let pushDestination = destination ?? reference
+        guard await Self.pushOperationTracker.begin(pushDestination) else {
+            throw PushAlreadyInProgressError(destination: pushDestination)
+        }
         try await raceAgainstStall(timeout: .seconds(60), monitor: stallMonitor) {
-            try await imageToPush.push(
-                platform: ociPlatform,
-                scheme: insecure ? .http : .auto,
-                containerSystemConfig: config,
-                progressUpdate: watchedProgress
-            )
+            do {
+                try await imageToPush.push(
+                    platform: ociPlatform,
+                    scheme: insecure ? .http : .auto,
+                    containerSystemConfig: config,
+                    progressUpdate: watchedProgress
+                )
+                await Self.pushOperationTracker.finish(pushDestination)
+            } catch {
+                await Self.pushOperationTracker.finish(pushDestination)
+                throw error
+            }
         }
         if insecure, let host = ImageStaleness.registryHost(for: destination ?? reference) {
             Self.rememberInsecureHost(host)

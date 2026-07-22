@@ -75,9 +75,9 @@ struct DNSDomainTests {
 
     @Test func buildsQuotedCreateAndDeleteCommands() {
         #expect(LiveContainerService.dnsCreateShellCommand(domain: "test")
-                == "container system dns create 'test'")
+                == "/usr/local/bin/container system dns create 'test'")
         #expect(LiveContainerService.dnsDeleteShellCommand(domain: "dev.internal")
-                == "container system dns delete 'dev.internal'")
+                == "/usr/local/bin/container system dns delete 'dev.internal'")
     }
 
     // MARK: - Mock service behavior (what previews/UI tests run against)

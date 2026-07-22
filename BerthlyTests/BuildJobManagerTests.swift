@@ -105,6 +105,17 @@ struct BuildJobManagerTests {
         #expect(!job.isFinished)
     }
 
+    @Test func buildLogKeepsOnlyTheNewestLines() async {
+        let job = BuildJob(reference: "local/test:1.0")
+        for index in 0...(BuildJob.maxLogLineCount + 999) {
+            job.appendLog("line \(index)")
+        }
+
+        #expect(job.logLines.count == BuildJob.maxLogLineCount)
+        #expect(job.logLines.first?.text == "line 1000")
+        #expect(job.logLines.last?.text == "line \(BuildJob.maxLogLineCount + 999)")
+    }
+
     @Test func finishNotifiesWithTheFinishedJob() async {
         let service = ScriptedBuildService()
         let manager = makeManager()

@@ -55,7 +55,29 @@ actor PushStallMonitor {
 
 struct PushStalledError: LocalizedError {
     var errorDescription: String? {
-        "Push made no progress and was cancelled. This registry may require sign-in — add credentials in Registries, then try again."
+        "Push made no progress and timed out. The daemon operation may still be stopping; "
+            + "wait before trying this destination again. This registry may require sign-in."
+    }
+}
+
+struct PushAlreadyInProgressError: LocalizedError {
+    let destination: String
+
+    var errorDescription: String? {
+        "A push to \(destination) is already running or still stopping after a timeout. "
+            + "If this continues indefinitely, restart Berthly to clear the blocked destination."
+    }
+}
+
+actor PushOperationTracker {
+    private var destinations: Set<String> = []
+
+    func begin(_ destination: String) -> Bool {
+        destinations.insert(destination).inserted
+    }
+
+    func finish(_ destination: String) {
+        destinations.remove(destination)
     }
 }
 

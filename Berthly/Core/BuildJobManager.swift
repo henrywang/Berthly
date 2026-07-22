@@ -24,6 +24,9 @@ final class BuildJob: Identifiable {
         case failed(message: String)
     }
 
+    nonisolated static let maxLogLineCount = 5_000
+    private nonisolated static let logTrimCount = 1_000
+
     let id = UUID()
     let reference: String
     let startedAt = Date()
@@ -46,6 +49,10 @@ final class BuildJob: Identifiable {
 
     func appendLog(_ text: String) {
         logLines.append(LogLine(text: text))
+        if logLines.count > Self.maxLogLineCount {
+            // Trim in batches so sustained output doesn't shift a 5,000-element array per line.
+            logLines.removeFirst(Self.logTrimCount)
+        }
     }
 
     fileprivate func finish(_ status: Status) {
