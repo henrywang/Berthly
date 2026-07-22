@@ -237,7 +237,12 @@ struct BuildImageSheet: View {
 
         PlatformPicker(title: "Platform", selection: $platformChoice)
 
-        KeyValueEditor(title: "Build arguments", keyPlaceholder: "ARG_NAME", valuePlaceholder: "value", pairs: $buildArgs)
+        VStack(alignment: .leading, spacing: 4) {
+            KeyValueEditor(title: "Build arguments", keyPlaceholder: "ARG_NAME", valuePlaceholder: "value", pairs: $buildArgs)
+            Text("Saved for Rebuild. Use Secrets below for tokens, passwords, and other sensitive values.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+        }
 
         Toggle("Disable build cache", isOn: $noCache)
             .toggleStyle(.checkbox)

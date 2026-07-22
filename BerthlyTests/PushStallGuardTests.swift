@@ -59,6 +59,21 @@ struct PushStallGuardTests {
     }
 }
 
+struct PushOperationTrackerTests {
+
+    @Test func blocksDuplicateDestinationUntilTheFirstOperationFinishes() async {
+        let tracker = PushOperationTracker()
+
+        #expect(await tracker.begin("registry.example/app:latest"))
+        #expect(!(await tracker.begin("registry.example/app:latest")))
+        #expect(await tracker.isRunning("registry.example/app:latest"))
+
+        await tracker.finish("registry.example/app:latest")
+        #expect(!(await tracker.isRunning("registry.example/app:latest")))
+        #expect(await tracker.begin("registry.example/app:latest"))
+    }
+}
+
 struct RaceAgainstStallTests {
 
     /// The exact bug in the first version of this fix: it used `withThrowingTaskGroup`, which

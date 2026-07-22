@@ -30,6 +30,8 @@ final class BuildJob: Identifiable {
     private(set) var finishedAt: Date?
     private(set) var logLines: [LogLine] = []
     private(set) var status: Status = .building
+    nonisolated static let maxLogLineCount = 5_000
+    private nonisolated static let logTrimCount = 1_000
 
     /// Whether the user has already seen this job's final state (watched it finish in the
     /// sheet, or opened the builds popover). Drives the toolbar badge.
@@ -46,6 +48,10 @@ final class BuildJob: Identifiable {
 
     func appendLog(_ text: String) {
         logLines.append(LogLine(text: text))
+        if logLines.count > Self.maxLogLineCount {
+            // Trim in batches so sustained output doesn't shift a 5,000-element array per line.
+            logLines.removeFirst(Self.logTrimCount)
+        }
     }
 
     fileprivate func finish(_ status: Status) {

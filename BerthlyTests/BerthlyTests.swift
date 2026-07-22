@@ -12,6 +12,39 @@ import SwiftTerm
 import Testing
 @testable import Berthly
 
+// MARK: - Local file hardening
+
+struct LocalFileHardeningTests {
+
+    @Test func persistedApplicationDataIsOwnerOnly() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("state.json")
+
+        try LiveContainerService.writePrivateData(Data("{}".utf8), to: url)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+    }
+
+    @Test func cidFileIsOwnerOnlyAndNeverOverwrites() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("container.cid")
+
+        try LiveContainerService.writeCIDFile("first-id", to: url.path)
+        #expect(try String(contentsOf: url, encoding: .utf8) == "first-id")
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
+        #expect(throws: (any Error).self) {
+            try LiveContainerService.writeCIDFile("second-id", to: url.path)
+        }
+        #expect(try String(contentsOf: url, encoding: .utf8) == "first-id")
+    }
+}
+
 // MARK: - BuildContext Codable
 
 struct BuildContextCodableTests {
@@ -661,14 +694,11 @@ struct ContainerCompatibilityTests {
 
 struct PrivilegedCommandHelperTests {
 
-    /// `do shell script`'s default PATH omits /usr/local/bin, which broke the upstream update
-    /// script's final `container --version` self-check — the AppleScript must add it. It's
-    /// *appended*, not prepended, so a world-writable /usr/local/bin can't shadow a system tool
-    /// inside the root shell.
-    @Test func appleScriptAppendsUsrLocalBinToPath() {
-        let script = LiveContainerService.privilegedAppleScript(for: "/usr/local/bin/update-container.sh -v 1.1.0")
-        #expect(script.hasPrefix("do shell script \"export PATH=$PATH:/usr/local/bin; "))
-        #expect(script.contains("/usr/local/bin/update-container.sh -v 1.1.0"))
+    @Test func appleScriptUsesOnlySystemDirectoriesInPath() {
+        let script = LiveContainerService.privilegedAppleScript(for: "/usr/local/bin/container system dns create 'test'")
+        #expect(script.hasPrefix("do shell script \"export PATH=/usr/bin:/bin:/usr/sbin:/sbin; "))
+        #expect(script.contains("/usr/local/bin/container system dns create 'test'"))
+        #expect(!script.contains("$PATH"))
         #expect(script.hasSuffix("with administrator privileges"))
     }
 
@@ -732,6 +762,25 @@ struct PrivilegedCommandHelperTests {
         let output = "1. Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
         #expect(!LiveContainerService.isAcceptableSignature(output: output, terminationStatus: 1))
         #expect(!LiveContainerService.isAcceptableSignature(output: "", terminationStatus: 0))
+    }
+
+    @Test func privilegedExecutableCheckRequiresAppleSignatureAndRootOnlyWrites() {
+        let output = """
+        Authority=Developer ID Application: Apple Inc. - Containerization (UPBK2H6LZM)
+        TeamIdentifier=UPBK2H6LZM
+        """
+        #expect(LiveContainerService.isTrustedPrivilegedExecutable(
+            ownerID: 0, permissions: 0o755, signatureOutput: output, terminationStatus: 0
+        ))
+        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
+            ownerID: 501, permissions: 0o755, signatureOutput: output, terminationStatus: 0
+        ))
+        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
+            ownerID: 0, permissions: 0o775, signatureOutput: output, terminationStatus: 0
+        ))
+        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
+            ownerID: 0, permissions: 0o755, signatureOutput: "TeamIdentifier=EVIL", terminationStatus: 0
+        ))
     }
 
     /// The elevated command must stage the pkg out of the user-writable temp dir, re-verify the
