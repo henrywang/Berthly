@@ -16,9 +16,15 @@ Releases. `scripts/release.sh` runs the whole pipeline.
      Sparkle compares build numbers (`CFBundleVersion`), not version strings,
      to decide whether an update is newer; a release that reuses a build
      number is invisible to installed copies. Increment by 1, forever.
-2. **Commit** (the script warns on a dirty tree — the archive would include
+2. **Update README's Download badge** to the new DMG filename — it links
+   straight to `releases/latest/download/Berthly-<version>.dmg`, not the
+   releases page, and that path only resolves for the exact filename attached
+   to the current latest release. Forgetting this step 404s the badge instead
+   of silently serving a stale build, which is deliberate: broken is loud,
+   wrong-version is not.
+3. **Commit** (the script warns on a dirty tree — the archive would include
    uncommitted changes).
-3. **Run** `scripts/release.sh`. It does, in order:
+4. **Run** `scripts/release.sh`. It does, in order:
    - preflight: `gh` authenticated, Developer ID identity present, Sparkle
      tools in DerivedData, tag `v<version>` not already released
    - `xcodebuild archive` + `-exportArchive` with the Developer ID method
@@ -33,7 +39,7 @@ Releases. `scripts/release.sh` runs the whole pipeline.
    - `gh release create v<version>` with the DMG and `appcast.xml` attached,
      release notes written from the test gate's results (see
      `scripts/release.sh`'s Release notes step)
-4. **Smoke-test the update path** (from the second release onward): launch an
+5. **Smoke-test the update path** (from the second release onward): launch an
    older installed build and use *Berthly → Check for Updates…* — the Sparkle
    dialog should offer the new version and *Install and Relaunch* cleanly.
 

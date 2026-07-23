@@ -75,9 +75,16 @@ fields. Don't "fix" the test targets' numbers — it's cosmetic churn with
 no functional effect, confirmed by grepping the whole repo for any
 script/CI that reads them (there is none).
 
-Commit the version bump by itself before running the release script —
-`release.sh` warns on a dirty tree rather than blocking, so commit
-anyway for a clean archive.
+Update README.md's Download badge in the same commit: it links directly
+to `releases/latest/download/Berthly-<version>.dmg` (not the releases
+page), which only resolves for the exact filename attached to the
+current latest release. Bump the version in that URL to match. Forgetting
+this 404s the badge rather than silently serving a stale build — that's
+deliberate, but only if you don't skip the step.
+
+Commit the version bump (project.pbxproj + README.md) by itself before
+running the release script — `release.sh` warns on a dirty tree rather
+than blocking, so commit anyway for a clean archive.
 
 ## 3. Confirm, then run the release script
 
@@ -166,6 +173,10 @@ follow up:
   `unzip`, though this stopped being a zip-specific footgun once the
   release moved to DMG) to confirm the installed app's signature and
   Sparkle feed check out.
+- Confirm README's Download badge actually resolves:
+  `curl -sI -L https://github.com/henrywang/Berthly/releases/latest/download/Berthly-<version>.dmg`
+  should end in a `200`/redirect chain to the asset, not a `404` — this
+  is the check that catches a forgotten step 2 bump.
 
 ## Don'ts
 
