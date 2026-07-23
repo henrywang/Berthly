@@ -50,6 +50,7 @@ xcodebuild test \
   -only-testing:BerthlyUITests/BerthlyUITests/testMemoryAndCPUUsageDuringSheetChurn \
   -only-testing:BerthlyUITests/BerthlyUITests/testMemoryAndCPUUsageDuringTerminalTabChurn \
   -only-testing:BerthlyUITests/BerthlyUITests/testLaunchPerformance \
+  -only-testing:BerthlyUITests/LargeInventoryTests/testLargeInventorySectionAndDetailPerformance \
   | tee /tmp/berthly-performance.log
 ```
 
@@ -74,11 +75,15 @@ xcodebuild test -quiet \
   | tee /tmp/berthly-unit-tests.log
 ```
 
-Confirm that `MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()` and
-`BuildJobManagerTests/doesNotLeakAfterGoingOutOfScope()` appear as passed. A
+Confirm that `MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()`,
+`MockContainerServiceTests/doesNotLeakWithLargeDatasetAfterGoingOutOfScope()`,
+and `BuildJobManagerTests/doesNotLeakAfterGoingOutOfScope()` appear as passed. A
 mistyped `-only-testing` filter can select zero Swift Testing tests while
 `xcodebuild` still exits successfully, so never infer execution from exit status
-alone.
+alone — Swift Testing identifiers need the trailing `()` (e.g.
+`-only-testing:"BerthlyTests/MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()"`,
+quoted so the shell doesn't eat the parens); omitting it silently matches
+nothing rather than erroring.
 
 ## Interpreting XCTest metrics
 
@@ -165,6 +170,12 @@ Launch the executable directly so the shell captures Berthly's PID; `$!` from
 # Deterministic mock baseline
 UITEST_USE_MOCK_SERVICE=1 "$executable" >/tmp/berthly-profile-app.log 2>&1 &
 pid=$!
+
+# Deterministic mock baseline, large inventory (100 containers, 20 machines,
+# 50 images, 40 volumes, 20 networks) — for stress-profiling idle CPU/RSS or
+# leaks against LargeMockFixture's dataset instead of the small default one.
+# UITEST_USE_MOCK_SERVICE=1 UITEST_MOCK_DATASET=large "$executable" >/tmp/berthly-profile-app.log 2>&1 &
+# pid=$!
 
 # Live-service polling profile
 # "$executable" >/tmp/berthly-profile-app.log 2>&1 &
