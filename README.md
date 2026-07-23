@@ -20,6 +20,8 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 
 ![Berthly in the menu bar — its status-item popover open next to the main window, where the Compute list shows a container's live CPU and memory charts](design/screenshots/main-window.png)
 
+> **Berthly 2.0 is in progress** — multi-service Projects, volume backups, actionable diagnostics, and more, built around what makes Apple's container runtime distinct rather than cloning Docker Desktop or OrbStack feature-for-feature. Track it on the [public roadmap](https://github.com/users/henrywang/projects/3).
+
 ## Features
 
 - **Images** — list, pull from a registry, build from a Dockerfile, and inspect layers and metadata.
