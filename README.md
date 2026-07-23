@@ -5,6 +5,7 @@
 <h1 align="center">Berthly</h1>
 
 <p align="center">
+  <a href="https://github.com/henrywang/Berthly/releases/latest"><img src="https://img.shields.io/badge/Download-macOS-black?logo=apple&logoColor=white" alt="Download for macOS"></a>
   <a href="https://github.com/henrywang/Berthly/actions/workflows/ci.yml"><img src="https://github.com/henrywang/Berthly/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/henrywang/Berthly/actions/workflows/ci.yml"><img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhenrywang%2FBerthly%2Fbadges%2Fcoverage.json" alt="Logic coverage"></a>
 </p>
