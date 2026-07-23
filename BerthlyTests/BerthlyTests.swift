@@ -857,6 +857,18 @@ struct MockContainerServiceTests {
         #expect(weakRef == nil)
     }
 
+    /// Same rationale as `doesNotLeakAfterGoingOutOfScope`, scoped to `applyLargeFixture()`'s
+    /// path: a hundred-plus-resource fixture assignment is a plausible spot for an accidental
+    /// strong self-capture that the small default fixture wouldn't surface.
+    @Test func doesNotLeakWithLargeDatasetAfterGoingOutOfScope() {
+        weak var weakRef: MockContainerService?
+        do {
+            let service = MockContainerService(dataset: .large)
+            weakRef = service
+        }
+        #expect(weakRef == nil)
+    }
+
     @Test func killContainerStopsARunningContainerImmediately() async throws {
         let mock = MockContainerService()
         let running = try #require(mock.containers.first(where: { $0.status == .running }))
