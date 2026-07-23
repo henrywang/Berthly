@@ -122,6 +122,7 @@ private struct ImageDetailContent: View {
                     .font(.title3.weight(.semibold))
                     .fontDesign(.monospaced)
                     .lineLimit(1)
+                    .accessibilityIdentifier("imageDetailTitle")
                 // When the pane squeezes this row (detail min is 320pt), whole elements drop
                 // instead of degrading in place — squeezing wraps the badges mid-word ("arm6/4")
                 // and truncating leaves ellipsis soup ("18… · 2…"). Size/created go first (the

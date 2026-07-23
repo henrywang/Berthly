@@ -21,7 +21,7 @@ extension Container {
 @MainActor
 final class MockContainerService: ContainerServiceBase {
 
-    override init() {
+    init(dataset: MockDataset = .default) {
         super.init()
         daemonState = .connected
         installedContainerVersion = ContainerCompatibility.requiredVersion
@@ -86,6 +86,8 @@ final class MockContainerService: ContainerServiceBase {
             "local/web:1.4": BuildContext(contextPath: "/Users/dev/projects/web", dockerfilePath: nil),
             "local/api:2.1": BuildContext(contextPath: "/Users/dev/projects/api", dockerfilePath: "Containerfile")
         ]
+
+        if dataset == .large { applyLargeFixture() }
     }
 
     private static func mockInspectData() -> [String: ImageInspectData] {

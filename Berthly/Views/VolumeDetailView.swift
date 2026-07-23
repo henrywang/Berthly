@@ -89,6 +89,7 @@ private struct VolumeDetailContent: View {
                         .fontDesign(.monospaced)
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .accessibilityIdentifier("volumeDetailTitle")
                     TintedChip(text: volume.type == .named ? "named" : "anonymous",
                                color: volume.type == .named ? .statusRunning : .purple)
                     if volume.reclaimable {

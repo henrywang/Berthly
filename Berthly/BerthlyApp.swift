@@ -45,7 +45,8 @@ struct BerthlyApp: App {
         guard env["UITEST_USE_MOCK_SERVICE"] != nil else {
             return LiveContainerService()
         }
-        let mock = MockContainerService()
+        let dataset: MockDataset = env["UITEST_MOCK_DATASET"] == "large" ? .large : .default
+        let mock = MockContainerService(dataset: dataset)
         switch env["UITEST_INITIAL_DAEMON_STATE"] {
         case "installedButStopped": mock.daemonState = .installedButStopped
         case "notInstalled":        mock.daemonState = .notInstalled

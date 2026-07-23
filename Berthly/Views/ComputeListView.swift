@@ -80,7 +80,10 @@ struct ComputeListView: View {
                                     .tag(entry.tag)
                                     .listRowSeparator(.hidden)
                             }
-                        } header: { ComputeSectionHeader("RUNNING \(runningCount)") }
+                        } header: {
+                            ComputeSectionHeader("RUNNING \(runningCount)")
+                                .accessibilityIdentifier("computeRunningSummary")
+                        }
                     }
                     if stoppedCount > 0 {
                         Section {
@@ -94,12 +97,17 @@ struct ComputeListView: View {
                                     .tag(entry.tag)
                                     .listRowSeparator(.hidden)
                             }
-                        } header: { ComputeSectionHeader("STOPPED \(stoppedCount)") }
+                        } header: {
+                            ComputeSectionHeader("STOPPED \(stoppedCount)")
+                                .accessibilityIdentifier("computeStoppedSummary")
+                        }
                     }
                 }
                 // Kill the hairline AppKit draws under the pinned first section header — see
                 // NonFloatingListHeaders.
                 .nonFloatingSectionHeaders()
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("computeList")
                 // ⌫ on a selected, stopped row — same confirm-then-delete flow as the row's
                 // hover trash button and context menu, just reached by keyboard.
                 .onDeleteCommand { deleteTarget = deletableSelection }
