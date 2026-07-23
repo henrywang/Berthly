@@ -258,6 +258,7 @@ private struct ImageRow: View {
                     Text(image.fullName)
                         .font(.system(.body, design: .monospaced, weight: .medium))
                         .lineLimit(1)
+                        .accessibilityIdentifier("imageRow-\(image.id)")
                     HStack(spacing: 4) {
                         ForEach(image.arch, id: \.self) { arch in
                             Text(arch)

@@ -28,6 +28,7 @@ struct SidebarView: View {
             SidebarRow(icon: "shippingbox", label: "Compute",
                        badge: runningComputeCount, badgeTint: .statusRunning)
                 .tag(SidebarSelection.compute)
+                .accessibilityIdentifier("sidebarCompute")
                 .help(runningComputeCount > 0
                       ? "\(runningComputeCount) running"
                       : "No containers or machines running")
@@ -35,10 +36,13 @@ struct SidebarView: View {
             Section("LIBRARY") {
                 SidebarRow(icon: "cylinder", label: "Volumes", badge: service.volumes.count)
                     .tag(SidebarSelection.volumes)
+                    .accessibilityIdentifier("sidebarVolumes")
                 SidebarRow(icon: "arrow.triangle.branch", label: "Networks", badge: service.networks.count)
                     .tag(SidebarSelection.networks)
+                    .accessibilityIdentifier("sidebarNetworks")
                 SidebarRow(icon: "square.stack.3d.up", label: "Images", badge: service.images.count)
                     .tag(SidebarSelection.images)
+                    .accessibilityIdentifier("sidebarImages")
                 SidebarRow(icon: "building.columns", label: "Registries", badge: service.registries.count)
                     .tag(SidebarSelection.registries)
             }

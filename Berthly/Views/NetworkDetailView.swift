@@ -87,6 +87,7 @@ private struct NetworkDetailContent: View {
                         .font(.title3.weight(.semibold))
                         .lineLimit(1)
                         .truncationMode(.middle)
+                        .accessibilityIdentifier("networkDetailTitle")
                     TintedChip(text: network.driver.rawValue,
                                 color: network.driver == .nat ? .berthlyAccent : .statusPaused)
                     if network.isDefault {

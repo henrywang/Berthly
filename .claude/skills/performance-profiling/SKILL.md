@@ -50,6 +50,7 @@ xcodebuild test \
   -only-testing:BerthlyUITests/BerthlyUITests/testMemoryAndCPUUsageDuringSheetChurn \
   -only-testing:BerthlyUITests/BerthlyUITests/testMemoryAndCPUUsageDuringTerminalTabChurn \
   -only-testing:BerthlyUITests/BerthlyUITests/testLaunchPerformance \
+  -only-testing:BerthlyUITests/LargeInventoryTests/testLargeInventorySectionAndDetailPerformance \
   | tee /tmp/berthly-performance.log
 ```
 
@@ -74,11 +75,15 @@ xcodebuild test -quiet \
   | tee /tmp/berthly-unit-tests.log
 ```
 
-Confirm that `MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()` and
-`BuildJobManagerTests/doesNotLeakAfterGoingOutOfScope()` appear as passed. A
+Confirm that `MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()`,
+`MockContainerServiceTests/doesNotLeakWithLargeDatasetAfterGoingOutOfScope()`,
+and `BuildJobManagerTests/doesNotLeakAfterGoingOutOfScope()` appear as passed. A
 mistyped `-only-testing` filter can select zero Swift Testing tests while
 `xcodebuild` still exits successfully, so never infer execution from exit status
-alone.
+alone — Swift Testing identifiers need the trailing `()` (e.g.
+`-only-testing:"BerthlyTests/MockContainerServiceTests/doesNotLeakAfterGoingOutOfScope()"`,
+quoted so the shell doesn't eat the parens); omitting it silently matches
+nothing rather than erroring.
 
 ## Interpreting XCTest metrics
 
@@ -166,6 +171,12 @@ Launch the executable directly so the shell captures Berthly's PID; `$!` from
 UITEST_USE_MOCK_SERVICE=1 "$executable" >/tmp/berthly-profile-app.log 2>&1 &
 pid=$!
 
+# Deterministic mock baseline, large inventory (100 containers, 20 machines,
+# 50 images, 40 volumes, 20 networks) — for stress-profiling idle CPU/RSS or
+# leaks against LargeMockFixture's dataset instead of the small default one.
+# UITEST_USE_MOCK_SERVICE=1 UITEST_MOCK_DATASET=large "$executable" >/tmp/berthly-profile-app.log 2>&1 &
+# pid=$!
+
 # Live-service polling profile
 # "$executable" >/tmp/berthly-profile-app.log 2>&1 &
 # pid=$!
@@ -181,6 +192,13 @@ one script:
 ```sh
 trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true' EXIT
 ```
+
+If the launch, sampling, `leaks`, and Time Profiler steps can't literally run in
+one continuous shell (an agent tool that resets shell state between calls, not a
+human's Terminal session), `disown "$pid"` after launch and persist `$pid` to a
+file instead of relying on a variable to survive; reread it from the file in the
+next step to reattach and clean up. Without `disown`, the background job is tied
+to that shell and can be reaped when the tool ends the shell between steps.
 
 Allow at least 15 seconds of warm-up, then sample for at least 45 seconds so
 multiple five-second polls occur. Capture `%CPU` and RSS once per second,
@@ -234,6 +252,11 @@ Verify all of the following:
 - The target PID and binary are the process launched for this checkout.
 - The end reason is the time limit, not a crash.
 - Samples cover warmed steady state rather than only startup.
+
+Zero rows in the exported `time-profile` table is a valid outcome for a
+genuinely idle process (e.g. large-dataset mock mode with ~0% `ps` CPU) — it
+means there was nothing to sample, not that the trace failed. Trust the TOC
+checks above over the row count.
 
 `xctrace` may return a nonzero status when it terminates a launched target at the
 time limit. Never ignore a nonzero status blindly: accept the trace only after

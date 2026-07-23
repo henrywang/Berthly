@@ -107,6 +107,7 @@ private struct MachineDetailContent: View {
                     Text(machine.name)
                         .font(.title2.weight(.bold))
                         .lineLimit(1)
+                        .accessibilityIdentifier("machineDetailTitle")
                     StatusBadge(status: machine.status)
                     if machine.isDefault {
                         DefaultChip()

@@ -188,6 +188,7 @@ private struct NetworkRow: View {
                             .font(.system(.body, design: .default, weight: .medium))
                             .lineLimit(1)
                             .truncationMode(.middle)
+                            .accessibilityIdentifier("networkRow-\(network.name)")
                         if network.isDefault {
                             TintedChip(text: "DEFAULT", color: .secondary)
                         }

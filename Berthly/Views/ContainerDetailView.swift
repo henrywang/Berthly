@@ -121,6 +121,7 @@ private struct ContainerDetailContent: View {
                     Text(container.name)
                         .font(.title2.weight(.bold))
                         .lineLimit(1)
+                        .accessibilityIdentifier("containerDetailTitle")
                     StatusBadge(status: container.status)
                 }
                 HStack(spacing: 4) {

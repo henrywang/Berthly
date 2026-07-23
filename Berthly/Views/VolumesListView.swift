@@ -160,6 +160,7 @@ private struct VolumeRow: View {
                         .font(.system(.body, design: .monospaced, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.tail)
+                        .accessibilityIdentifier("volumeRow-\(volume.name)")
                     Text(mountSummary(volume))
                         .font(.caption)
                         .foregroundStyle(.secondary)
