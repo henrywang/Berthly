@@ -193,6 +193,13 @@ one script:
 trap 'kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true' EXIT
 ```
 
+If the launch, sampling, `leaks`, and Time Profiler steps can't literally run in
+one continuous shell (an agent tool that resets shell state between calls, not a
+human's Terminal session), `disown "$pid"` after launch and persist `$pid` to a
+file instead of relying on a variable to survive; reread it from the file in the
+next step to reattach and clean up. Without `disown`, the background job is tied
+to that shell and can be reaped when the tool ends the shell between steps.
+
 Allow at least 15 seconds of warm-up, then sample for at least 45 seconds so
 multiple five-second polls occur. Capture `%CPU` and RSS once per second,
 reporting average, maximum, minimum, and first-to-last RSS. Treat one-time
@@ -245,6 +252,11 @@ Verify all of the following:
 - The target PID and binary are the process launched for this checkout.
 - The end reason is the time limit, not a crash.
 - Samples cover warmed steady state rather than only startup.
+
+Zero rows in the exported `time-profile` table is a valid outcome for a
+genuinely idle process (e.g. large-dataset mock mode with ~0% `ps` CPU) — it
+means there was nothing to sample, not that the trace failed. Trust the TOC
+checks above over the row count.
 
 `xctrace` may return a nonzero status when it terminates a launched target at the
 time limit. Never ignore a nonzero status blindly: accept the trace only after
