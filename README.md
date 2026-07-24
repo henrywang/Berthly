@@ -18,7 +18,7 @@ A native macOS app for [Apple's `container`](https://github.com/apple/container)
 
 Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's container tooling the Docker Desktop-style experience it's missing.
 
-![Berthly in the menu bar — its status-item popover open next to the main window, where the Compute list shows a container's live CPU and memory charts](design/screenshots/main-window.png)
+![Berthly demo — open the menu-bar monitor, inspect live container metrics, and drag a Dockerfile from Finder to start a pre-filled image build](https://github.com/henrywang/Berthly/releases/download/media-assets/berthly-demo.gif)
 
 > **Berthly 2.0 is in progress** — multi-service Projects, volume backups, actionable diagnostics, and more, built around what makes Apple's container runtime distinct rather than cloning Docker Desktop or OrbStack feature-for-feature. Track it on the [public roadmap](https://github.com/users/henrywang/projects/3).
 
