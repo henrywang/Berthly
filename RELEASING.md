@@ -22,6 +22,9 @@ Releases. `scripts/release.sh` runs the whole pipeline.
    to the current latest release. Forgetting this step 404s the badge instead
    of silently serving a stale build, which is deliberate: broken is loud,
    wrong-version is not.
+   - Also update the roadmap blockquote below Features —
+     `Berthly <x.y> is stable and shipping today` — and drop any "Next up"
+     item that shipped in this release.
 3. **Commit** (the script warns on a dirty tree — the archive would include
    uncommitted changes).
 4. **Run** `scripts/release.sh`. It does, in order:

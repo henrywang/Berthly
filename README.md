@@ -20,8 +20,6 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 
 ![Berthly demo — open the menu-bar monitor, inspect live container metrics, and drag a Dockerfile from Finder to start a pre-filled image build](https://github.com/henrywang/Berthly/releases/download/media-assets/berthly-demo.gif)
 
-> **Berthly 2.0 is in progress** — multi-service Projects, volume backups, actionable diagnostics, and more, built around what makes Apple's container runtime distinct rather than cloning Docker Desktop or OrbStack feature-for-feature. Track it on the [public roadmap](https://github.com/users/henrywang/projects/3).
-
 ## Features
 
 - **Images** — list, pull from a registry, build from a Dockerfile, and inspect layers and metadata.
@@ -35,6 +33,8 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 - **Keyboard-first** — ⌘K palette, ⌘1–6 section switching, ⌘⌥1–3 detail tabs, and full menu shortcuts for every action.
 
 ![The command palette (⌘K) matching lifecycle actions for a container](design/screenshots/command-palette.png)
+
+> **Berthly 1.1 is stable and shipping today.** Next up: multi-service Projects, volume backups, actionable diagnostics, and more — built around what makes Apple's container runtime distinct rather than cloning Docker Desktop or OrbStack feature-for-feature. Track it on the [public roadmap](https://github.com/users/henrywang/projects/3).
 
 ## Beyond the CLI
 
