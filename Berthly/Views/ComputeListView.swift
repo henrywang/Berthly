@@ -106,6 +106,14 @@ struct ComputeListView: View {
                 // Kill the hairline AppKit draws under the pinned first section header — see
                 // NonFloatingListHeaders.
                 .nonFloatingSectionHeaders()
+                // Starting/stopping moves a row across sections; without this the table can keep
+                // the row's mid-animation height (24pt, subtitle clipped) — see
+                // ListRowHeightRefresher. Keyed on the row identities so a simultaneous
+                // start+stop, which leaves both counts unchanged, still triggers a re-measure.
+                .refreshesRowHeights(on: runningContainerEntries.map(\.id)
+                    + runningMachineEntries.map(\.id)
+                    + stoppedContainerEntries.map(\.id)
+                    + stoppedMachineEntries.map(\.id))
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("computeList")
                 // ⌫ on a selected, stopped row — same confirm-then-delete flow as the row's
