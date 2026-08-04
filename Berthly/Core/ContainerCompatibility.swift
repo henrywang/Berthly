@@ -16,6 +16,12 @@ nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
     static let requiredVersion = "1.2.0"
 
+    /// One-line, hand-written summary of what `requiredVersion` adds — shown on the
+    /// version-mismatch gate so an upgrade prompt isn't just two bare version numbers. Update
+    /// this by hand alongside `requiredVersion` bumps; it's not generated from upstream's
+    /// changelog.
+    static let requiredVersionRationale = "Adds kernel boot-arg support and kernel archive integrity checks."
+
     /// How an incompatible install relates to the required version. `tooOld` is fixable in place
     /// with the upstream update script; `tooNew` (newer major) is not — downgrading requires a
     /// full uninstall, so the only safe advice is to update Berthly instead.

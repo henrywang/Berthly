@@ -212,7 +212,16 @@ struct DaemonGateView<Content: View>: View {
                 Label("Update Required", systemImage: "exclamationmark.triangle")
                     .accessibilityIdentifier("updateRequiredGateTitle")
             } description: {
-                Text("Installed: v\(installed) · Required: v\(required) or newer")
+                VStack(spacing: 6) {
+                    Text("Installed: v\(installed) · Required: v\(required) or newer")
+                    Text(ContainerCompatibility.requiredVersionRationale)
+                        .font(.callout)
+                    Link(
+                        "See what's new",
+                        destination: URL(string: "https://github.com/apple/container/releases/tag/\(required)")!
+                    )
+                    .font(.callout)
+                }
             } actions: {
                 Button("Update Container to v\(required)…") {
                     showUpdateConfirm = true
