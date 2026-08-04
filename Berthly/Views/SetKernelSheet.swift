@@ -71,6 +71,7 @@ struct SetKernelSheet: View {
     @State private var binaryPath = ""
     @State private var tarSource = ""
     @State private var tarBinaryPath = ""
+    @State private var tarDigest = ""
     @State private var architecture: String = {
         #if arch(arm64)
         return "arm64"
@@ -175,6 +176,12 @@ struct SetKernelSheet: View {
         Section {
             pathField("Archive", prompt: "/path/to/kernel.tar.zst or https://…", text: $tarSource, chooser: pickTarFile)
             pathField("Path inside archive", prompt: "opt/kata/share/kata-containers/vmlinux", text: $tarBinaryPath, chooser: nil)
+            pathField(
+                "Digest",
+                prompt: digestIsRequired ? "sha256:… (required for a remote URL)" : "sha256:… (optional for a local file)",
+                text: $tarDigest,
+                chooser: nil
+            )
         } header: {
             HStack {
                 Text("Tar Archive")
@@ -186,7 +193,10 @@ struct SetKernelSheet: View {
                 }
             }
         } footer: {
-            Text("Pre-filled from config.toml's recommended kernel — edit to install a different one.")
+            Text("""
+                Pre-filled from config.toml's recommended kernel — edit to install a different one. \
+                The digest is verified against the archive before install; a remote URL requires one.
+                """)
         }
     }
 
@@ -260,13 +270,23 @@ struct SetKernelSheet: View {
         case .tar:
             return !tarSource.trimmingCharacters(in: .whitespaces).isEmpty
                 && !tarBinaryPath.trimmingCharacters(in: .whitespaces).isEmpty
+                && (!digestIsRequired || !tarDigest.trimmingCharacters(in: .whitespaces).isEmpty)
         }
+    }
+
+    /// Mirrors upstream's `container system kernel set --tar` rule: a remote URL must be
+    /// verified against a digest (there's no other integrity check on the download), while a
+    /// local archive already on disk can skip it.
+    private var digestIsRequired: Bool {
+        let trimmed = tarSource.trimmingCharacters(in: .whitespaces)
+        return trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
     }
 
     private func prefillFromRecommended() {
         guard let config = service.systemConfigInfo else { return }
         tarSource = config.kernelURL
         tarBinaryPath = config.kernelBinaryPath
+        tarDigest = config.kernelDigest
     }
 
     private func prefillFromRecommendedIfEmpty() {
@@ -308,9 +328,11 @@ struct SetKernelSheet: View {
                         binaryPath: binaryPath, tarSource: nil, architecture: architecture, force: force
                     ))
                 case .tar:
+                    let trimmedDigest = tarDigest.trimmingCharacters(in: .whitespaces)
                     try await service.setKernel(
                         options: KernelSetOptions(
-                            binaryPath: tarBinaryPath, tarSource: tarSource, architecture: architecture, force: force
+                            binaryPath: tarBinaryPath, tarSource: tarSource, architecture: architecture, force: force,
+                            digest: trimmedDigest.isEmpty ? nil : trimmedDigest
                         ),
                         progress: state.handler
                     )

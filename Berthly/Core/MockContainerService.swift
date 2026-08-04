@@ -502,7 +502,7 @@ final class MockContainerService: ContainerServiceBase {
             vminitImage: "ghcr.io/apple/containerization/vminit:latest",
             kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
             kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
-            builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
+            kernelDigest: "sha256:f63d54abcd", builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
         )
     }
 

@@ -87,7 +87,7 @@ Builds also start the builder on demand, like the CLI.
 | `start` / `stop` / `status` | Daemon controls + connection state throughout the app |
 | `df` | Disk usage cards with reclaimable-space breakdown |
 | `dns` | Local DNS domains list / create / delete |
-| `kernel` | Kernel info + Set Kernel sheet (binary, tar/URL, arch, force) |
+| `kernel` | Kernel info + Set Kernel sheet (binary, tar/URL, arch, force, digest) |
 | `logs` | Daemon Logs viewer |
 | `property` | System properties list |
 | `version` | Versions shown on the System page |
