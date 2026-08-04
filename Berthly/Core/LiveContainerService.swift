@@ -58,9 +58,39 @@ final class LiveContainerService: ContainerServiceBase {
 
     private func resolvedSystemConfig() async -> ContainerSystemConfig {
         if systemConfig == nil {
-            systemConfig = try? await ConfigurationLoader.load()
+            let result: Result<ContainerSystemConfig, Error>
+            do {
+                result = .success(try await ConfigurationLoader.load())
+            } catch {
+                Self.log.error("failed to load system config", metadata: ["error": "\(error)"])
+                result = .failure(error)
+            }
+            let (config, warning) = Self.mapSystemConfigLoadResult(result)
+            systemConfig = config
+            if let warning {
+                lastStartupWarning = warning
+            }
         }
         return systemConfig ?? ContainerSystemConfig()
+    }
+
+    /// `ConfigurationLoader.load()` only throws when a config file exists on disk but fails to
+    /// parse or decode — it already returns cleanly with defaults when no file is present at all
+    /// (`loadAndDecode`'s all-paths-missing short-circuit). So any caught error here means the
+    /// user's actual customized `config.toml` is being discarded, not just "there was nothing to
+    /// load" — worth a warning rather than a silent `try?` fallback to defaults.
+    nonisolated static func mapSystemConfigLoadResult(
+        _ result: Result<ContainerSystemConfig, Error>
+    ) -> (config: ContainerSystemConfig, warning: String?) {
+        switch result {
+        case .success(let config):
+            return (config, nil)
+        case .failure(let error):
+            return (
+                ContainerSystemConfig(),
+                "Couldn't load your container configuration, so Berthly is using defaults instead: \(error.localizedDescription)"
+            )
+        }
     }
 
     private static let contextsURL: URL = {

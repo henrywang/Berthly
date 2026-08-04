@@ -33,10 +33,11 @@ class ContainerServiceBase {
     var isCheckingImageUpdates = false
 
     /// Set when `startDaemon()` connects fine but a background bootstrap step (installing the
-    /// vminit filesystem image or default kernel) failed — the daemon reports `.connected`
-    /// regardless (it's the correct state for most purposes), so without this the failure is
-    /// otherwise invisible until an unrelated later operation fails for a confusing reason.
-    /// `nil` means no warning; cleared at the start of every `startDaemon()` call.
+    /// vminit filesystem image or default kernel, or loading the user's `config.toml`) failed —
+    /// the daemon reports `.connected` regardless (it's the correct state for most purposes), so
+    /// without this the failure is otherwise invisible until an unrelated later operation fails
+    /// for a confusing reason. `nil` means no warning; cleared at the start of every
+    /// `startDaemon()` call.
     var lastStartupWarning: String?
 
     /// The running daemon's version, from the health-check ping. `nil` before the first
