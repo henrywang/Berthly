@@ -112,6 +112,7 @@ struct RunContainerSheet: View {
     @State private var dnsOptions: [StringEntry] = []
     @State private var dnsSearch: [StringEntry] = []
     @State private var noDns = false
+    @State private var kernelArgs: [StringEntry] = []
 
     @State private var state = RunState()
 
@@ -333,7 +334,7 @@ struct RunContainerSheet: View {
             return filled(workdir) + filled(user) + filled(entrypoint) + filled(cidFile)
                 + [readOnly, initProcess, rosetta, ssh, interactive, tty, virtualization, insecureRegistry]
                     .count { $0 }
-                + filled(capAdd) + filled(capDrop)
+                + filled(capAdd) + filled(capDrop) + filled(kernelArgs)
         }
     }
 
@@ -527,6 +528,12 @@ struct RunContainerSheet: View {
 
         StringListEditor(title: "Add capabilities", placeholder: "CAP_NET_RAW, or ALL", identifierPrefix: "runCapAdd", entries: $capAdd)
         StringListEditor(title: "Drop capabilities", placeholder: "CAP_SYS_ADMIN, or ALL", identifierPrefix: "runCapDrop", entries: $capDrop)
+        StringListEditor(
+            title: "Kernel boot arguments",
+            placeholder: "lsm=lockdown,capability,landlock,yama,apparmor,bpf",
+            identifierPrefix: "runKernelArg",
+            entries: $kernelArgs
+        )
 
         VStack(alignment: .leading, spacing: 6) {
             Text("Container ID file")
@@ -697,7 +704,8 @@ struct RunContainerSheet: View {
             dnsDomain: dnsDomainTrimmed.isEmpty ? nil : dnsDomainTrimmed,
             dnsOptions: strings(from: dnsOptions),
             dnsSearch: strings(from: dnsSearch),
-            noDns: noDns
+            noDns: noDns,
+            kernelArgs: strings(from: kernelArgs)
         )
 
         // `runContainer` refreshes the container list before returning, so the new container is

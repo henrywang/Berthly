@@ -25,9 +25,10 @@ CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
 The Run/Create sheet exposes the full flag surface: env + env-file, ports,
 volumes, mounts, tmpfs, networks, labels, entrypoint, workdir, user/uid/gid,
-cpus/memory, capabilities add/drop, ulimits, DNS (nameserver, domain, search,
-options, no-dns), platform/os/arch, read-only rootfs, init process, cidfile,
-interactive/tty, ssh, shm-size, Rosetta, virtualization.
+cpus/memory, capabilities add/drop, kernel boot arguments (`--kernel-arg`),
+ulimits, DNS (nameserver, domain, search, options, no-dns), platform/os/arch,
+read-only rootfs, init process, cidfile, interactive/tty, ssh, shm-size,
+Rosetta, virtualization.
 
 ## Images
 

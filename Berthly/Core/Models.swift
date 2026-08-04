@@ -796,6 +796,7 @@ nonisolated struct RunOptions {
     var dnsOptions: [String] = []
     var dnsSearch: [String] = []
     var noDns: Bool = false
+    var kernelArgs: [String] = []
 }
 
 /// Captures stderr text alongside the exit code — unlike a build, run/create
