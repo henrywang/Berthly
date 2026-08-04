@@ -148,6 +148,34 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
+    /// Regression: "Start Container System" used to call `startDaemon()` bare, showing only the
+    /// static ".connecting" text with zero progress for however long launch/ping/verify took.
+    /// It now routes through the same `runOperation`/`ProgressLogScreen` path as install/update,
+    /// so real log lines should appear while the mock's staged `startDaemon` is mid-flight.
+    @MainActor
+    func testStartContainerSystemShowsProgress() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "installedButStopped"
+        app.launch()
+
+        let startButton = app.buttons["Start Container System"]
+        XCTAssertTrue(startButton.waitForExistence(timeout: 10))
+        startButton.click()
+
+        // Wait once, for the *last* log line the mock emits — log lines are additive
+        // (ProgressLogScreen never clears `operationLogs` mid-run), so catching this one also
+        // guarantees the message and the first line are already on screen. Checking each line
+        // with its own `waitForExistence` compounds this harness's ~1s per-poll overhead enough
+        // that the mock's whole (short) operation can finish before a later wait even starts.
+        XCTAssertTrue(app.staticTexts["Waiting for the daemon to respond…"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["operationProgressMessage"].exists)
+        XCTAssertTrue(app.staticTexts["Starting container-apiserver…"].exists)
+
+        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Start Container System"].exists)
+    }
+
     /// First-launch guided install: the notInstalled gate offers an in-app install, which (in
     /// the mock) fakes download/verify/install and then connects. Asserts the full path from
     /// "Container Not Installed" through the confirm alert to connected content.
