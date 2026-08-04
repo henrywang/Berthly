@@ -2257,7 +2257,7 @@ final class LiveContainerService: ContainerServiceBase {
                 let socket = try await ContainerClient().dial(id: ContainerBuild.Builder.builderContainerId, port: 8088)
                 let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
                 do {
-                    let builder = try ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
+                    let builder = try await ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
                     _ = try await builder.info()
                     if announcedStart { onLog("Build environment ready.") }
                     return (builder, group)
@@ -2334,7 +2334,9 @@ final class LiveContainerService: ContainerServiceBase {
         let useRosetta = containerSystemConfig.build.rosetta
         let shimArguments = ["--debug", "--vsock", useRosetta ? nil : "--enable-qemu"].compactMap { $0 }
 
-        try Utility.validEntityName(builderContainerId)
+        guard ManagedContainer.nameValid(builderContainerId) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(builderContainerId) is not a valid container ID")
+        }
 
         // The slow part on first build. `fetch` streams size events only when it actually pulls —
         // a cached image resolves via `get` with no events — so the reporter emits its throttled
@@ -2632,6 +2634,7 @@ final class LiveContainerService: ContainerServiceBase {
             entrypoint: nilIfEmpty(options.entrypoint),
             initImage: nil,
             kernel: nil,
+            kernelArgs: [],
             labels: options.labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
             mounts: options.mounts,
             name: nilIfEmpty(options.name),
@@ -2675,7 +2678,9 @@ final class LiveContainerService: ContainerServiceBase {
     @discardableResult
     override func runContainer(options: RunOptions) async throws -> String {
         let id = Utility.createContainerID(name: options.name)
-        try Utility.validEntityName(id)
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
+        }
 
         let client = ContainerClient()
         if (try? await client.get(id: id)) != nil {
@@ -2835,7 +2840,9 @@ final class LiveContainerService: ContainerServiceBase {
     /// same as `runContainer` reuses `Utility.containerConfigFromFlags`.
     override func createMachine(options: MachineCreateOptions) async throws {
         let id = try Self.machineID(for: options)
-        try Utility.validEntityName(id)
+        guard ManagedContainer.nameValid(id) else {
+            throw ContainerizationError(.invalidArgument, message: "machine ID \(id) is not a valid machine ID")
+        }
 
         let containerSystemConfig = await resolvedSystemConfig()
         let bootConfig = try containerSystemConfig.machine.with(Self.machineBootConfigOverrides(for: options))
