@@ -126,6 +126,32 @@ struct SystemConfigMappingTests {
     }
 }
 
+private struct FakeDecodeError: LocalizedError {
+    var errorDescription: String? { "kernel.digest is required when kernel.url is not the default URL" }
+}
+
+// Regression: `resolvedSystemConfig()` used to `try?` this outcome, silently discarding a
+// user's entire customized config.toml (not just the field that failed) whenever it existed
+// but failed to decode — see the load-vs-decode distinction documented on
+// `mapSystemConfigLoadResult` itself.
+struct SystemConfigLoadResultMappingTests {
+
+    @Test func successPassesTheConfigThroughWithNoWarning() {
+        let config = ContainerSystemConfig()
+        let (resolved, warning) = LiveContainerService.mapSystemConfigLoadResult(.success(config))
+
+        #expect(resolved.build.image == config.build.image)
+        #expect(warning == nil)
+    }
+
+    @Test func failureFallsBackToDefaultsWithAWarning() {
+        let (resolved, warning) = LiveContainerService.mapSystemConfigLoadResult(.failure(FakeDecodeError()))
+
+        #expect(resolved.build.image == ContainerSystemConfig().build.image)
+        #expect(warning?.contains("kernel.digest is required") == true)
+    }
+}
+
 struct DaemonLogEventFormattingTests {
 
     @Test func joinsTimeLevelAndMessageWithTabs() {
