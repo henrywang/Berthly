@@ -14,7 +14,7 @@ import Foundation
 /// which nonisolated callers (e.g. test suites) warn on under Swift 6 checking.
 nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
-    static let requiredVersion = "1.1.0"
+    static let requiredVersion = "1.2.0"
 
     /// How an incompatible install relates to the required version. `tooOld` is fixable in place
     /// with the upstream update script; `tooNew` (newer major) is not — downgrading requires a
