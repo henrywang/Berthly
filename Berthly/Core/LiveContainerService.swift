@@ -268,6 +268,23 @@ final class LiveContainerService: ContainerServiceBase {
     private nonisolated static let apiServerLabel = "com.apple.container.apiserver"
     private static let servicePrefix = "com.apple.container."
 
+    /// What `startDaemon()`'s connect-phase failure should do, given the error it caught.
+    /// Extracted pure so the CancellationError-vs-real-failure distinction — the actual bug
+    /// `runOperation`'s Cancel button used to hit — is unit-testable without a live daemon.
+    /// Cancelling `launchDaemonIfNeeded`/`pingDaemonWithRecovery`/`MachineClient().list()` doesn't
+    /// undo the launchd registration/kickstart already issued, so guessing a resulting state would
+    /// be just as likely wrong as right — `.repoll` defers to a fresh `poll()` to report whatever
+    /// actually happened instead of guessing, or misreporting it as a failure the way a bare
+    /// catch-all used to.
+    enum StartDaemonFailureOutcome: Equatable {
+        case repoll
+        case reportError(String)
+    }
+
+    nonisolated static func startDaemonFailureOutcome(for error: Error) -> StartDaemonFailureOutcome {
+        error is CancellationError ? .repoll : .reportError(error.localizedDescription)
+    }
+
     /// Native (launchd, no CLI shelling) implementation of `container system start`: registers
     /// (or restarts) the `container-apiserver` launchd service, waits for it to respond, and
     /// bootstraps the vminit filesystem image and default kernel on first run — without asking,
@@ -292,9 +309,20 @@ final class LiveContainerService: ContainerServiceBase {
             onLog?("Daemon responded — verifying the machine service…")
             _ = try await MachineClient().list()
         } catch {
-            daemonState = .error(error.localizedDescription)
-            isStarting = false
-            return
+            // This is also what makes `installContainer`/`upgradeContainer`'s trailing
+            // `startDaemon()` call behave correctly on cancel: since this method never throws,
+            // returning cleanly on `.repoll` (rather than reporting an error) means the caller
+            // doesn't see one either.
+            switch Self.startDaemonFailureOutcome(for: error) {
+            case .repoll:
+                isStarting = false
+                await poll()
+                return
+            case .reportError(let message):
+                daemonState = .error(message)
+                isStarting = false
+                return
+            }
         }
 
         let containerSystemConfig = await resolvedSystemConfig()

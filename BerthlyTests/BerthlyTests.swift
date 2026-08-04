@@ -4,6 +4,7 @@
 import ContainerAPIClient
 import ContainerPersistence
 import ContainerResource
+import ContainerizationError
 import ContainerizationExtras
 import ContainerizationOCI
 import Foundation
@@ -656,6 +657,24 @@ struct ContainerCompatibilityTests {
 
     @Test func extractVersionReturnsNilWhenNoVersionPresent() {
         #expect(ContainerCompatibility.extractVersion(from: "not-a-version") == nil)
+    }
+}
+
+// Regression: `startDaemon()`'s connect-phase catch-all used to treat a cancelled `runOperation`
+// (the "Start Container System" / install / upgrade progress screens' Cancel button) the same as
+// a real failure, landing on a confusing "Error" gate instead of returning cleanly.
+struct StartDaemonFailureOutcomeTests {
+
+    @Test func cancellationRepolls() {
+        #expect(LiveContainerService.startDaemonFailureOutcome(for: CancellationError()) == .repoll)
+    }
+
+    @Test func realFailureReportsItsMessage() {
+        let error = ContainerizationError(.internalError, message: "XPC connection error")
+        #expect(
+            LiveContainerService.startDaemonFailureOutcome(for: error)
+                == .reportError(error.localizedDescription)
+        )
     }
 }
 
