@@ -703,11 +703,11 @@ struct PrivilegedCommandHelperTests {
     }
 
     // The signature gate pins Apple's actual Containerization release identity (verified against
-    // the real signed 1.1.0 pkg). The generic "issued by Apple" status describes every Developer
+    // the real signed 1.2.0 pkg). The generic "issued by Apple" status describes every Developer
     // ID certificate, so it alone must never be enough — that's the hijacked-download case.
     @Test func signatureCheckAcceptsApplesContainerizationIdentity() {
         let realOutput = """
-        Package "container-1.1.0-installer-signed.pkg":
+        Package "container-1.2.0-installer-signed.pkg":
            Status: signed by a developer certificate issued by Apple for distribution
            Certificate Chain:
             1. Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)
@@ -717,7 +717,7 @@ struct PrivilegedCommandHelperTests {
 
     @Test func signatureCheckRejectsOtherDeveloperIDs() {
         let attackerOutput = """
-        Package "container-1.1.0-installer-signed.pkg":
+        Package "container-1.2.0-installer-signed.pkg":
            Status: signed by a developer certificate issued by Apple for distribution
            Certificate Chain:
             1. Developer ID Installer: Evil Corp LLC (ABC123XYZ0)
@@ -754,9 +754,9 @@ struct PrivilegedCommandHelperTests {
     /// staged copy, and install that same copy — closing the swap window between the user-space
     /// signature check and the root install.
     @Test func stagedInstallCommandVerifiesAndInstallsTheStagedCopy() {
-        let command = LiveContainerService.stagedInstallCommand(pkgPath: "/tmp/container-1.1.0-installer-signed.pkg")
+        let command = LiveContainerService.stagedInstallCommand(pkgPath: "/tmp/container-1.2.0-installer-signed.pkg")
         #expect(command.contains("/usr/bin/mktemp -d"))
-        #expect(command.contains("/bin/cp '/tmp/container-1.1.0-installer-signed.pkg' \"$staging/container.pkg\""))
+        #expect(command.contains("/bin/cp '/tmp/container-1.2.0-installer-signed.pkg' \"$staging/container.pkg\""))
         #expect(command.contains("pkgutil --check-signature \"$staging/container.pkg\""))
         #expect(command.contains("grep -e 'Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)'"))
         #expect(command.contains("installer -pkg \"$staging/container.pkg\" -target /"))

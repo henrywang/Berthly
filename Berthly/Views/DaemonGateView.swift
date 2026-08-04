@@ -336,7 +336,7 @@ struct DaemonGateView<Content: View>: View {
     }
     .environment({
         let s = MockContainerService()
-        s.daemonState = .versionMismatch(installed: "1.0.2", required: "1.1.0")
+        s.daemonState = .versionMismatch(installed: "1.0.2", required: "1.2.0")
         return s as ContainerServiceBase
     }())
     .frame(width: 600, height: 500)
@@ -348,7 +348,7 @@ struct DaemonGateView<Content: View>: View {
     }
     .environment({
         let s = MockContainerService()
-        s.daemonState = .versionMismatch(installed: "2.0.0", required: "1.1.0")
+        s.daemonState = .versionMismatch(installed: "2.0.0", required: "1.2.0")
         return s as ContainerServiceBase
     }())
     .frame(width: 600, height: 500)
@@ -364,9 +364,9 @@ struct DaemonGateView<Content: View>: View {
 
 #Preview("Operation in progress") {
     DaemonGateView<Text>.ProgressLogScreen(
-        message: "Updating container to v1.1.0…",
+        message: "Updating container to v1.2.0…",
         logLines: [
-            "Updating to release version 1.1.0",
+            "Updating to release version 1.2.0",
             "Downloading package from: https://github.com/apple/container/releases/…",
             "Installing package to /usr/local…"
         ],

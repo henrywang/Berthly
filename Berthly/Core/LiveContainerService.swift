@@ -445,7 +445,7 @@ final class LiveContainerService: ContainerServiceBase {
 
     /// The exact leaf-certificate identity `pkgutil --check-signature` prints for apple/container
     /// release pkgs, including Apple's Containerization team ID — verified against the real
-    /// signed 1.1.0 pkg. Deliberately NOT the generic "signed by a developer certificate issued
+    /// signed 1.2.0 pkg. Deliberately NOT the generic "signed by a developer certificate issued
     /// by Apple" status line: every registered Developer ID on earth matches that phrase, which
     /// would let any developer's pkg through this gate. If upstream ever rotates its signing
     /// identity, installs fail closed with the verification error until this is re-pinned
