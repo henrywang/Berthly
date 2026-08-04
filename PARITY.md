@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.1.0** (2026-07-15). When a change closes or
+> Audited against **container CLI 1.2.0** (2026-08-04). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
