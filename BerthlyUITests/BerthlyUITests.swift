@@ -176,6 +176,27 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
+    /// Regression: `DaemonStatusBar`'s "Running (warning)" state (icon/color/word swap, plus a
+    /// `.help()` tooltip carrying the actual message) had no UI coverage at all — set via
+    /// `UITEST_STARTUP_WARNING` seeding `lastStartupWarning` on the mock, which defaults to
+    /// `.connected` (the only state this row's warning path renders under).
+    @MainActor
+    func testDaemonStatusBarShowsWarningState() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_STARTUP_WARNING"] = "Couldn't install the default kernel: network error"
+        app.launch()
+
+        // The tooltip text itself (`.help(activeWarning ?? "")`) isn't reliably readable via
+        // XCUITest hover on macOS — see SystemViewTests.swift's header for the same finding on
+        // this codebase's other `.help()`-only rows. The status word swap is what's actually
+        // asserted; it's driven by the same `activeWarning` value the tooltip carries. Queried by
+        // its literal text, matching every other staticTexts lookup in this file — an
+        // accessibilityIdentifier on this Text was tried first, but its `.label` came back empty
+        // even though existence-matching (identifier-or-label) still worked.
+        XCTAssertTrue(app.staticTexts["Running (warning)"].waitForExistence(timeout: 10))
+    }
+
     /// First-launch guided install: the notInstalled gate offers an in-app install, which (in
     /// the mock) fakes download/verify/install and then connects. Asserts the full path from
     /// "Container Not Installed" through the confirm alert to connected content.

@@ -39,7 +39,9 @@ struct BerthlyApp: App {
     @AppStorage("showMenuBarIcon") private var showMenuBarIcon = true
 
     /// UI tests set `UITEST_USE_MOCK_SERVICE` to get deterministic state instead of a real
-    /// daemon connection, optionally seeded via `UITEST_INITIAL_DAEMON_STATE`.
+    /// daemon connection, optionally seeded via `UITEST_INITIAL_DAEMON_STATE` and
+    /// `UITEST_STARTUP_WARNING` (the latter for `DaemonStatusBar`'s "Running (warning)" state,
+    /// which only shows while `.connected` — the mock's default state).
     private static func makeService() -> ContainerServiceBase {
         let env = ProcessInfo.processInfo.environment
         guard env["UITEST_USE_MOCK_SERVICE"] != nil else {
@@ -54,6 +56,9 @@ struct BerthlyApp: App {
         case "versionMismatch":
             mock.daemonState = .versionMismatch(installed: "1.0.0", required: ContainerCompatibility.requiredVersion)
         default: break
+        }
+        if let warning = env["UITEST_STARTUP_WARNING"] {
+            mock.lastStartupWarning = warning
         }
         return mock
     }
