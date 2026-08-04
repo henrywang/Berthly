@@ -459,15 +459,12 @@ final class MockContainerService: ContainerServiceBase {
             SystemProperty(key: "build.cpus", value: "2"),
             SystemProperty(key: "build.memory", value: "2 GB"),
             SystemProperty(key: "build.image", value: "ghcr.io/apple/container-builder-shim/builder:latest"),
-            SystemProperty(key: "container.cpus", value: "4"),
-            SystemProperty(key: "container.memory", value: "1 GB"),
+            SystemProperty(key: "container.cpus", value: "4"), SystemProperty(key: "container.memory", value: "1 GB"),
             SystemProperty(key: "dns.domain", value: "test"),
             SystemProperty(key: "kernel.binaryPath", value: "opt/kata/share/kata-containers/vmlinux-6.18.15-186"),
             SystemProperty(key: "kernel.url", value: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"),
-            SystemProperty(key: "machine.cpus", value: "4"),
-            SystemProperty(key: "machine.memory", value: "8 GB"),
-            SystemProperty(key: "machine.home-mount", value: "rw"),
-            SystemProperty(key: "machine.virtualization", value: "false"),
+            SystemProperty(key: "machine.cpus", value: "4"), SystemProperty(key: "machine.memory", value: "8 GB"),
+            SystemProperty(key: "machine.home-mount", value: "rw"), SystemProperty(key: "machine.virtualization", value: "false"),
             SystemProperty(key: "network.subnet", value: "192.168.64.0/24"),
             SystemProperty(key: "network.subnetv6", value: "–"),
             SystemProperty(key: "registry.domain", value: "docker.io"),
@@ -637,7 +634,14 @@ final class MockContainerService: ContainerServiceBase {
 
     override func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {
         daemonState = .connecting
-        try? await Task.sleep(for: .milliseconds(200))
+        // Mirrors LiveContainerService.startDaemon's launch/ping/verify log lines. Staged well
+        // past XCUITest's ~1s waitForExistence polling cadence observed in this environment (a
+        // 400ms-per-stage version finished *before the first poll fired* and never got caught) —
+        // gives a UI test real room to catch the ProgressLogScreen mid-flight.
+        onLog?("Starting container-apiserver…")
+        try? await Task.sleep(for: .milliseconds(1200))
+        onLog?("Waiting for the daemon to respond…")
+        try? await Task.sleep(for: .milliseconds(1200))
         daemonState = .connected
     }
 

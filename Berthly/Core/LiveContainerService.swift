@@ -285,8 +285,11 @@ final class LiveContainerService: ContainerServiceBase {
         lastStartupWarning = nil
 
         do {
+            onLog?("Starting container-apiserver…")
             try await launchDaemonIfNeeded()
-            try await pingDaemonWithRecovery()
+            onLog?("Waiting for the daemon to respond…")
+            try await pingDaemonWithRecovery(onLog: onLog)
+            onLog?("Daemon responded — verifying the machine service…")
             _ = try await MachineClient().list()
         } catch {
             daemonState = .error(error.localizedDescription)
@@ -810,10 +813,11 @@ final class LiveContainerService: ContainerServiceBase {
     /// practice: rather than depending on that check having picked the right branch (register is a
     /// silent no-op for an already-loaded-but-stopped label), a failed ping here is treated as the
     /// real signal to force a restart before giving up.
-    private nonisolated func pingDaemonWithRecovery() async throws {
+    private nonisolated func pingDaemonWithRecovery(onLog: (@MainActor (String) -> Void)? = nil) async throws {
         do {
             _ = try await ClientHealthCheck.ping()
         } catch {
+            await onLog?("Daemon didn't respond — restarting it and trying again…")
             let domain = try ServiceManager.getDomainString()
             try? ServiceManager.kickstart(fullServiceLabel: "\(domain)/\(Self.apiServerLabel)")
             _ = try await ClientHealthCheck.ping()
