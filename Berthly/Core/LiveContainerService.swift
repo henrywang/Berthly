@@ -2634,7 +2634,7 @@ final class LiveContainerService: ContainerServiceBase {
             entrypoint: nilIfEmpty(options.entrypoint),
             initImage: nil,
             kernel: nil,
-            kernelArgs: [],
+            kernelArgs: options.kernelArgs,
             labels: options.labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
             mounts: options.mounts,
             name: nilIfEmpty(options.name),

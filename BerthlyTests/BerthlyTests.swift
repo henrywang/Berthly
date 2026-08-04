@@ -346,13 +346,15 @@ struct RunFlagsMappingTests {
             virtualization: true,
             capAdd: ["CAP_NET_RAW", "ALL"],
             capDrop: ["CAP_SYS_ADMIN"],
-            cidFile: "/tmp/cid.txt"
+            cidFile: "/tmp/cid.txt",
+            kernelArgs: ["lsm=lockdown,capability,landlock,yama,apparmor,bpf"]
         )
         let flags = LiveContainerService.runManagementFlags(for: options)
         #expect(flags.virtualization == true)
         #expect(flags.capAdd == ["CAP_NET_RAW", "ALL"])
         #expect(flags.capDrop == ["CAP_SYS_ADMIN"])
         #expect(flags.cidfile == "/tmp/cid.txt")
+        #expect(flags.kernelArgs == ["lsm=lockdown,capability,landlock,yama,apparmor,bpf"])
     }
 
     @Test func dnsFamilyMapsWhenNoDnsIsFalse() {
