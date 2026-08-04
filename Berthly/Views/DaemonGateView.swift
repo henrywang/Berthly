@@ -86,7 +86,12 @@ struct DaemonGateView<Content: View>: View {
                 Text("The container daemon is installed but not running.")
             } actions: {
                 Button("Start Container System") {
-                    Task { await service.startDaemon() }
+                    runOperation(
+                        message: String(localized: "Starting container system…"),
+                        failureTitle: String(localized: "Start Failed")
+                    ) { service, onLog in
+                        await service.startDaemon(onLog: onLog)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
             }
