@@ -121,6 +121,7 @@ struct SystemConfigMappingTests {
         #expect(info.vminitImage == config.vminit.image)
         #expect(info.kernelBinaryPath == config.kernel.binaryPath)
         #expect(info.kernelURL == config.kernel.url.absoluteString)
+        #expect(info.kernelDigest == config.kernel.digest)
         #expect(info.builderImage == config.build.image)
     }
 }

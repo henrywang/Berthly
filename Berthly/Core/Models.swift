@@ -644,12 +644,17 @@ nonisolated struct KernelSetOptions {
     var tarSource: String?
     var architecture: String  // "arm64" or "amd64"
     var force: Bool = false
+    /// `sha256:<hex>`-style digest verified against the downloaded/local tar archive before
+    /// install. Required upstream for remote tar URLs; optional (but still checked if given)
+    /// for local ones.
+    var digest: String?
 }
 
 struct SystemConfigInfo: Hashable {
     let vminitImage: String
     let kernelBinaryPath: String
     let kernelURL: String
+    let kernelDigest: String
     let builderImage: String
 }
 

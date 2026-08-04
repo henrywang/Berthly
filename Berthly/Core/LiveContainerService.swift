@@ -850,6 +850,7 @@ final class LiveContainerService: ContainerServiceBase {
                 kernelFilePath: containerSystemConfig.kernel.binaryPath,
                 platform: .current,
                 progressUpdate: reporter?.handler,
+                expectedDigest: containerSystemConfig.kernel.digest,
                 force: true
             )
             onLog?("Default kernel installed")
@@ -1798,6 +1799,7 @@ final class LiveContainerService: ContainerServiceBase {
                 kernelFilePath: options.binaryPath,
                 platform: platform,
                 progressUpdate: progress,
+                expectedDigest: options.digest,
                 force: options.force
             )
         } else {
@@ -1816,6 +1818,7 @@ final class LiveContainerService: ContainerServiceBase {
             vminitImage: config.vminit.image,
             kernelBinaryPath: config.kernel.binaryPath,
             kernelURL: config.kernel.url.absoluteString,
+            kernelDigest: config.kernel.digest,
             builderImage: config.build.image
         )
     }
