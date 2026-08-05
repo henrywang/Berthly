@@ -431,6 +431,19 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         type("/tmp", into: "runWorkdirField")
         type("405", into: "runUserField")
         app.checkBoxes["runReadOnlyToggle"].click()
+        // kernel-arg has no representation in `container inspect`'s JSON at all — traced through
+        // containerization's source: it only ever reaches Kernel.commandLine.kernelArgs, which
+        // feeds the VM's actual boot command line, not ManagedContainer's persisted
+        // configuration. /proc/cmdline below is the only oracle that can prove this reached the
+        // daemon; testRunOptionsReachDaemon's JSON assertions can't see it.
+        //
+        // Its Add button sits below the Security ScrollView's clipped bounds. Unlike capDrop
+        // (skipped above), XCUITest reports `isHittable == true` here regardless — the check
+        // doesn't account for ancestor clipping — so a plain `.click()` synthesizes an event at
+        // an off-screen point and silently no-ops. Scroll the row into the visible frame first.
+        app.windows.scrollViews.firstMatch.scroll(byDeltaX: 0, deltaY: -600)
+        app.buttons["runKernelArgAddButton"].click()
+        type("berthly_e2e_marker=1", into: "runKernelArgField")
 
         app.buttons["runSubmitButton"].click()
         XCTAssertTrue(app.buttons["Show Container"].waitForExistence(timeout: 120),
@@ -448,6 +461,10 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         let uid = try ContainerCLI.exec(containerName, ["id", "-u"])
         XCTAssertEqual(uid.output.trimmingCharacters(in: .whitespacesAndNewlines), "405",
                        "process should run as the configured uid")
+
+        let cmdline = try ContainerCLI.exec(containerName, ["cat", "/proc/cmdline"])
+        XCTAssertTrue(cmdline.output.contains("berthly_e2e_marker=1"),
+                      "--kernel-arg should reach the VM's actual boot command line:\n\(cmdline.output)")
 
         let write = try ContainerCLI.exec(containerName, ["touch", "/should-fail"])
         XCTAssertNotEqual(write.status, 0, "read-only root filesystem should reject writes")

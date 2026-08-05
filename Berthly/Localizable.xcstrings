@@ -1005,7 +1005,7 @@
     "Ports" : {
 
     },
-    "Pre-filled from config.toml's recommended kernel — edit to install a different one." : {
+    "Pre-filled from config.toml's recommended kernel — edit to install a different one. The digest is verified against the archive before install; a remote URL requires one." : {
 
     },
     "Properties" : {
@@ -1242,6 +1242,9 @@
     "Security" : {
 
     },
+    "See what's new" : {
+
+    },
     "Select a section" : {
 
     },
@@ -1339,6 +1342,9 @@
     "Start Container System" : {
 
     },
+    "Start Failed" : {
+
+    },
     "Start immediately" : {
 
     },
@@ -1352,6 +1358,9 @@
 
     },
     "Start the machine to open a shell." : {
+
+    },
+    "Starting container system…" : {
 
     },
     "Starting container…" : {
