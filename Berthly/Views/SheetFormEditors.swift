@@ -431,6 +431,45 @@ struct LocalImageReferenceField: View {
     }
 }
 
+// MARK: - Scrolling progress log (Run Container / Create Machine)
+
+/// A plain-`String` scrolling log, auto-following the newest line — for sheets whose submit
+/// action reports progress via an `onLog` callback (`RunContainerSheet`, `MachineCreateSheet`).
+/// Same look as `DaemonGateView.ProgressLogScreen`'s log block, plus auto-scroll like
+/// `TransferLogView`; kept separate from both since neither's host view is a fit here (one's
+/// `fileprivate` to a different gate flow, the other keys its lines by a `tag`/`text` struct this
+/// plain-string `onLog` stream doesn't have).
+struct ProgressLogView: View {
+    let lines: [String]
+    var identifier: String?
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(lines.enumerated()), id: \.offset) { index, line in
+                        Text(line)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(index)
+                    }
+                }
+                .padding(10)
+            }
+            .frame(maxHeight: 120)
+            .background(.background, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(.separator, lineWidth: 0.5))
+            .accessibilityIdentifier(identifier ?? "")
+            .onChange(of: lines.count) { _, _ in
+                if let last = lines.indices.last {
+                    withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Return-key sheet submission
 
 extension View {
