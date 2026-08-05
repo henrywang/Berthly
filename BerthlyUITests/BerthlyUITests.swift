@@ -176,6 +176,56 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
+    /// Issue #97: RunContainerSheet's "Starting…" state used to be a bare spinner with no
+    /// indication of what was happening (a first boot needing a fresh kernel/init-image fetch
+    /// could sit there for minutes). Same "wait for the last line" technique as
+    /// `testStartContainerSystemShowsProgress` — logLines is append-only within a run, so
+    /// catching the last line also guarantees the first one already rendered.
+    @MainActor
+    func testRunContainerShowsProgressLog() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        let runButton = app.buttons["runToolbarButton"]
+        XCTAssertTrue(runButton.waitForExistence(timeout: 10))
+        runButton.click()
+        app.buttons["Run Container"].click()
+
+        let referenceField = app.windows.textFields.firstMatch
+        XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "RunContainerSheet image field should appear")
+        referenceField.click()
+        referenceField.typeText("local/web:1.4")
+        app.buttons["runSubmitButton"].click()
+
+        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Fetching image… 12.0 MB / 45.0 MB"].exists)
+    }
+
+    /// Same regression and technique as `testRunContainerShowsProgressLog`, for
+    /// MachineCreateSheet's "Creating…" state.
+    @MainActor
+    func testCreateMachineShowsProgressLog() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launch()
+
+        app.typeKey("k", modifierFlags: .command)
+        let searchField = app.textFields["commandPaletteSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        searchField.typeText("create machine")
+        app.typeKey(.return, modifierFlags: [])
+
+        let referenceField = app.windows.textFields.firstMatch
+        XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "MachineCreateSheet image field should appear")
+        referenceField.click()
+        referenceField.typeText("ubuntu:24.04")
+        app.buttons["machineCreateSubmitButton"].click()
+
+        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Fetching image… 20.0 MB / 60.0 MB"].exists)
+    }
+
     /// Regression: `DaemonStatusBar`'s "Running (warning)" state (icon/color/word swap, plus a
     /// `.help()` tooltip carrying the actual message) had no UI coverage at all — set via
     /// `UITEST_STARTUP_WARNING` seeding `lastStartupWarning` on the mock, which defaults to

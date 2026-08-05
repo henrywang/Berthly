@@ -820,15 +820,16 @@ final class MockContainerService: ContainerServiceBase {
 // MARK: - Fake progress reporting (issue #97)
 
 extension MockContainerService {
-    /// Shared by `runContainer` and `createMachine` — a short sleep before each line, mirroring
-    /// how a real fetch reports staged progress.
+    /// Shared by `runContainer` and `createMachine`, mirroring how a real fetch reports staged
+    /// progress. Log-then-sleep (matching `startDaemon`'s onLog pacing) gives even the *last*
+    /// line a full 1200ms on screen before the sheet flips to its success state — staged well
+    /// past XCUITest's ~1s `waitForExistence` polling cadence, so a UI test has real room to
+    /// catch the log mid-flight instead of racing a run that finishes before the first poll fires.
     fileprivate func emitFakeProgress(_ lines: [String], onLog: (@MainActor (String) -> Void)?) async throws {
         for line in lines {
-            try? await Task.sleep(for: .milliseconds(150))
-            try Task.checkCancellation()
             onLog?(line)
+            try? await Task.sleep(for: .milliseconds(1200))
+            try Task.checkCancellation()
         }
-        try? await Task.sleep(for: .milliseconds(100))
-        try Task.checkCancellation()
     }
 }
