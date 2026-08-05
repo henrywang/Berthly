@@ -122,11 +122,13 @@ extension RegistryJourneyTests {
         let checkButton = app.buttons["checkImageUpdatesButton"]
         XCTAssertTrue(checkButton.waitForExistence(timeout: 10))
         checkButton.click()
-        XCTAssertTrue(checkButton.waitForNonExistence(timeout: 5), "check should show a spinner while running")
-        XCTAssertTrue(checkButton.waitForExistence(timeout: 30), "check should complete")
 
+        // checkImageUpdatesButton's accessibilityIdentifier never changes between idle and
+        // checking (ImagesListView only swaps its label/disabled state), so waiting for it to
+        // vanish races a transition that may not be observable at all. The badge below is the
+        // real signal that the check-and-detect cycle completed.
         let imageBadge = app.descendants(matching: .any)["imageUpdateBadge-\(canonical)"]
-        XCTAssertTrue(imageBadge.waitForExistence(timeout: 5), "image row should show an update badge for v2")
+        XCTAssertTrue(imageBadge.waitForExistence(timeout: 30), "image row should show an update badge for v2")
 
         app.staticTexts["Compute"].click()
         let mainRow = app.staticTexts["computeRow-\(mainName)"]
@@ -171,9 +173,7 @@ extension RegistryJourneyTests {
 
         app.staticTexts["Images"].click()
         checkButton.click()
-        XCTAssertTrue(checkButton.waitForNonExistence(timeout: 5))
-        XCTAssertTrue(checkButton.waitForExistence(timeout: 30))
-        XCTAssertTrue(imageBadge.waitForExistence(timeout: 5), "image badge should reappear for v3")
+        XCTAssertTrue(imageBadge.waitForExistence(timeout: 30), "image badge should reappear for v3")
 
         app.staticTexts[canonical].rightClick()
         let pullLatest = app.menuItems["Pull Latest"]
