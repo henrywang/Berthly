@@ -196,7 +196,11 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "RunContainerSheet image field should appear")
         referenceField.click()
         referenceField.typeText("local/web:1.4")
-        app.buttons["runSubmitButton"].click()
+        // Return, not a coordinate `.click()` on runSubmitButton — on a loaded CI runner XCUITest
+        // can fail to compute a hittable point in time and fall back to a stale center point,
+        // missing the button (see the ui-testing skill's CI flake notes). A key event has no
+        // coordinates to race; the sheet already bubbles Return from any field to submit.
+        app.typeKey(.return, modifierFlags: [])
 
         XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Fetching image… 12.0 MB / 45.0 MB"].exists)
@@ -220,7 +224,8 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(referenceField.waitForExistence(timeout: 5), "MachineCreateSheet image field should appear")
         referenceField.click()
         referenceField.typeText("ubuntu:24.04")
-        app.buttons["machineCreateSubmitButton"].click()
+        // Return, not a coordinate click — see testRunContainerShowsProgressLog's comment.
+        app.typeKey(.return, modifierFlags: [])
 
         XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Fetching image… 20.0 MB / 60.0 MB"].exists)
