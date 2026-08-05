@@ -106,6 +106,13 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   default resources; change them via system properties instead.
 - **`logs -n`** — the viewer streams the full log with follow/filter and an
   internal 5,000-line cap; a tail-count option adds nothing in a scrolling UI.
+- **OCI `maskedPaths`/`readonlyPaths` overrides** — added to containerization's
+  `ContainerConfiguration` in 1.2.0 ([apple/container#1996](https://github.com/apple/container/pull/1996)),
+  but the `container` CLI itself has no flag for it (that PR only touched
+  `ContainerConfiguration`/`RuntimeService`, no `ContainerCommands`) — there's
+  no CLI flag surface to have parity with yet. Also genuinely expert,
+  security-sensitive sandbox tuning with no identified Berthly use case
+  (spike: #80). Revisit if/when upstream ships a CLI flag.
 - **Output formatting** (`--format json|yaml|toml`, `--quiet`, `--cidfile`,
   `--debug`) — scripting conveniences with no GUI meaning.
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
