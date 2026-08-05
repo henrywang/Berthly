@@ -16,12 +16,20 @@ import TerminalProgress
 /// `downloadedBytes` is monotonic either way, so bucketing on it is stable even though
 /// `totalBytes` can grow as more of it is discovered — which is why we throttle on downloaded
 /// bytes, not on a percent-of-total that would jump around.
+///
+/// Multi-stage callers (`container run`/`create machine`'s `containerConfigFromFlags`) route
+/// image, kernel, and init-image fetches through one `progressUpdate` stream, distinguishing
+/// stages via `.setDescription` (e.g. "Fetching init image", matching the CLI's own `[4/6]`
+/// labels — see `Utility.containerConfigFromFlags`). A new description resets the byte counters
+/// (each stage's bytes are independent) and always yields a line, even with zero bytes moved yet,
+/// so a stage transition is visible immediately rather than only once its first byte arrives.
 nonisolated struct DownloadProgress {
     let label: String
     let bucketBytes: Int64
     private(set) var downloadedBytes: Int64 = 0
     private(set) var totalBytes: Int64 = 0
     private var lastEmittedBucket: Int64 = -1
+    private var stageLabel: String?
 
     // 10 MiB buckets: frequent enough that a slow connection still shows steady movement,
     // without flooding the log.
@@ -32,23 +40,33 @@ nonisolated struct DownloadProgress {
 
     /// Fold in a batch of events. Returns a log line to append iff a new `bucketBytes` boundary
     /// was crossed (which includes the very first size event — that's the "download started"
-    /// signal). Returns `nil` when no download bytes moved (e.g. a cached fetch emits no size
-    /// events, so no misleading "Downloading…" line ever appears).
+    /// signal) or the stage description changed. Returns `nil` when neither happened (e.g. a
+    /// cached fetch emits no size events, so no misleading "Downloading…" line ever appears).
     mutating func apply(_ events: [ProgressUpdateEvent]) -> String? {
         var sawSize = false
+        var stageChanged = false
         for event in events {
             switch event {
             case .addSize(let n): downloadedBytes += n; sawSize = true
             case .setSize(let n): downloadedBytes = n; sawSize = true
             case .addTotalSize(let n): totalBytes += n
             case .setTotalSize(let n): totalBytes = n
+            case .setDescription(let description):
+                guard description != stageLabel else { break }
+                stageLabel = description
+                downloadedBytes = 0
+                totalBytes = 0
+                lastEmittedBucket = -1
+                stageChanged = true
             default: break
             }
         }
-        guard sawSize else { return nil }
-        let bucket = downloadedBytes / bucketBytes
-        guard bucket > lastEmittedBucket else { return nil }
-        lastEmittedBucket = bucket
+        guard sawSize || stageChanged else { return nil }
+        if sawSize {
+            let bucket = downloadedBytes / bucketBytes
+            guard bucket > lastEmittedBucket || stageChanged else { return nil }
+            lastEmittedBucket = bucket
+        }
         return logLine
     }
 
@@ -56,11 +74,13 @@ nonisolated struct DownloadProgress {
     /// is dropped until it's known, since it isn't always reported until the download starts.
     /// Formatting is shared with the rest of the app's byte displays via `formatDiskBytes`.
     var logLine: String {
+        let prefix = stageLabel ?? label
+        guard downloadedBytes > 0 || totalBytes > 0 else { return "\(prefix)…" }
         let downloaded = formatDiskBytes(UInt64(downloadedBytes))
         if totalBytes > 0 {
-            return "\(label)… \(downloaded) / \(formatDiskBytes(UInt64(totalBytes)))"
+            return "\(prefix)… \(downloaded) / \(formatDiskBytes(UInt64(totalBytes)))"
         }
-        return "\(label)… \(downloaded)"
+        return "\(prefix)… \(downloaded)"
     }
 }
 

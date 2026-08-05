@@ -556,9 +556,8 @@ final class MockContainerService: ContainerServiceBase {
     }
 
     @discardableResult
-    override func runContainer(options: RunOptions) async throws -> String {
-        try? await Task.sleep(for: .milliseconds(400))
-        try Task.checkCancellation()
+    override func runContainer(options: RunOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws -> String {
+        try await emitFakeProgress(["Fetching image… 12.0 MB / 45.0 MB", "Unpacking image…"], onLog: onLog)
 
         let id = (options.name?.isEmpty == false ? options.name! : nil) ?? UUID().uuidString
         let ports = options.ports.compactMap { spec -> PortMapping? in
@@ -598,9 +597,8 @@ final class MockContainerService: ContainerServiceBase {
         return options.command.isEmpty ? "" : "(mock output for: \(options.command.joined(separator: " ")))"
     }
 
-    override func createMachine(options: MachineCreateOptions) async throws {
-        try? await Task.sleep(for: .milliseconds(500))
-        try Task.checkCancellation()
+    override func createMachine(options: MachineCreateOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws {
+        try await emitFakeProgress(["Fetching image… 20.0 MB / 60.0 MB", "Unpacking image…"], onLog: onLog)
 
         let id = (options.name?.isEmpty == false ? options.name! : nil) ?? UUID().uuidString
         let cpus = options.cpus ?? 2
@@ -815,6 +813,23 @@ final class MockContainerService: ContainerServiceBase {
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+}
+
+// MARK: - Fake progress reporting (issue #97)
+
+extension MockContainerService {
+    /// Shared by `runContainer` and `createMachine`, mirroring how a real fetch reports staged
+    /// progress. Log-then-sleep (matching `startDaemon`'s onLog pacing) gives even the *last*
+    /// line a full 1200ms on screen before the sheet flips to its success state — staged well
+    /// past XCUITest's ~1s `waitForExistence` polling cadence, so a UI test has real room to
+    /// catch the log mid-flight instead of racing a run that finishes before the first poll fires.
+    fileprivate func emitFakeProgress(_ lines: [String], onLog: (@MainActor (String) -> Void)?) async throws {
+        for line in lines {
+            onLog?(line)
+            try? await Task.sleep(for: .milliseconds(1200))
+            try Task.checkCancellation()
         }
     }
 }

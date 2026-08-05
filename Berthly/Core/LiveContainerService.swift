@@ -55,6 +55,8 @@ final class LiveContainerService: ContainerServiceBase {
     private var imageMetadataCache: [String: CachedImageMetadata] = [:]
     private static let log = Logger(label: "app.berthly.container")
     private nonisolated static let pushOperationTracker = PushOperationTracker()
+    // `?? { _ in }` inline doesn't infer `@Sendable` from context — a typed constant does.
+    private nonisolated static let noopProgressHandler: ProgressUpdateHandler = { _ in }
 
     private func resolvedSystemConfig() async -> ContainerSystemConfig {
         if systemConfig == nil {
@@ -2741,7 +2743,7 @@ final class LiveContainerService: ContainerServiceBase {
     /// `start && attach` captures the container's own stdout via our own pipe and waits for exit
     /// — for one-shot commands like `pwd`. This app never attaches an interactive terminal.
     @discardableResult
-    override func runContainer(options: RunOptions) async throws -> String {
+    override func runContainer(options: RunOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws -> String {
         let id = Utility.createContainerID(name: options.name)
         guard ManagedContainer.nameValid(id) else {
             throw ContainerizationError(.invalidArgument, message: "container ID \(id) is not a valid container ID")
@@ -2753,6 +2755,12 @@ final class LiveContainerService: ContainerServiceBase {
         }
 
         let containerSystemConfig = await resolvedSystemConfig()
+        // Fetching, not just unpacking, is the slow part (a first boot needing a fresh kernel or
+        // vminit image can take minutes) — `.setDescription` events distinguish those stages from
+        // whatever DownloadReporter's caller-supplied label would otherwise say.
+        let reporter = onLog.map { onLog in
+            DownloadReporter(label: "Fetching image", onLog: onLog)
+        }
         let (containerConfig, kernel, initImage) = try await Utility.containerConfigFromFlags(
             id: id,
             image: options.reference,
@@ -2763,7 +2771,7 @@ final class LiveContainerService: ContainerServiceBase {
             registry: Self.runRegistryFlags(for: options),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: containerSystemConfig,
-            progressUpdate: { _ in },
+            progressUpdate: reporter?.handler ?? Self.noopProgressHandler,
             log: Self.log
         )
 
@@ -2903,7 +2911,7 @@ final class LiveContainerService: ContainerServiceBase {
     /// Native (XPC API, no CLI shelling) implementation of `container machine create`. Reuses
     /// `MachineClient.machineConfigFromFlags` for image fetch/unpack and machine config assembly,
     /// same as `runContainer` reuses `Utility.containerConfigFromFlags`.
-    override func createMachine(options: MachineCreateOptions) async throws {
+    override func createMachine(options: MachineCreateOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws {
         let id = try Self.machineID(for: options)
         guard ManagedContainer.nameValid(id) else {
             throw ContainerizationError(.invalidArgument, message: "machine ID \(id) is not a valid machine ID")
@@ -2913,6 +2921,9 @@ final class LiveContainerService: ContainerServiceBase {
         let bootConfig = try containerSystemConfig.machine.with(Self.machineBootConfigOverrides(for: options))
 
         let client = MachineClient()
+        let reporter = onLog.map { onLog in
+            DownloadReporter(label: "Fetching image", onLog: onLog)
+        }
         let (config, resources) = try await MachineClient.machineConfigFromFlags(
             id: id,
             image: options.reference,
@@ -2920,7 +2931,7 @@ final class LiveContainerService: ContainerServiceBase {
             registry: Self.machineRegistryFlags(for: options),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: containerSystemConfig,
-            progressUpdate: { _ in }
+            progressUpdate: reporter?.handler ?? Self.noopProgressHandler
         )
         // The image fetch/unpack above can take a while; bail before creating anything if the
         // caller (e.g. a cancelled "Create machine" sheet) no longer wants this.

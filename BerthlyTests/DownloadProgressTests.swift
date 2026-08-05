@@ -73,4 +73,34 @@ import TerminalProgress
         let line = p.apply([.setTotalSize(50 * 1_048_576), .setSize(1_048_576)])
         #expect(line!.contains("50.0 MB"))
     }
+
+    // MARK: - setDescription (multi-stage callers, e.g. `container run`'s fetch → unpack → kernel
+    // → init-image sequence, all reported through one progressUpdate stream)
+
+    @Test func setDescriptionEmitsALineEvenWithoutBytes() {
+        var p = DownloadProgress(label: "Fetching image", bucketBytes: 1_000_000)
+        let line = p.apply([.setDescription("Unpacking image")])
+        #expect(line == "Unpacking image…")
+    }
+
+    @Test func setDescriptionOverridesTheFallbackLabel() {
+        var p = DownloadProgress(label: "Fetching image", bucketBytes: 1_000_000)
+        let line = p.apply([.setDescription("Fetching init image"), .addSize(1_048_576)])
+        #expect(line!.hasPrefix("Fetching init image… "))
+    }
+
+    @Test func repeatingTheSameDescriptionIsNotAStageChange() {
+        var p = DownloadProgress(label: "Fetching image", bucketBytes: 1_000_000)
+        _ = p.apply([.setDescription("Fetching kernel")])
+        // Same description again, no new bytes — not a fresh transition, so no line.
+        #expect(p.apply([.setDescription("Fetching kernel")]) == nil)
+    }
+
+    @Test func newStageResetsByteCounters() {
+        var p = DownloadProgress(label: "Fetching image", bucketBytes: 1_000_000)
+        _ = p.apply([.addSize(2_000_000), .addTotalSize(5_000_000)])
+        _ = p.apply([.setDescription("Fetching kernel")])
+        #expect(p.downloadedBytes == 0)
+        #expect(p.totalBytes == 0)
+    }
 }

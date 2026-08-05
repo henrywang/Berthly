@@ -19,6 +19,7 @@ private final class RunState {
     var isRunning = false
     var result: Result?
     var runTask: Task<Void, Never>?
+    var logLines: [String] = []
 }
 
 // MARK: - Sheet
@@ -592,11 +593,16 @@ struct RunContainerSheet: View {
             }
 
         case nil:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text(progressLabel)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(progressLabel)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                if !state.logLines.isEmpty {
+                    ProgressLogView(lines: state.logLines, identifier: "runProgressLog")
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -665,6 +671,7 @@ struct RunContainerSheet: View {
 
         state.isRunning = true
         state.result = nil
+        state.logLines = []
 
         let options = RunOptions(
             reference: ref,
@@ -714,7 +721,9 @@ struct RunContainerSheet: View {
 
         state.runTask = Task {
             do {
-                let output = try await service.runContainer(options: options)
+                let output = try await service.runContainer(options: options) { line in
+                    state.logLines.append(line)
+                }
                 let newID = service.containers.map(\.id).first { !preRunIDs.contains($0) }
                 state.result = .success(
                     reference: nameTrimmed.isEmpty ? ref : nameTrimmed,

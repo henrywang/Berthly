@@ -1211,6 +1211,15 @@ struct MockContainerServiceTests {
         #expect(created?.status == .running)
     }
 
+    @Test func runContainerReportsProgressViaOnLog() async throws {
+        let mock = MockContainerService()
+        let options = RunOptions(reference: "local/newapp:1.0", name: "newapp-6")
+        var lines: [String] = []
+        try await mock.runContainer(options: options) { lines.append($0) }
+
+        #expect(!lines.isEmpty)
+    }
+
     @Test func createMachineWithBootAppendsRunningMachine() async throws {
         let mock = MockContainerService()
         let countBefore = mock.machines.count

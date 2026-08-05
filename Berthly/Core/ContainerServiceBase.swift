@@ -83,8 +83,8 @@ class ContainerServiceBase {
     }
     func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {}
     @discardableResult
-    func runContainer(options: RunOptions) async throws -> String { "" }
-    func createMachine(options: MachineCreateOptions) async throws {}
+    func runContainer(options: RunOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws -> String { "" }
+    func createMachine(options: MachineCreateOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws {}
     func createVolume(options: VolumeCreateOptions) async throws {}
     func createNetwork(options: NetworkCreateOptions) async throws {}
 

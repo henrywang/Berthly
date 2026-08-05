@@ -16,6 +16,7 @@ private final class MachineCreateState {
     var isRunning = false
     var result: Result?
     var runTask: Task<Void, Never>?
+    var logLines: [String] = []
 }
 
 private enum HomeMountChoice: String, CaseIterable {
@@ -209,11 +210,16 @@ struct MachineCreateSheet: View {
             }
 
         case nil:
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Creating…")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Creating…")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                if !state.logLines.isEmpty {
+                    ProgressLogView(lines: state.logLines, identifier: "machineCreateProgressLog")
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -233,6 +239,7 @@ struct MachineCreateSheet: View {
 
         state.isRunning = true
         state.result = nil
+        state.logLines = []
 
         let options = MachineCreateOptions(
             reference: ref,
@@ -248,7 +255,9 @@ struct MachineCreateSheet: View {
 
         state.runTask = Task {
             do {
-                try await service.createMachine(options: options)
+                try await service.createMachine(options: options) { line in
+                    state.logLines.append(line)
+                }
                 state.result = .success(reference: nameTrimmed.isEmpty ? ref : nameTrimmed)
             } catch is CancellationError {
                 state.result = nil
