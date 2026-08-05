@@ -34,8 +34,6 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 
 ![The command palette (⌘K) matching lifecycle actions for a container](design/screenshots/command-palette.png)
 
-> **Berthly 1.1 is stable and shipping today.** Next up: multi-service Projects, volume backups, actionable diagnostics, and more — built around what makes Apple's container runtime distinct rather than cloning Docker Desktop or OrbStack feature-for-feature. Track it on the [public roadmap](https://github.com/users/henrywang/projects/3).
-
 ## Beyond the CLI
 
 A GUI that only mirrored commands wouldn't be worth installing. Berthly is built
