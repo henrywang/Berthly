@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.2.0** (2026-08-04). When a change closes or
+> Audited against **container CLI 1.2.2** (2026-08-14). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
@@ -106,13 +106,26 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   default resources; change them via system properties instead.
 - **`logs -n`** — the viewer streams the full log with follow/filter and an
   internal 5,000-line cap; a tail-count option adds nothing in a scrolling UI.
-- **OCI `maskedPaths`/`readonlyPaths` overrides** — added to containerization's
-  `ContainerConfiguration` in 1.2.0 ([apple/container#1996](https://github.com/apple/container/pull/1996)),
-  but the `container` CLI itself has no flag for it (that PR only touched
-  `ContainerConfiguration`/`RuntimeService`, no `ContainerCommands`) — there's
-  no CLI flag surface to have parity with yet. Also genuinely expert,
-  security-sensitive sandbox tuning with no identified Berthly use case
-  (spike: #80). Revisit if/when upstream ships a CLI flag.
+- **`--masked-path` / `--read-only-path`** on run/create — the CLI flag
+  surface landed in 1.2.1 ([apple/container#2069](https://github.com/apple/container/pull/2069)),
+  on top of the `ContainerConfiguration` support added in 1.2.0
+  ([apple/container#1996](https://github.com/apple/container/pull/1996)).
+  Both flags are marked `[EXPERIMENTAL]` upstream ("subject to change") in
+  both source and `--help` text. Still genuinely expert, security-sensitive
+  sandbox tuning with no identified Berthly use case (spike: #80). Revisit
+  once upstream stabilizes the flags.
+- **`k8s`** — local Kubernetes cluster management, added in 1.2.1
+  ([apple/container#2044](https://github.com/apple/container/pull/2044)) as
+  an explicitly experimental plugin. Not a parity gap Berthly intends to
+  close: driving `container k8s create` natively is structurally blocked —
+  `K8sHelper.loadKindnetManifest` locates its CNI manifest via
+  `pluginLoader.findPlugin(forExecutable: CommandLine.executablePath)`, which
+  fails for Berthly's own binary since it isn't a registered plugin — and the
+  entire post-`create` workflow is `kubectl`, leaving no meaningful GUI
+  surface to add. Berthly does treat k8s cluster containers as infrastructure
+  (hidden from the Compute list, protected from prune) so they don't get
+  caught by unrelated container-management actions. Revisit only if upstream
+  both drops EXPERIMENTAL and exposes cluster operations over the XPC API.
 - **Output formatting** (`--format json|yaml|toml`, `--quiet`, `--cidfile`,
   `--debug`) — scripting conveniences with no GUI meaning.
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
