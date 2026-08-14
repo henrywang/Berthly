@@ -47,6 +47,19 @@ nonisolated enum ContainerCompatibility {
         return installedComponents[1] >= requiredComponents[1] ? nil : .tooOld
     }
 
+    /// Full major.minor.patch comparison, unlike `mismatch`'s major.minor-only floor — for gating
+    /// a capability that landed in a specific patch release (e.g. running-container export, added
+    /// in 1.2.1) rather than the daemon's overall API compatibility. `false` on an unparseable
+    /// version: the safe default when a feature's availability can't be confirmed.
+    static func isAtLeast(installed: String, _ required: String) -> Bool {
+        guard let installedComponents = fullVersion(of: installed),
+              let requiredComponents = fullVersion(of: required) else {
+            return false
+        }
+        return requiredComponents.lexicographicallyPrecedes(installedComponents)
+            || requiredComponents == installedComponents
+    }
+
     /// The health-check ping's `apiServerVersion` isn't a bare version string — it's
     /// `ReleaseVersion.singleLine(appName:)`'s output, e.g. "container-apiserver version 1.0.0
     /// (build: release, commit: abc1234)". Pull the numeric version out of that (or any other
@@ -63,5 +76,11 @@ nonisolated enum ContainerCompatibility {
         guard let extracted = extractVersion(from: version) else { return nil }
         let parts = extracted.split(separator: ".").prefix(2).compactMap { Int($0) }
         return parts.count == 2 ? parts : nil
+    }
+
+    private static func fullVersion(of version: String) -> [Int]? {
+        guard let extracted = extractVersion(from: version) else { return nil }
+        let parts = extracted.split(separator: ".").compactMap { Int($0) }
+        return parts.count == 3 ? parts : nil
     }
 }

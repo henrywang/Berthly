@@ -35,9 +35,10 @@ final class ContextMenuTests: XCTestCase {
     // MARK: - Containers
 
     /// Full menu on a running container ("cache" in the mock): lifecycle actions present, Export
-    /// Filesystem disabled (only a stopped container's rootfs is exportable), Delete… disabled
-    /// (only non-running containers can be deleted). Dismissed with Escape rather than clicked —
-    /// a pure existence/gating check, no state change.
+    /// Filesystem enabled (the mock reports daemon 1.2.2, which supports exporting a running
+    /// container per apple/container#1630 — see `ContainerComputeRow.canExportFilesystem`),
+    /// Delete… disabled (only non-running containers can be deleted). Dismissed with Escape rather
+    /// than clicked — a pure existence/gating check, no state change.
     @MainActor
     func testContainerContextMenuOnRunningShowsLifecycleActionsAndGates() throws {
         let app = launchMock()
@@ -51,7 +52,7 @@ final class ContextMenuTests: XCTestCase {
         XCTAssertTrue(app.menuItems["Copy Name"].exists)
         XCTAssertTrue(app.menuItems["Copy Container ID"].exists)
         XCTAssertTrue(app.menuItems["Copy Image Reference"].exists)
-        XCTAssertFalse(app.menuItems["Export Filesystem…"].isEnabled, "only a stopped container can export")
+        XCTAssertTrue(app.menuItems["Export Filesystem…"].isEnabled, "daemon 1.2.2 can export a running container")
         XCTAssertFalse(app.menuItems["Delete…"].isEnabled, "a running container can't be deleted")
 
         app.typeKey(.escape, modifierFlags: [])
