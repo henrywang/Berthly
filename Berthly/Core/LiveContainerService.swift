@@ -2561,6 +2561,9 @@ final class LiveContainerService: ContainerServiceBase {
             contentStore: RemoteContentStoreClient(),
             buildArgs: options.buildArgs.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
             secrets: secretsData,
+            // Berthly's build sheet has no ssh forwarding UI yet (see #110); "" matches
+            // upstream's BuildCommand default when --ssh isn't passed.
+            ssh: "",
             contextDir: options.contextPath,
             dockerfile: dockerfileData,
             dockerignore: dockerignoreData,
@@ -2722,6 +2725,9 @@ final class LiveContainerService: ContainerServiceBase {
             kernel: nil,
             kernelArgs: options.kernelArgs,
             labels: options.labels.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
+            // maskedPaths/readonlyPaths (1.2.1, EXPERIMENTAL upstream) have no Berthly UI yet —
+            // empty means "use the runtime defaults" (see PARITY.md's Deliberate gaps).
+            maskedPaths: [],
             mounts: options.mounts,
             name: nilIfEmpty(options.name),
             networks: options.networks,
@@ -2730,6 +2736,7 @@ final class LiveContainerService: ContainerServiceBase {
             publishPorts: options.ports,
             publishSockets: [],
             readOnly: options.readOnly,
+            readonlyPaths: [],
             remove: options.remove,
             rosetta: options.rosetta,
             runtime: nil,
