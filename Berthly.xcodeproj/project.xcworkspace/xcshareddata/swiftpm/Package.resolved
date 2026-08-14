@@ -15,8 +15,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/container",
       "state" : {
-        "revision" : "6e65319fe476ffe8db8ddaf828a537ed36fe2859",
-        "version" : "1.2.0"
+        "revision" : "0190097d06df0b9065f4c2d2c7873c649d81d493",
+        "version" : "1.2.2"
       }
     },
     {
