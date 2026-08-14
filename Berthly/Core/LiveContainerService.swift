@@ -969,10 +969,15 @@ final class LiveContainerService: ContainerServiceBase {
         let builderSnaps = (try? await Self.fetchBuilderSnaps()) ?? []
         let builderIds = Set(builderSnaps.map { $0.id })
 
+        // k8s cluster containers (control-plane and workers) are infrastructure, same as builders —
+        // hidden from the Compute list rather than shown with Start/Stop actions that would leave
+        // ~/.kube/config out of sync with the cluster's actual state (see fetchK8sSnaps()).
+        let k8sIds = Set((try? await Self.fetchK8sSnaps())?.map { $0.id } ?? [])
+
         do {
             let allSnaps = try await ContainerClient().list()
             containers = allSnaps
-                .filter { !machineContainerIds.contains($0.id) && !builderIds.contains($0.id) }
+                .filter { !machineContainerIds.contains($0.id) && !builderIds.contains($0.id) && !k8sIds.contains($0.id) }
                 .map { mapContainer($0) }
         } catch {
             containers = []
