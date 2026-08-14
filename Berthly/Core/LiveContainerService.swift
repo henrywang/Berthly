@@ -948,6 +948,17 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
+    /// `container k8s` (1.2.1+) labels every container it owns — control-plane and workers alike —
+    /// with `plugin == "k8s"`, the same filter the CLI's own `k8s list` uses. Needed so
+    /// `pruneStoppedContainers()` doesn't delete a stopped cluster container: unlike
+    /// `container k8s delete`, Berthly's delete path doesn't also remove the cluster's
+    /// `~/.kube/config` entry, so an unprotected prune would strand a live kubeconfig context.
+    private static func fetchK8sSnaps() async throws -> [ContainerSnapshot] {
+        try await ContainerClient().list(
+            filters: ContainerListFilters(labels: [ResourceLabelKeys.plugin: "k8s"])
+        )
+    }
+
     private func refreshAll() async {
         let previousContainers = containers
         let previousMachines = machines
@@ -1625,9 +1636,9 @@ final class LiveContainerService: ContainerServiceBase {
         return allImageReferences.filter { !inUse.contains($0) }
     }
 
-    /// Pure stopped-container selection. Only ordinary stopped containers are eligible; machine and
-    /// builder containers are excluded even when stopped — deleting a stopped VM is irreversible
-    /// data loss (see `PruneContainerInfo.isInfrastructure`).
+    /// Pure stopped-container selection. Only ordinary stopped containers are eligible; machine,
+    /// builder, and k8s cluster containers are excluded even when stopped — deleting a stopped VM
+    /// or cluster node is irreversible data loss (see `PruneContainerInfo.isInfrastructure`).
     nonisolated static func deletableStoppedContainerIDs(_ containers: [PruneContainerInfo]) -> [String] {
         containers.filter { $0.isStopped && !$0.isInfrastructure }.map(\.id)
     }
@@ -1676,18 +1687,20 @@ final class LiveContainerService: ContainerServiceBase {
     private func pruneStoppedContainers(allContainers: [ContainerSnapshot]) async throws -> PruneResult {
         let client = ContainerClient()
         // Machine-backed containers, identified the same way `refreshAll()` separates them: a
-        // container whose id is a machine's `containerId`. Builders are identified by the same
-        // `role`-label server-side filter that populates the `builders` list (`fetchBuilderSnaps()`),
-        // so this can never disagree with what the Builders section itself shows. Both are
-        // infrastructure and must never be deleted, even when stopped.
+        // container whose id is a machine's `containerId`. Builders and k8s cluster containers are
+        // identified by the same label server-side filters that populate the `builders` list
+        // (`fetchBuilderSnaps()`) and a cluster's node set (`fetchK8sSnaps()`), so this can never
+        // disagree with what those UIs themselves show. All three are infrastructure and must never
+        // be deleted, even when stopped.
         //
         // Unlike `refreshAll()`'s best-effort `try?` (a display refresh can tolerate showing stale
         // data), a failure here must abort the whole prune rather than silently treating every
-        // machine/builder as an ordinary container — proceeding with an empty infrastructure set on
-        // a transient XPC error would risk deleting a stopped VM or builder.
+        // machine/builder/cluster container as ordinary — proceeding with an empty infrastructure
+        // set on a transient XPC error would risk deleting a stopped VM, builder, or k8s cluster.
         let machineSnaps = try await MachineClient().list()
         let machineContainerIds = Set(machineSnaps.compactMap { $0.containerId })
         let builderIds = Set(try await Self.fetchBuilderSnaps().map { $0.id })
+        let k8sIds = Set(try await Self.fetchK8sSnaps().map { $0.id })
 
         let ids = Self.deletableStoppedContainerIDs(
             allContainers.map {
@@ -1696,6 +1709,7 @@ final class LiveContainerService: ContainerServiceBase {
                     imageReference: $0.configuration.image.reference,
                     isStopped: $0.status == .stopped,
                     isInfrastructure: machineContainerIds.contains($0.id) || builderIds.contains($0.id)
+                        || k8sIds.contains($0.id)
                 )
             }
         )
