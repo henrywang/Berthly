@@ -202,6 +202,19 @@ private struct ContainerComputeRow: View {
 
     private var isRunning: Bool { container.status == .running }
 
+    /// `container export` accepts a running container as of daemon 1.2.1
+    /// (apple/container#1630); older daemons only support a stopped one.
+    private var canExportFilesystem: Bool {
+        switch container.status {
+        case .stopped:
+            return true
+        case .running:
+            return ContainerCompatibility.isAtLeast(installed: service.installedContainerVersion ?? "", "1.2.1")
+        case .error, .paused:
+            return false
+        }
+    }
+
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
             TypeStatusGlyph(typeSystemImage: "shippingbox", status: container.status, dimmed: !isRunning)
@@ -291,10 +304,10 @@ private struct ContainerComputeRow: View {
             Button("Copy Container ID") { copyToPasteboard(container.id) }
             Button("Copy Image Reference") { copyToPasteboard(container.image) }
             Divider()
-            // The daemon exports only a *stopped* container's rootfs — disabled (not hidden)
-            // otherwise, so the capability stays discoverable with the gate implied.
+            // Disabled (not hidden) when unavailable, so the capability stays discoverable
+            // with the gate implied — see `canExportFilesystem`.
             Button("Export Filesystem…") { exportFilesystem() }
-                .disabled(container.status != .stopped)
+                .disabled(!canExportFilesystem)
             // Always enabled, not just when the badge shows: with no update it's the
             // "reset to a fresh container" action, which is just as legitimate.
             Button("Recreate with Latest Image…") { showRecreateSheet = true }
