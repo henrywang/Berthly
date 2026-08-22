@@ -34,7 +34,7 @@ Rosetta, virtualization.
 
 | CLI | Berthly |
 |---|---|
-| `build` | Build sheet (context, Dockerfile, tag, platform, build args, labels, target, no-cache, secrets, cpus/memory, pull) with streaming logs |
+| `build` | Build sheet (context, Dockerfile, tag, platform, build args, labels, target, no-cache, secrets, ssh, cpus/memory, pull) with streaming logs |
 | `pull` / `push` | Pull/Push sheets with progress; per-platform and insecure-registry options |
 | `save` / `load` | Save/Load OCI tar archive sheets |
 | `tag` | Tag sheet |

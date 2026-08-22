@@ -751,6 +751,7 @@ nonisolated struct BuildOptions {
     var memory: String?
     var secrets: [String] = []
     var pull: Bool = false
+    var ssh: Bool = false
 }
 
 // MARK: - Run / Create container
