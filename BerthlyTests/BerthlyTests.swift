@@ -159,6 +159,46 @@ struct BuildMappingTests {
         #expect(platforms.count == 1)
         #expect(platforms[0].os == "linux")
     }
+
+    // buildConfigSSH mirrors BuildCommand's own --ssh flag encoding: "default" or "" are the only
+    // two values it accepts (see its `ssh` validation switch), so those are the only two outputs.
+    @Test func buildConfigSSHRequestedMapsToDefaultWhenSocketPresent() throws {
+        let options = BuildOptions(reference: "local/web:1.0", contextPath: "/tmp/web", ssh: true)
+        let result = try LiveContainerService.buildConfigSSH(for: options, environment: ["SSH_AUTH_SOCK": "/tmp/agent.sock"])
+        #expect(result == "default")
+    }
+
+    @Test func buildConfigSSHNotRequestedMapsToEmptyString() throws {
+        let options = BuildOptions(reference: "local/web:1.0", contextPath: "/tmp/web", ssh: false)
+        let result = try LiveContainerService.buildConfigSSH(for: options, environment: [:])
+        #expect(result == "")
+    }
+
+    // Regression: requesting ssh forwarding with no agent socket available must fail fast, here —
+    // not as "default" silently reaching buildkit while `resolveBuilderSSH` (used by the builder
+    // container itself) independently degrades to no forwarding, which would surface as a
+    // confusing failure deep inside a `RUN --mount=type=ssh` step instead.
+    @Test func buildConfigSSHThrowsWhenRequestedWithNoSocket() {
+        let options = BuildOptions(reference: "local/web:1.0", contextPath: "/tmp/web", ssh: true)
+        #expect(throws: (any Error).self) {
+            try LiveContainerService.buildConfigSSH(for: options, environment: [:])
+        }
+    }
+
+    // resolveBuilderSSH decides whether the builder container actually gets agent forwarding —
+    // both "asked for it" and "a socket exists to forward" must hold, matching upstream's
+    // `ssh && SSH_AUTH_SOCK != nil` in BuilderStart.start().
+    @Test func resolveBuilderSSHTrueWhenRequestedAndSocketPresent() {
+        #expect(LiveContainerService.resolveBuilderSSH(requested: true, environment: ["SSH_AUTH_SOCK": "/tmp/agent.sock"]))
+    }
+
+    @Test func resolveBuilderSSHFalseWhenNotRequested() {
+        #expect(!LiveContainerService.resolveBuilderSSH(requested: false, environment: ["SSH_AUTH_SOCK": "/tmp/agent.sock"]))
+    }
+
+    @Test func resolveBuilderSSHFalseWhenNoSocketAvailable() {
+        #expect(!LiveContainerService.resolveBuilderSSH(requested: true, environment: [:]))
+    }
 }
 
 // MARK: - LiveContainerService run*Flags (pure RunOptions -> Flags.* mapping)

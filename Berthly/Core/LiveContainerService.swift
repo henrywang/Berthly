@@ -1471,12 +1471,17 @@ final class LiveContainerService: ContainerServiceBase {
 
     /// Native replication of `container builder start` with default resources: reuses the same
     /// create-or-bootstrap path builds go through (`startBuilderContainer`), so a matching stopped
-    /// builder is booted in place and a config-drifted one is recreated. Log output is dropped —
-    /// the row's spinner covers the (fast, image-already-present) boot; first-ever builder
-    /// creation with its image download normally happens via a build, which does stream logs.
+    /// builder is booted in place and a config-drifted one (image/cpu/memory/ssh — see the `ssh:
+    /// false` note below) is recreated. Log output is dropped — the row's spinner covers the
+    /// (fast, image-already-present) boot; first-ever builder creation with its image download
+    /// normally happens via a build, which does stream logs.
     override func startBuilder(_ id: String) async throws {
         let config = await resolvedSystemConfig()
-        try await startBuilderContainer(containerSystemConfig: config, cpus: nil, memory: nil, onLog: { _ in })
+        // Matches the CLI's plain `container builder start`, which has no --ssh flag and so
+        // always passes ssh: false to BuilderStart.start() — an ssh-enabled builder started
+        // manually here (rather than by a build requesting it) gets recreated without forwarding,
+        // same as upstream.
+        try await startBuilderContainer(containerSystemConfig: config, cpus: nil, memory: nil, ssh: false, onLog: { _ in })
         await refresh()
     }
 
@@ -2324,20 +2329,64 @@ final class LiveContainerService: ContainerServiceBase {
         return try raw.split(separator: ",").map { try Platform(from: $0.trimmingCharacters(in: .whitespaces)) }
     }
 
-    /// Dials the running builder over VSOCK; if that fails (not running yet), starts it via
-    /// `startBuilderContainer` (our replication of the CLI's non-public `BuilderStart.start`)
-    /// and retries every 5s, up to a 300s deadline — matching `BuildCommand.run`'s own retry loop.
+    /// Maps `BuildOptions.ssh` onto `Builder.BuildConfig.ssh`'s string encoding — `"default"`
+    /// forwards the host's SSH agent socket, `""` requests nothing. Throws up front when the box
+    /// is checked but there's no socket to forward, matching `BuildCommand`'s own `--ssh`
+    /// validation ("`--ssh default requires SSH_AUTH_SOCK to be set`") — the alternative is
+    /// silently telling buildkit to expect a forwarded agent that `startBuilderContainer` (via
+    /// `resolveBuilderSSH`) never actually wires into the builder container, which would surface
+    /// as a confusing failure deep inside a `RUN --mount=type=ssh` step instead of here.
+    nonisolated static func buildConfigSSH(for options: BuildOptions, environment: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
+        guard options.ssh else { return "" }
+        guard environment["SSH_AUTH_SOCK"] != nil else {
+            throw ContainerizationError(.invalidArgument, message: "SSH agent forwarding requested, but SSH_AUTH_SOCK is not set.")
+        }
+        return "default"
+    }
+
+    /// Whether the builder container should actually get SSH agent forwarding: the user asked for
+    /// it *and* a socket is available to forward. Matches upstream's `BuilderStart.start()`
+    /// (`ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil`). By the time this
+    /// runs, `buildImage`'s `buildConfigSSH` call has already thrown if `options.ssh` were true
+    /// with no socket present, so this is a defensive mirror of upstream's own check (also covers
+    /// the direct `startBuilder(_:)` System-page path, which always passes `ssh: false` and never
+    /// touches `buildConfigSSH` at all) rather than the sole gate.
+    nonisolated static func resolveBuilderSSH(requested: Bool, environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
+        requested && environment["SSH_AUTH_SOCK"] != nil
+    }
+
+    /// Resolves the builder to this build's requested cpus/memory/ssh, then dials it over VSOCK.
+    /// `startBuilderContainer` runs first, unconditionally — not just when a dial fails — so an
+    /// already-running builder whose settings no longer match gets recreated instead of silently
+    /// reused. Matches `BuildCommand.run`'s own ordering (its comment: "Ensure the builder is
+    /// started (or restarted) with the correct SSH configuration before attempting to dial. This
+    /// handles the case where the builder is already running but was not started with SSH
+    /// forwarding enabled."). Cheap when nothing changed — the running-builder path in
+    /// `startBuilderContainer` is a health ping, a `client.get`, and an early return, no image
+    /// fetch or container churn — so this doesn't slow down the common case. One side effect:
+    /// requesting a differing cpus/memory (not just ssh) now also recreates the builder — matching
+    /// upstream, and fixing a latent gap where those changes were previously silently ignored
+    /// whenever the builder happened to already be running (recreation only used to run once dial
+    /// failed) — but it does mean a malformed `--memory` string, which `Parser.resources` rejects,
+    /// now surfaces even on that path instead of being silently skipped. The dial itself still
+    /// retries every 5s up to a 300s deadline, since `startBuilderContainer` returning doesn't
+    /// guarantee the shim's gRPC server inside the guest is already accepting connections.
     private func dialOrStartBuilder(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
         memory: String?,
+        ssh: Bool,
         onLog: @MainActor @escaping (String) -> Void
     ) async throws -> (builder: ContainerBuild.Builder, group: MultiThreadedEventLoopGroup) {
         let deadline = Date().addingTimeInterval(300)
-        // Whether we've had to start the builder this call. Gates the user-facing messages so the
-        // common fast path (builder already running → first dial succeeds) stays silent, and the
-        // retry loop announces the start exactly once instead of on every failed dial.
-        var announcedStart = false
+        // `startBuilderContainer` only calls `onLog` when it actually does work (fresh create or
+        // recreate) — this tracks that so "Build environment ready." only bookends a real start,
+        // not the silent fast path where a matching builder was already running.
+        var announcedWork = false
+        try await startBuilderContainer(containerSystemConfig: containerSystemConfig, cpus: cpus, memory: memory, ssh: ssh, onLog: { line in
+            announcedWork = true
+            onLog(line)
+        })
         while true {
             do {
                 let socket = try await ContainerClient().dial(id: ContainerBuild.Builder.builderContainerId, port: 8088)
@@ -2345,7 +2394,7 @@ final class LiveContainerService: ContainerServiceBase {
                 do {
                     let builder = try await ContainerBuild.Builder(socket: socket, group: group, logger: Self.log)
                     _ = try await builder.info()
-                    if announcedStart { onLog("Build environment ready.") }
+                    if announcedWork { onLog("Build environment ready.") }
                     return (builder, group)
                 } catch {
                     try? await group.shutdownGracefully()
@@ -2355,26 +2404,20 @@ final class LiveContainerService: ContainerServiceBase {
                 guard Date() < deadline else {
                     throw ContainerizationError(.timeout, message: "Timed out waiting for the builder to start.")
                 }
-                // Without this, the build log sits empty through the builder image download and VM
-                // boot (tens of seconds on first build) and looks hung.
-                if !announcedStart {
-                    onLog("Starting the build environment…")
-                    announcedStart = true
-                }
-                try await startBuilderContainer(containerSystemConfig: containerSystemConfig, cpus: cpus, memory: memory, onLog: onLog)
                 try await Task.sleep(for: .seconds(5))
             }
         }
     }
 
     /// Native replication of the CLI's non-public `BuilderStart.start()`: reuses a running/stopped
-    /// "buildkit" container when its image/cpu/memory still match, otherwise (re)creates it —
+    /// "buildkit" container when its image/cpu/memory/ssh still match, otherwise (re)creates it —
     /// fetching the builder image, wiring the tmpfs `/run` + virtiofs exports mounts, network, and
     /// kernel exactly as the CLI does — then bootstraps the `container-builder-shim` process.
     private func startBuilderContainer(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
         memory: String?,
+        ssh: Bool,
         onLog: @MainActor @escaping (String) -> Void
     ) async throws {
         let builderImage = containerSystemConfig.build.image
@@ -2391,6 +2434,7 @@ final class LiveContainerService: ContainerServiceBase {
             defaultCPUs: containerSystemConfig.build.cpus,
             defaultMemory: containerSystemConfig.build.memory
         )
+        let wantsSSH = Self.resolveBuilderSSH(requested: ssh)
 
         let client = ContainerClient()
         let builderContainerId = ContainerBuild.Builder.builderContainerId
@@ -2398,10 +2442,17 @@ final class LiveContainerService: ContainerServiceBase {
             let imageChanged = existing.configuration.image.reference != builderImage
             let cpuChanged = existing.configuration.resources.cpus != resources.cpus
             let memChanged = existing.configuration.resources.memoryInBytes != resources.memoryInBytes
-            let needsRecreate = imageChanged || cpuChanged || memChanged
+            // `config.ssh` gates the host↔guest agent-socket forwarding itself, set only at
+            // container creation — bootstrapBuilderShim's SSH_AUTH_SOCK env var alone (below)
+            // just tells the shim where to look, it can't wire up forwarding a stale container
+            // never had. So a request that flips ssh on/off must trigger a recreate too, exactly
+            // like an image/cpu/memory change.
+            let sshChanged = existing.configuration.ssh != wantsSSH
+            let needsRecreate = imageChanged || cpuChanged || memChanged || sshChanged
             switch existing.status {
             case .running:
                 guard needsRecreate else { return }
+                onLog("Restarting the build environment for updated settings…")
                 try await client.stop(id: existing.id)
                 try await client.delete(id: existing.id)
             case .stopped:
@@ -2409,12 +2460,15 @@ final class LiveContainerService: ContainerServiceBase {
                     try await bootstrapBuilderShim(client: client, id: existing.id)
                     return
                 }
+                onLog("Restarting the build environment for updated settings…")
                 try await client.delete(id: existing.id)
             case .stopping:
                 throw ContainerizationError(.invalidState, message: "Builder is stopping; wait until it's fully stopped before rebuilding.")
             case .unknown:
                 break
             }
+        } else {
+            onLog("Starting the build environment…")
         }
 
         let useRosetta = containerSystemConfig.build.rosetta
@@ -2451,6 +2505,7 @@ final class LiveContainerService: ContainerServiceBase {
 
         var config = ContainerConfiguration(id: builderContainerId, image: imageDesc, process: processConfig)
         config.resources = resources
+        config.ssh = wantsSSH
         config.labels = [
             ResourceLabelKeys.plugin: "builder",
             ResourceLabelKeys.role: ResourceRoleValues.builder
@@ -2529,11 +2584,12 @@ final class LiveContainerService: ContainerServiceBase {
         let secretsData = try Self.resolveBuildSecrets(options.secrets)
         let tags = try Self.buildTags(for: options)
         let platforms = try Self.buildPlatforms(for: options)
+        let sshConfig = try Self.buildConfigSSH(for: options)
 
         let containerSystemConfig = await resolvedSystemConfig()
         let builderConnection = try await dialOrStartBuilder(containerSystemConfig: containerSystemConfig,
                                                              cpus: options.cpus.map { Int64($0) },
-                                                             memory: options.memory, onLog: onLog)
+                                                             memory: options.memory, ssh: options.ssh, onLog: onLog)
         let builder = builderConnection.builder
         let builderGroup = builderConnection.group
         defer {
@@ -2561,9 +2617,7 @@ final class LiveContainerService: ContainerServiceBase {
             contentStore: RemoteContentStoreClient(),
             buildArgs: options.buildArgs.sorted(by: { $0.key < $1.key }).map { "\($0.key)=\($0.value)" },
             secrets: secretsData,
-            // Berthly's build sheet has no ssh forwarding UI yet (see #110); "" matches
-            // upstream's BuildCommand default when --ssh isn't passed.
-            ssh: "",
+            ssh: sshConfig,
             contextDir: options.contextPath,
             dockerfile: dockerfileData,
             dockerignore: dockerignoreData,

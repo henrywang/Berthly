@@ -159,7 +159,7 @@ final class BuildJobManager {
 
 extension BuildContext {
     /// The persistable subset of `BuildOptions` (machine-specific fields like
-    /// cpus/memory/secrets/pull intentionally reset on Rebuild).
+    /// cpus/memory/secrets/pull/ssh intentionally reset on Rebuild).
     nonisolated init(options: BuildOptions) {
         self.init(
             contextPath: options.contextPath,

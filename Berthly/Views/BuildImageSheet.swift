@@ -32,6 +32,7 @@ struct BuildImageSheet: View {
     @State private var memory: String = ""
     @State private var secrets: [StringEntry] = []
     @State private var pull: Bool = false
+    @State private var ssh: Bool = false
 
     @State private var job: BuildJob?
     @FocusState private var isTagFieldFocused: Bool
@@ -301,6 +302,14 @@ struct BuildImageSheet: View {
                         entries: $secrets
                     )
 
+                    VStack(alignment: .leading, spacing: 4) {
+                        Toggle("Forward SSH agent", isOn: $ssh)
+                            .toggleStyle(.checkbox)
+                        Text("For \(Text("git clone").fontDesign(.monospaced)) of private dependencies in the Dockerfile. Requires SSH_AUTH_SOCK to be set.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+
                     Toggle("Pull latest base images", isOn: $pull)
                         .toggleStyle(.checkbox)
                 }
@@ -442,7 +451,8 @@ struct BuildImageSheet: View {
             cpus: Int(cpus.trimmingCharacters(in: .whitespaces)),
             memory: memoryTrimmed.isEmpty ? nil : memoryTrimmed,
             secrets: secrets.map { $0.value.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
-            pull: pull
+            pull: pull,
+            ssh: ssh
         )
 
         job = buildManager.start(options: options, service: service)
