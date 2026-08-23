@@ -305,6 +305,7 @@ struct BuildImageSheet: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Toggle("Forward SSH agent", isOn: $ssh)
                             .toggleStyle(.checkbox)
+                            .accessibilityIdentifier("buildSshToggle")
                         Text("For \(Text("git clone").fontDesign(.monospaced)) of private dependencies in the Dockerfile. Requires SSH_AUTH_SOCK to be set.")
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
@@ -385,6 +386,7 @@ struct BuildImageSheet: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(3)
+                    .accessibilityIdentifier("buildErrorMessage")
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
