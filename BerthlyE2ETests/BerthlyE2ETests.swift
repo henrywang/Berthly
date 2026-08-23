@@ -863,6 +863,81 @@ final class ResourceJourneyTests: BerthlyE2ETestCase {
                       "the built image should carry what the Dockerfile baked in:\n\(out.output)")
         // image (berthly-e2e/…) swept by prefix in tearDown.
     }
+
+    /// Proves the Build sheet's "Forward SSH agent" toggle (#110) actually wires a forwarded
+    /// agent socket into the builder — not just that a build with the box checked doesn't error.
+    /// The Dockerfile's own `RUN --mount=type=ssh` step is the oracle: it fails the build outright
+    /// if `SSH_AUTH_SOCK` isn't present and pointing at a real socket inside that step's
+    /// environment, so a passing build is real proof of forwarding, not a false positive from an
+    /// untested code path.
+    ///
+    /// Skips rather than fails when this Mac's SSH agent socket isn't visible to the *app*
+    /// process specifically (GUI launch doesn't reliably inherit a login shell's SSH_AUTH_SOCK) —
+    /// `LiveContainerService.buildConfigSSH`'s own up-front validation is the oracle for that: it
+    /// throws a specific, recognizable message before ever touching the builder, which surfaces
+    /// here as the sheet's failure state instead of the guest-side `RUN` failure a genuine
+    /// forwarding bug would produce.
+    @MainActor
+    func testBuildWithSSHForwardingMountsAgentSocket() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(Self.resourcePrefix)-ctx-\(UUID().uuidString.prefix(8))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let dockerfile = """
+        FROM alpine:latest
+        RUN --mount=type=ssh sh -c 'test -n "$SSH_AUTH_SOCK" && test -S "$SSH_AUTH_SOCK"'
+        LABEL berthly.e2e=build
+        """
+        try dockerfile.write(to: dir.appendingPathComponent("Dockerfile"),
+                             atomically: true, encoding: .utf8)
+        let tag = "\(Self.resourcePrefix)/img-ssh-\(UUID().uuidString.prefix(8).lowercased()):1"
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Build Image"))
+        let tagField = app.windows.textFields["buildTagField"]
+        XCTAssertTrue(tagField.waitForExistence(timeout: 5), "Build sheet should appear")
+        tagField.click(); tagField.typeText(tag)
+        let ctxField = app.windows.textFields["buildContextField"]
+        ctxField.click(); ctxField.typeText(dir.path)
+
+        app.buttons["buildAdvancedDisclosure"].click()
+        let sshToggle = app.windows.checkBoxes["buildSshToggle"]
+        XCTAssertTrue(sshToggle.waitForExistence(timeout: 5), "Advanced section should expand")
+        sshToggle.click()
+
+        app.buttons["buildSubmitButton"].click()
+        let finished = app.buttons.matching(NSPredicate(format: "label == 'Done' OR label == 'Close'")).firstMatch
+        XCTAssertTrue(finished.waitForExistence(timeout: 300),
+                      "build should finish, success or failure; sheet:\n\(app.windows.firstMatch.debugDescription)")
+
+        if finished.label == "Close" {
+            let errorText = app.windows.staticTexts["buildErrorMessage"]
+            let message = (errorText.value as? String) ?? errorText.label
+            finished.click()
+            // Only skip for LiveContainerService.buildConfigSSH's own pre-flight message — that's
+            // the app process reporting it never saw SSH_AUTH_SOCK, so forwarding was never even
+            // attempted (an environment limitation, not a feature bug). Any other failure —
+            // including the guest-side RUN step failing — is a genuine regression, not a skip.
+            guard message.contains("SSH agent forwarding requested, but SSH_AUTH_SOCK is not set") else {
+                XCTFail("build failed for a reason other than a missing local SSH agent: \(message)")
+                return
+            }
+            throw XCTSkip("This Mac's SSH_AUTH_SOCK isn't visible to the app process, so forwarding was never attempted. Build error: \(message)")
+        }
+
+        finished.click()
+
+        // Oracle: the image exists — reaching here means the RUN --mount=type=ssh step actually
+        // found a real socket at $SSH_AUTH_SOCK inside the guest, or the build would have failed.
+        XCTAssertEqual(try ContainerCLI.run(["image", "inspect", tag]).status, 0,
+                       "built image should be present")
+        // image (berthly-e2e/…) swept by prefix in tearDown.
+    }
 }
 
 /// Registry journey (user-suggested, 2026-07-16): stands up a real, self-hosted, *anonymous*
