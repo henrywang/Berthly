@@ -656,6 +656,9 @@
     "Following" : {
 
     },
+    "For %@ of private dependencies in the Dockerfile. Requires SSH_AUTH_SOCK to be set." : {
+
+    },
     "For a private image," : {
 
     },
@@ -678,6 +681,9 @@
 
     },
     "General" : {
+
+    },
+    "git clone" : {
 
     },
     "grows up to %@" : {
