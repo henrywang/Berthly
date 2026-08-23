@@ -84,7 +84,9 @@ private func pathRow(_ label: LocalizedStringKey, _ text: String) -> some View {
 
 private struct DaemonVersionSection: View {
     @Environment(ContainerServiceBase.self) private var service
+    @Environment(DaemonOperationCoordinator.self) private var operationCoordinator
     @State private var showStopConfirm = false
+    @State private var showPatchUpdateConfirm = false
     @State private var isStopping = false
 
     private var mismatch: ContainerCompatibility.Mismatch? {
@@ -94,28 +96,56 @@ private struct DaemonVersionSection: View {
 
     private var isCompatible: Bool { mismatch == nil }
 
+    private var isPatchBehind: Bool {
+        guard let installed = service.installedContainerVersion else { return false }
+        return ContainerCompatibility.isPatchBehind(installed: installed)
+    }
+
     private var statusText: String {
         switch mismatch {
-        case nil: "Up to date"
+        case nil: isPatchBehind ? "Update available" : "Up to date"
         case .tooOld: "Update available"
         case .tooNew: "Newer than Berthly supports"
         }
+    }
+
+    private var statusSymbol: String {
+        if isPatchBehind { return "arrow.up.circle.fill" }
+        return isCompatible ? "checkmark.circle.fill" : "exclamationmark.circle.fill"
+    }
+
+    private var statusColor: Color {
+        if isPatchBehind { return .berthlyAccent }
+        return isCompatible ? .statusRunning : .statusError
     }
 
     var body: some View {
         Section {
             LabeledContent("Status") {
                 HStack(spacing: 5) {
-                    Image(systemName: isCompatible ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                    Image(systemName: statusSymbol)
                         .imageScale(.small)
                     Text(statusText)
                         .font(.callout.weight(.medium))
                 }
-                .foregroundStyle(isCompatible ? Color.statusRunning : Color.statusError)
+                .foregroundStyle(statusColor)
             }
 
             LabeledContent("Installed") { monoValue(service.installedContainerVersion ?? "Unknown") }
             LabeledContent("Required") { monoValue(ContainerCompatibility.requiredVersion) }
+
+            // Non-blocking: unlike the hard `.versionMismatch` gate (major.minor floor, handled
+            // entirely by DaemonGateView), a patch-behind daemon is still fully compatible, so
+            // this page stays reachable and the update is opt-in. `upgradeContainer` still stops
+            // the daemon mid-flight, tearing this page down — routing through
+            // `operationCoordinator` (owned by DaemonGateView, injected via environment) keeps
+            // the progress screen alive across that teardown instead of losing it.
+            if isPatchBehind {
+                Button("Update Container to v\(ContainerCompatibility.requiredVersion)…") {
+                    showPatchUpdateConfirm = true
+                }
+                .accessibilityIdentifier("updatePatchButton")
+            }
 
             // SystemView only renders behind DaemonGateView while the daemon is `.connected`, so
             // the daemon is always running here — a Stop control is the only lifecycle action that
@@ -125,13 +155,6 @@ private struct DaemonVersionSection: View {
                 showStopConfirm = true
             }
             .disabled(isStopping)
-
-            // No update button here, deliberately: an incompatible install flips `daemonState`
-            // to `.versionMismatch` on the next poll, and DaemonGateView blocks this whole page
-            // behind the gate that owns the update flow (with progress state that survives the
-            // daemon restarting mid-update — state held here would be torn down with the page).
-            // The status row can still disagree with "Up to date" for a moment mid-poll, so it
-            // stays informational.
         } header: {
             sectionHeader("Container Daemon", systemImage: "shippingbox")
         }
@@ -146,6 +169,23 @@ private struct DaemonVersionSection: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This stops every running container on this Mac, not just ones Berthly manages.")
+        }
+        .alert("Update container to v\(ContainerCompatibility.requiredVersion)?", isPresented: $showPatchUpdateConfirm) {
+            Button("Update", role: .destructive) {
+                operationCoordinator.run(
+                    message: String(localized: "Updating container to v\(ContainerCompatibility.requiredVersion)…"),
+                    failureTitle: String(localized: "Update Failed"),
+                    service: service
+                ) { service, onLog in
+                    try await service.upgradeContainer(onLog: onLog)
+                }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("""
+                This stops every running container on this Mac, not just ones Berthly manages, \
+                while the update runs. You'll be asked for your admin password.
+                """)
         }
     }
 }
@@ -929,5 +969,6 @@ private struct DaemonLogView: View {
     )
     return SystemView()
         .environment(mock as ContainerServiceBase)
+        .environment(DaemonOperationCoordinator())
         .frame(width: 520, height: 1400)
 }

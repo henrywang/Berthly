@@ -189,4 +189,38 @@ final class SystemViewTests: XCTestCase {
         XCTAssertTrue(emptyState.waitForExistence(timeout: 10),
                       "the builder should be gone entirely after deleting the only one")
     }
+
+    // MARK: - Patch-behind update
+
+    /// Patch-behind (same major.minor as required, so `daemonState` stays `.connected` and
+    /// nothing blocks) is a different code path from `BerthlyUITests`'
+    /// `testVersionMismatchGateUpdatesAndConnects`: the trigger lives on this page, not behind
+    /// `DaemonGateView`, but still has to route through the same `DaemonOperationCoordinator` so
+    /// the progress screen survives `upgradeContainer` stopping the daemon out from under the
+    /// page that started it.
+    @MainActor
+    func testPatchUpdateSurvivesDaemonRestart() throws {
+        let app = XCUIApplication.berthly()
+        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "patchBehind"
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
+        app.staticTexts["System"].click()
+
+        XCTAssertTrue(app.buttons["updatePatchButton"].waitForExistence(timeout: 10))
+        app.buttons["updatePatchButton"].click()
+
+        let confirmButton = app.sheets.firstMatch.buttons["Update"]
+        let progressText = app.staticTexts["operationProgressMessage"]
+        XCTAssertTrue(confirmButton.waitForExistence(timeout: 5), "Update confirmation alert should appear")
+        confirmButton.click()
+
+        XCTAssertTrue(
+            progressText.waitForExistence(timeout: 3),
+            "Update progress screen should appear and survive daemon state changes"
+        )
+
+        XCTAssertFalse(app.buttons["updatePatchButton"].waitForExistence(timeout: 10),
+                        "Patch-update button should disappear once the installed version catches up")
+    }
 }

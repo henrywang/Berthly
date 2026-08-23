@@ -108,4 +108,27 @@ struct ContainerCompatibilityTests {
     @Test func isAtLeastMalformedIsFalse() {
         #expect(!ContainerCompatibility.isAtLeast(installed: "garbage", "1.2.1"))
     }
+
+    // isPatchBehind drives the System page's non-blocking "Update available" affordance: same
+    // major.minor as required (mismatch sees it as compatible, app stays unblocked) but behind
+    // the exact pinned patch.
+    @Test func isPatchBehindOlderPatchSameMinorIsTrue() {
+        #expect(ContainerCompatibility.isPatchBehind(installed: "1.2.0", required: "1.2.2"))
+    }
+
+    @Test func isPatchBehindExactMatchIsFalse() {
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "1.2.2", required: "1.2.2"))
+    }
+
+    @Test func isPatchBehindNewerPatchIsFalse() {
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "1.2.3", required: "1.2.2"))
+    }
+
+    @Test func isPatchBehindOlderMinorIsFalse() {
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "1.1.9", required: "1.2.2"))
+    }
+
+    @Test func isPatchBehindNewerMajorIsFalse() {
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "2.0.0", required: "1.2.2"))
+    }
 }

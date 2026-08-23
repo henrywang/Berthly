@@ -60,6 +60,17 @@ nonisolated enum ContainerCompatibility {
             || requiredComponents == installedComponents
     }
 
+    /// Same major.minor as `requiredVersion` (so `mismatch` sees it as fully compatible and
+    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.2.0 against a
+    /// Berthly pinned to `requiredVersion` 1.2.2. `mismatch` deliberately ignores patch, so this
+    /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`, e.g.
+    /// running-container export added in 1.2.1) can sit unreachable with no signal why. Drives
+    /// the System page's non-blocking "Update available" affordance, distinct from the hard
+    /// `.versionMismatch` gate that `mismatch` drives.
+    static func isPatchBehind(installed: String, required: String = requiredVersion) -> Bool {
+        isCompatible(installed: installed, required: required) && !isAtLeast(installed: installed, required)
+    }
+
     /// The health-check ping's `apiServerVersion` isn't a bare version string — it's
     /// `ReleaseVersion.singleLine(appName:)`'s output, e.g. "container-apiserver version 1.0.0
     /// (build: release, commit: abc1234)". Pull the numeric version out of that (or any other
