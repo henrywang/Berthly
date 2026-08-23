@@ -352,6 +352,15 @@ private struct ContainerComputeRow: View {
     /// export itself runs through `perform`, so the row shows the same in-flight spinner as
     /// start/stop and failures land in the standard error alert.
     private func exportFilesystem() {
+        // E2E-only bypass: NSSavePanel is system UI XCUITest can't drive — same seam pattern as
+        // promptForArchiveDestination's UITEST_SAVE_DESTINATION (SaveImageSheet.swift). A
+        // directory (not a single fixed path) so one app launch can export several containers,
+        // each landing at its own default filename, without relaunching between exports.
+        if let dir = ProcessInfo.processInfo.environment["UITEST_EXPORT_DESTINATION_DIR"] {
+            let path = "\(dir)/\(LiveContainerService.exportArchiveFilename(for: container.name))"
+            perform { try await service.exportContainer(container.id, to: path) }
+            return
+        }
         let panel = NSSavePanel()
         panel.nameFieldStringValue = LiveContainerService.exportArchiveFilename(for: container.name)
         panel.allowedContentTypes = [UTType(filenameExtension: "tar") ?? .archive]
