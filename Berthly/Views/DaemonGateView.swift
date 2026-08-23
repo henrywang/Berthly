@@ -4,6 +4,62 @@
 import AppKit
 import SwiftUI
 
+/// Runs a privileged daemon maintenance operation (install/start/upgrade) and holds its progress
+/// state. Lives in `DaemonGateView` and is injected via `.environment`, so a trigger buried
+/// inside `content()` — e.g. `SystemView`'s non-blocking patch-update button — can start an
+/// operation whose progress screen still survives that same page disappearing mid-flight when
+/// `upgradeContainer` stops the daemon out from under it.
+@Observable
+@MainActor
+final class DaemonOperationCoordinator {
+    private(set) var message: String?
+    private(set) var logs: [String] = []
+    private(set) var error: OperationError?
+    private var task: Task<Void, Never>?
+
+    struct OperationError: Identifiable {
+        let id = UUID()
+        let title: String
+        let message: String
+    }
+
+    func clearError() {
+        error = nil
+    }
+
+    /// Cancellation (the progress screen's Cancel) is not an error — the service kills the
+    /// elevated process and the coordinator just returns to the gate.
+    func cancel() {
+        task?.cancel()
+    }
+
+    /// Activates the app first so the admin-password dialog appears on the user's current space
+    /// instead of wherever the app's window happens to live.
+    func run(
+        message: String,
+        failureTitle: String,
+        service: ContainerServiceBase,
+        _ work: @escaping (ContainerServiceBase, @MainActor @escaping (String) -> Void) async throws -> Void
+    ) {
+        NSApp.activate(ignoringOtherApps: true)
+        self.message = message
+        logs = []
+        task = Task {
+            do {
+                try await work(service) { [weak self] line in
+                    self?.logs.append(line)
+                }
+            } catch is CancellationError {
+                // User hit Cancel — no alert.
+            } catch {
+                self.error = OperationError(title: failureTitle, message: error.localizedDescription)
+            }
+            self.message = nil
+            task = nil
+        }
+    }
+}
+
 /// Replaces content with a contextual screen when the daemon isn't connected.
 /// Sidebar is always visible; only the content/detail area is gated.
 struct DaemonGateView<Content: View>: View {
@@ -14,16 +70,10 @@ struct DaemonGateView<Content: View>: View {
     /// the operation itself changes `daemonState` (stop → installedButStopped → connecting…),
     /// which tears the current gate down mid-flight. State at this level survives those
     /// transitions, so the progress screen stays up until the operation actually finishes.
-    @State private var operationMessage: String?
-    @State private var operationLogs: [String] = []
-    @State private var operationTask: Task<Void, Never>?
-    @State private var operationError: OperationError?
-
-    private struct OperationError: Identifiable {
-        let id = UUID()
-        let title: String
-        let message: String
-    }
+    /// Injected into the environment so a non-blocking trigger buried in `content()` (e.g.
+    /// `SystemView`'s patch-update button) can start an operation whose progress screen still
+    /// survives that same page disappearing mid-flight.
+    @State private var operationCoordinator = DaemonOperationCoordinator()
 
     init(@ViewBuilder content: @escaping () -> Content) {
         self.content = content
@@ -31,27 +81,28 @@ struct DaemonGateView<Content: View>: View {
 
     var body: some View {
         Group {
-            if let message = operationMessage {
-                ProgressLogScreen(message: message, logLines: operationLogs) {
-                    operationTask?.cancel()
+            if let message = operationCoordinator.message {
+                ProgressLogScreen(message: message, logLines: operationCoordinator.logs) {
+                    operationCoordinator.cancel()
                 }
             } else {
                 gate
             }
         }
+        .environment(operationCoordinator)
         .alert(
             // `String(localized:)` throughout the operation strings: they travel through plain
             // `String` properties into `Text`/`.alert`'s verbatim StringProtocol overloads, so
             // unlike literals they aren't auto-localized at the point of display.
-            operationError?.title ?? String(localized: "Operation Failed"),
+            operationCoordinator.error?.title ?? String(localized: "Operation Failed"),
             isPresented: Binding(
-                get: { operationError != nil },
-                set: { if !$0 { operationError = nil } }
+                get: { operationCoordinator.error != nil },
+                set: { if !$0 { operationCoordinator.clearError() } }
             )
         ) {
-            Button("OK") { operationError = nil }
+            Button("OK") { operationCoordinator.clearError() }
         } message: {
-            Text(operationError?.message ?? "")
+            Text(operationCoordinator.error?.message ?? "")
         }
     }
 
@@ -71,9 +122,10 @@ struct DaemonGateView<Content: View>: View {
 
         case .notInstalled:
             InstallGate {
-                runOperation(
+                operationCoordinator.run(
                     message: String(localized: "Installing container v\(ContainerCompatibility.requiredVersion)…"),
-                    failureTitle: String(localized: "Install Failed")
+                    failureTitle: String(localized: "Install Failed"),
+                    service: service
                 ) { service, onLog in
                     try await service.installContainer(onLog: onLog)
                 }
@@ -86,9 +138,10 @@ struct DaemonGateView<Content: View>: View {
                 Text("The container daemon is installed but not running.")
             } actions: {
                 Button("Start Container System") {
-                    runOperation(
+                    operationCoordinator.run(
                         message: String(localized: "Starting container system…"),
-                        failureTitle: String(localized: "Start Failed")
+                        failureTitle: String(localized: "Start Failed"),
+                        service: service
                     ) { service, onLog in
                         await service.startDaemon(onLog: onLog)
                     }
@@ -104,9 +157,10 @@ struct DaemonGateView<Content: View>: View {
                 // nil can't actually happen (the state only exists because the check failed),
                 // but falling into the upgrade gate is the sane answer if it somehow does.
                 VersionMismatchGate(installed: installed, required: required) {
-                    runOperation(
+                    operationCoordinator.run(
                         message: String(localized: "Updating container to v\(required)…"),
-                        failureTitle: String(localized: "Update Failed")
+                        failureTitle: String(localized: "Update Failed"),
+                        service: service
                     ) { service, onLog in
                         try await service.upgradeContainer(onLog: onLog)
                     }
@@ -126,33 +180,6 @@ struct DaemonGateView<Content: View>: View {
                 }
                 .buttonStyle(.bordered)
             }
-        }
-    }
-
-    /// Runs a privileged maintenance operation with the shared progress screen. Activates the
-    /// app first so the admin-password dialog appears on the user's current space instead of
-    /// wherever the app's window happens to live. Cancellation (the progress screen's Cancel)
-    /// is not an error — the service kills the elevated process and we just return to the gate.
-    private func runOperation(
-        message: String,
-        failureTitle: String,
-        _ work: @escaping (ContainerServiceBase, @MainActor @escaping (String) -> Void) async throws -> Void
-    ) {
-        NSApp.activate(ignoringOtherApps: true)
-        operationMessage = message
-        operationLogs = []
-        operationTask = Task {
-            do {
-                try await work(service) { line in
-                    operationLogs.append(line)
-                }
-            } catch is CancellationError {
-                // User hit Cancel — no alert.
-            } catch {
-                operationError = OperationError(title: failureTitle, message: error.localizedDescription)
-            }
-            operationMessage = nil
-            operationTask = nil
         }
     }
 
