@@ -150,7 +150,9 @@ struct BuildMappingTests {
     @Test func buildPlatformsParsesExplicitPlatform() throws {
         let options = BuildOptions(reference: "local/web:1.0", contextPath: "/tmp/web", platform: "linux/arm64")
         let platforms = try LiveContainerService.buildPlatforms(for: options)
-        #expect(platforms.map(\.description) == ["linux/arm64/v8"])
+        // containerization 0.41.0 (apple/containerization#783) drops the redundant `v8` variant
+        // from arm64's `description`, matching how Docker and containerd render it.
+        #expect(platforms.map(\.description) == ["linux/arm64"])
     }
 
     @Test func buildPlatformsDefaultsToHostLinuxPlatformWhenUnset() throws {
@@ -529,7 +531,14 @@ struct MachineCreateMappingTests {
         let secure = LiveContainerService.machineRegistryFlags(
             for: MachineCreateOptions(reference: "alpine:3.22")
         )
-        #expect(secure.scheme == "auto")
+        #expect(secure.scheme == "https")
+    }
+
+    @Test func runRegistryFlagsDefaultToHTTPS() {
+        // Without the insecure toggle the run/create path is https-only: its one scheme fans out
+        // to the init-image fetch too, so it can't do per-host detection (apple/container#2100).
+        let flags = LiveContainerService.runRegistryFlags(for: RunOptions(reference: "alpine:3.22"))
+        #expect(flags.scheme == "https")
     }
 
     @Test func machineBootConfigOverridesMapCpusMemoryAndHomeMount() {

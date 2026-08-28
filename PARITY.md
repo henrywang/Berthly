@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.2.2** (2026-08-14). When a change closes or
+> Audited against **container CLI 1.3.0** (2026-08-28). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
@@ -126,6 +126,13 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   (hidden from the Compute list, protected from prune) so they don't get
   caught by unrelated container-management actions. Revisit only if upstream
   both drops EXPERIMENTAL and exposes cluster operations over the XPC API.
+- **`--scheme http` on run/machine create against an internal registry** — 1.3.0
+  ([apple/container#2100](https://github.com/apple/container/pull/2100)) removed
+  the `auto` scheme and its localhost/private-IP detection. Berthly restores that
+  detection for the single-host pull/push/recreate/login paths
+  (`RegistrySchemeResolver`), but run/create pass one scheme that also covers the
+  init-image fetch, so plain HTTP there needs the "Allow insecure registry"
+  toggle. `pull` then `run` the local image for the same result without it.
 - **Output formatting** (`--format json|yaml|toml`, `--quiet`, `--cidfile`,
   `--debug`) — scripting conveniences with no GUI meaning.
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
