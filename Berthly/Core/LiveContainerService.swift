@@ -880,7 +880,9 @@ final class LiveContainerService: ContainerServiceBase {
             let image = try await ClientImage.pull(
                 reference: reference,
                 platform: nil,
-                scheme: .auto,
+                // Apple's registry — always https. Not routed through RegistrySchemeResolver so a
+                // user's internal DNS domain can't accidentally match this fixed reference.
+                scheme: .https,
                 containerSystemConfig: containerSystemConfig,
                 progressUpdate: reporter?.handler
             )
@@ -2049,8 +2051,9 @@ final class LiveContainerService: ContainerServiceBase {
     nonisolated static func resolveRegistryConnectionTarget(
         host: String, insecure: Bool, internalDnsDomain: String?
     ) throws -> (scheme: RequestScheme, host: String, port: Int?) {
-        let scheme = try RequestScheme(insecure ? "http" : "auto")
-            .schemeFor(host: host, internalDnsDomain: internalDnsDomain)
+        let scheme = RegistrySchemeResolver.scheme(
+            forHost: host, insecure: insecure, internalDnsDomain: internalDnsDomain
+        )
         guard let url = URL(string: "\(scheme.rawValue)://\(host)"), let urlHost = url.host else {
             throw ContainerCLIError(exitCode: 1, message: "\(host) is not a valid registry host.")
         }
@@ -2808,7 +2811,12 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     nonisolated static func runRegistryFlags(for options: RunOptions) -> Flags.Registry {
-        Flags.Registry(scheme: options.insecureRegistry ? "http" : "auto")
+        // apple/container#2100 removed the "auto" scheme. This one string fans out to both the
+        // app-image and init-image fetches inside `containerConfigFromFlags`, so per-host
+        // detection isn't safe here — the insecure toggle keeps its "force http" meaning and
+        // everything else is https. A run against an untoggled internal-registry image now needs
+        // the toggle (RegistrySchemeResolver still covers the single-host pull/push/recreate paths).
+        Flags.Registry(scheme: options.insecureRegistry ? "http" : "https")
     }
 
     nonisolated static func writeCIDFile(_ id: String, to path: String) throws {
@@ -2974,7 +2982,9 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     nonisolated static func machineRegistryFlags(for options: MachineCreateOptions) -> Flags.Registry {
-        Flags.Registry(scheme: options.insecureRegistry ? "http" : "auto")
+        // See runRegistryFlags: "auto" is gone (apple/container#2100), one scheme covers both the
+        // image and init-image fetch, so the insecure toggle is the only path to http here.
+        Flags.Registry(scheme: options.insecureRegistry ? "http" : "https")
     }
 
     /// Overrides to layer onto the system default `MachineConfig` via `MachineConfig.with(_:)` —
@@ -3113,7 +3123,9 @@ final class LiveContainerService: ContainerServiceBase {
         let image = try await ClientImage.pull(
             reference: reference,
             platform: ociPlatform,
-            scheme: insecure ? .http : .auto,
+            scheme: RegistrySchemeResolver.scheme(
+                forReference: reference, insecure: insecure, internalDnsDomain: config.dns.domain
+            ),
             containerSystemConfig: config,
             progressUpdate: progress
         )
@@ -3240,11 +3252,14 @@ final class LiveContainerService: ContainerServiceBase {
         // Pull phase — the only cancellable window: nothing destructive has happened yet, and a
         // pulled-but-unused image is harmless. Platform nil (all variants) so the stored digest
         // stays an index digest, comparable to what checkForImageUpdates checks against.
-        // The same insecure-host lookup checkOneImageUpdate uses — without it, this pull has the
-        // identical hardcoded-.auto bug the checker had: a badge could correctly appear for a
-        // private HTTP registry, then this exact call would fail against it.
+        // The same insecure-host lookup checkOneImageUpdate uses — without it, a badge could
+        // correctly appear for a private HTTP registry, then this exact call would fail against it.
         let knownInsecureHosts = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
-        let pullScheme: RequestScheme = ImageStaleness.isHostInsecure(reference: reference, knownInsecureHosts: knownInsecureHosts) ? .http : .auto
+        let pullScheme = RegistrySchemeResolver.scheme(
+            forReference: reference,
+            insecure: ImageStaleness.isHostInsecure(reference: reference, knownInsecureHosts: knownInsecureHosts),
+            internalDnsDomain: containerSystemConfig.dns.domain
+        )
         var didPull = false
         if pullFirst, (try? Reference.parse(reference))?.domain != nil {
             onPhase(.pullingImage)
@@ -3381,7 +3396,9 @@ final class LiveContainerService: ContainerServiceBase {
             do {
                 try await imageToPush.push(
                     platform: ociPlatform,
-                    scheme: insecure ? .http : .auto,
+                    scheme: RegistrySchemeResolver.scheme(
+                        forReference: pushDestination, insecure: insecure, internalDnsDomain: config.dns.domain
+                    ),
                     containerSystemConfig: config,
                     progressUpdate: watchedProgress
                 )

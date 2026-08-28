@@ -53,8 +53,8 @@ struct ResolveRegistryConnectionTargetTests {
     }
 
     @Test func insecureForcesHTTPRegardlessOfHost() throws {
-        // Mirrors pushImage/pullImage's `insecure ? .http : .auto` — a public host can still be
-        // forced to HTTP explicitly, same as the Push/Pull sheets' toggle.
+        // The insecure toggle forces HTTP explicitly even for a public host, same as the
+        // Push/Pull sheets.
         let target = try LiveContainerService.resolveRegistryConnectionTarget(
             host: "ghcr.io", insecure: true, internalDnsDomain: nil
         )
@@ -72,8 +72,9 @@ struct ResolveRegistryConnectionTargetTests {
     }
 
     @Test func bareLocalhostAutoDetectsHTTPWithoutTheInsecureToggle() throws {
-        // `RequestScheme.auto` already treats an exact "localhost" as an internal host (see
-        // `RequestScheme.isInternalHost`) — the toggle isn't the only way to reach HTTP.
+        // `RegistrySchemeResolver` treats an exact "localhost" as an internal host — a verbatim
+        // port of the detection apple/container removed in 1.3.0 (apple/container#2100) — so the
+        // toggle isn't the only way to reach HTTP.
         let target = try LiveContainerService.resolveRegistryConnectionTarget(
             host: "localhost", insecure: false, internalDnsDomain: nil
         )
