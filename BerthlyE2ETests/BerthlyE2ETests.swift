@@ -152,9 +152,10 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         type("-c \"sleep 300\"", into: "runCommandField")
 
         // Storage: a tmpfs mount (bind/volume rows need real host paths — tmpfs covers mounts[]).
+        // The `dest:opts` form exercises apple/container#2103's split in Parser.tmpfsMounts.
         category("Storage")
         app.buttons["runTmpfsAddButton"].click()
-        type("/scratch", into: "runTmpfsField")
+        type("/scratch:rw", into: "runTmpfsField")
 
         // Network: one published port.
         category("Network")
@@ -256,10 +257,13 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(ports?.contains { ($0["hostPort"] as? Int) == 18080 && ($0["containerPort"] as? Int) == 80 } == true,
                       "ports: \(ports ?? [])")
 
-        // tmpfs mount
+        // tmpfs mount — destination split clean from the `:rw` suffix (apple/container#2103):
+        // before the fix the whole string became the destination.
         let mounts = val("configuration.mounts") as? [[String: Any]]
-        XCTAssertTrue(mounts?.contains { ($0["destination"] as? String) == "/scratch" } == true,
-                      "mounts: \(mounts ?? [])")
+        let destinations = mounts?.compactMap { $0["destination"] as? String } ?? []
+        XCTAssertTrue(destinations.contains("/scratch"), "mounts: \(mounts ?? [])")
+        XCTAssertFalse(destinations.contains { $0.contains(":") },
+                       "no tmpfs destination should carry a colon-suffixed options string: \(destinations)")
     }
 
     /// Tier-1 lifecycle journey (PLAN/E2E-TEST.md §1.3): stop/start/delete buttons' real
@@ -394,7 +398,14 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
     /// *recorded* the options, this boots a container with a bootable subset set through the
     /// sheet and `container exec`s in to prove each option actually took *effect* — env visible
     /// to a process, working directory applied, running as the given uid, root filesystem truly
-    /// read-only. This is the "function checking" the inspect-based test can't do.
+    /// read-only, and a tmpfs mount that's writable at its clean destination. This is the
+    /// "function checking" the inspect-based test can't do.
+    ///
+    /// The tmpfs entry uses the `dest:opts` form on purpose: apple/container 1.3.0
+    /// (apple/container#2103) rewrote `Parser.tmpfsMounts` to split that form into destination +
+    /// options — before the fix the whole string, colon and options included, became the mount
+    /// destination. The read-only root makes a successful write to `/scratch` proof the tmpfs is
+    /// a real, independent mount at the parsed-clean path.
     @MainActor
     func testRunOptionsTakeEffectViaExec() throws {
         try ContainerCLI.ensureImage(Self.fixtureImage)
@@ -421,6 +432,11 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         type(Self.fixtureImage, into: "runImageField")
         type(containerName, into: "runNameField")
         type("sleep 300", into: "runCommandField")
+
+        // tmpfs with the `dest:opts` form — exercises apple/container#2103's split in tmpfsMounts.
+        app.buttons["runCategory-Storage"].click()
+        app.buttons["runTmpfsAddButton"].click()
+        type("/scratch:rw", into: "runTmpfsField")
 
         app.buttons["runCategory-Environment"].click()
         app.buttons["runEnvAddButton"].click()
@@ -470,6 +486,15 @@ final class RunContainerJourneyTests: BerthlyE2ETestCase {
         XCTAssertNotEqual(write.status, 0, "read-only root filesystem should reject writes")
         XCTAssertTrue(write.output.lowercased().contains("read-only"),
                       "write should fail with a read-only error:\n\(write.output)")
+
+        // The `dest:opts` tmpfs entry: destination parsed clean (no `:rw` in the path),
+        // and the mount is writable despite the read-only root.
+        let procMounts = try ContainerCLI.exec(containerName, ["cat", "/proc/mounts"])
+        XCTAssertTrue(procMounts.output.contains(" /scratch tmpfs "),
+                      "tmpfs should mount at the clean path /scratch, not a colon-suffixed one:\n\(procMounts.output)")
+        let tmpfsWrite = try ContainerCLI.exec(containerName, ["touch", "/scratch/ok"])
+        XCTAssertEqual(tmpfsWrite.status, 0,
+                       "tmpfs mount should be writable even with a read-only root:\n\(tmpfsWrite.output)")
     }
 }
 
