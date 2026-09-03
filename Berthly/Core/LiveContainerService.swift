@@ -1049,7 +1049,7 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     /// Display name for a machine's kernel: the default kernel binary's filename
-    /// (e.g. `vmlinux-6.18.15-186`). The `Kernel` type carries no version string,
+    /// (e.g. `vmlinux-6.18.35-197-debug`). The `Kernel` type carries no version string,
     /// so the filename is the most honest stable identifier. `nil` → `"–"`.
     nonisolated static func kernelName(_ kernel: Kernel?) -> String {
         guard let kernel else { return "–" }
