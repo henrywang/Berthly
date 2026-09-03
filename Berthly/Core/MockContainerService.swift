@@ -65,9 +65,9 @@ final class MockContainerService: ContainerServiceBase {
             Network(id: "default", name: "default", driver: .nat, subnet: "192.168.64.0/24", gateway: "192.168.64.1", isDefault: true, scope: "local", ipv6Enabled: false, egress: "NAT → en0", attachable: true, backend: "vmnet", endpoints: [NetworkEndpoint(id: "e3", name: "dev", ipv4: "192.168.64.3", kind: "MACHINE", isRunning: true, aliases: ["machine"]), NetworkEndpoint(id: "e4", name: "ci-runner", ipv4: "192.168.64.4", kind: "MACHINE", isRunning: false, aliases: ["machine"]), NetworkEndpoint(id: "e5", name: "default", ipv4: "192.168.64.2", kind: "MACHINE", isRunning: true, aliases: ["machine", "utility VM"]), NetworkEndpoint(id: "e10", name: "edge-proxy", ipv4: "192.168.64.10", kind: "CONTAINER", isRunning: false, aliases: ["edge", "proxy"])])
         ]
         machines = [
-            Machine(id: "dev", name: "dev", image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.12.4-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite, isDefault: true),
-            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22", status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–", kernel: "6.12.4-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
-            Machine(id: "default", name: "default", image: "debian:12", status: .running, isUtility: true, diskUsedGB: 1.2, diskTotalGB: 4.0, uptimeString: "6d 4h", kernel: "6.12.4-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none)
+            Machine(id: "dev", name: "dev", image: "ubuntu:24.04", status: .running, isUtility: false, diskUsedGB: 3.1, diskTotalGB: 8.0, uptimeString: "1h 12m", kernel: "6.18.35-arm64", resources: "4 vCPU · 4 GB", created: "Jun 20", homeMount: .readWrite, isDefault: true),
+            Machine(id: "ci-runner", name: "ci-runner", image: "alpine:3.22", status: .stopped, isUtility: false, diskUsedGB: 0.48, diskTotalGB: 2.0, uptimeString: "–", kernel: "6.18.35-arm64", resources: "2 vCPU · 2 GB", created: "Jun 22", homeMount: .readOnly),
+            Machine(id: "default", name: "default", image: "debian:12", status: .running, isUtility: true, diskUsedGB: 1.2, diskTotalGB: 4.0, uptimeString: "6d 4h", kernel: "6.18.35-arm64", resources: "2 vCPU · 4 GB", created: "Jun 15", homeMount: .none)
         ]
         builders = [
             Builder(id: "default", name: "default", image: "buildkit:0.13", status: .running, autoStarted: true, cpus: 2, memoryGB: 2)
@@ -446,7 +446,7 @@ final class MockContainerService: ContainerServiceBase {
     }
 
     override func fetchKernelInfo() async throws {
-        kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
+        kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug", platform: "linux/arm64")
     }
 
     override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
@@ -461,8 +461,8 @@ final class MockContainerService: ContainerServiceBase {
             SystemProperty(key: "build.image", value: "ghcr.io/apple/container-builder-shim/builder:latest"),
             SystemProperty(key: "container.cpus", value: "4"), SystemProperty(key: "container.memory", value: "1 GB"),
             SystemProperty(key: "dns.domain", value: "test"),
-            SystemProperty(key: "kernel.binaryPath", value: "opt/kata/share/kata-containers/vmlinux-6.18.15-186"),
-            SystemProperty(key: "kernel.url", value: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst"),
+            SystemProperty(key: "kernel.binaryPath", value: "opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"),
+            SystemProperty(key: "kernel.url", value: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst"),
             SystemProperty(key: "machine.cpus", value: "4"), SystemProperty(key: "machine.memory", value: "8 GB"),
             SystemProperty(key: "machine.home-mount", value: "rw"), SystemProperty(key: "machine.virtualization", value: "false"),
             SystemProperty(key: "network.subnet", value: "192.168.64.0/24"),
@@ -497,8 +497,8 @@ final class MockContainerService: ContainerServiceBase {
     override func fetchSystemConfig() async throws {
         systemConfigInfo = SystemConfigInfo(
             vminitImage: "ghcr.io/apple/containerization/vminit:latest",
-            kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
-            kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
+            kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug",
+            kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst",
             kernelDigest: "sha256:f63d54abcd", builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
         )
     }

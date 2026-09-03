@@ -118,11 +118,16 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   ([apple/container#2044](https://github.com/apple/container/pull/2044)) as
   an explicitly experimental plugin. Not a parity gap Berthly intends to
   close: driving `container k8s create` natively is structurally blocked —
-  `K8sHelper.loadKindnetManifest` locates its CNI manifest via
+  `loadKindnetManifest` locates its CNI manifest via
   `pluginLoader.findPlugin(forExecutable: CommandLine.executablePath)`, which
   fails for Berthly's own binary since it isn't a registered plugin — and the
   entire post-`create` workflow is `kubectl`, leaving no meaningful GUI
-  surface to add. Berthly does treat k8s cluster containers as infrastructure
+  surface to add. 1.3.0's k8s refactor
+  ([apple/container#2115](https://github.com/apple/container/pull/2115),
+  [#2110](https://github.com/apple/container/pull/2110)) split `K8sHelper` and
+  moved `createPluginLoader` into a shared helper, but that manifest lookup
+  and the `kubectl` workflow are unchanged and the command is still
+  `EXPERIMENTAL`. Berthly does treat k8s cluster containers as infrastructure
   (hidden from the Compute list, protected from prune) so they don't get
   caught by unrelated container-management actions. Revisit only if upstream
   both drops EXPERIMENTAL and exposes cluster operations over the XPC API.

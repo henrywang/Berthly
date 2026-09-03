@@ -960,11 +960,11 @@ private struct DaemonLogView: View {
         SystemProperty(key: "dns.domain", value: "test"),
         SystemProperty(key: "registry.domain", value: "docker.io")
     ]
-    mock.kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64")
+    mock.kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug", platform: "linux/arm64")
     mock.systemConfigInfo = SystemConfigInfo(
         vminitImage: "ghcr.io/apple/containerization/vminit:latest",
-        kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186",
-        kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.28.0/kata-static-3.28.0-arm64.tar.zst",
+        kernelBinaryPath: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug",
+        kernelURL: "https://github.com/kata-containers/kata-containers/releases/download/3.32.0/kata-static-3.32.0-arm64.tar.zst",
         kernelDigest: "sha256:f63d54abcd", builderImage: "ghcr.io/apple/container-builder-shim/builder:latest"
     )
     return SystemView()

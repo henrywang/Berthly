@@ -102,7 +102,7 @@ struct LargeMockFixture: Equatable {
                 diskUsedGB: Double(index + 1) * 0.25,
                 diskTotalGB: 8,
                 uptimeString: index < 12 ? "\(index + 1)h" : "–",
-                kernel: "6.12.4-arm64",
+                kernel: "6.18.35-arm64",
                 resources: "\(cpus) vCPU · \(memoryGB) GB",
                 created: "2026-01-01",
                 homeMount: machineHomeMount(index),

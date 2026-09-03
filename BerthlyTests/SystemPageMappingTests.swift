@@ -103,8 +103,8 @@ struct KernelMappingTests {
     }
 
     @Test func kernelNameIsBinaryFilename() {
-        let kernel = Kernel(path: URL(fileURLWithPath: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186"), platform: .linuxArm)
-        #expect(LiveContainerService.kernelName(kernel) == "vmlinux-6.18.15-186")
+        let kernel = Kernel(path: URL(fileURLWithPath: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug"), platform: .linuxArm)
+        #expect(LiveContainerService.kernelName(kernel) == "vmlinux-6.18.35-197-debug")
     }
 
     @Test func kernelNameIsDashWhenNoKernel() {

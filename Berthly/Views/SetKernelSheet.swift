@@ -362,7 +362,7 @@ private struct SetKernelSheetPreviewHarness: View {
     var body: some View {
         SetKernelSheet(
             service: mock,
-            currentKernel: KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.15-186", platform: "linux/arm64"),
+            currentKernel: KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug", platform: "linux/arm64"),
             initialSource: source
         )
         .task { try? await mock.fetchSystemConfig() }
