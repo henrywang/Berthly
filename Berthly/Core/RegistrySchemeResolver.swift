@@ -15,10 +15,12 @@ import ContainerizationExtras
 /// — for the paths where Berthly controls a single host.
 ///
 /// This only picks a scheme; it does not make plain HTTP fully usable. Since apple/container 1.3.1
-/// (CVE-2026-65388) `RegistryClient` refuses to send credentials or a bearer token over a non-HTTPS
-/// connection, so an *authenticated* registry that resolves to http here (internal host, or the
-/// insecure toggle) fails the credential exchange — `signInRegistry` maps that to a clear message,
-/// and the background update check silently drops the badge. Anonymous HTTP registries are fine.
+/// (CVE-2026-65388) `RegistryClient` refuses the token exchange whenever an http registry answers
+/// with a `WWW-Authenticate` challenge — credentials or not, so this bites anonymous pulls too —
+/// so any registry that resolves to http here (internal host, or the insecure toggle) and asks
+/// for auth fails: `signInRegistry` maps that to a clear message, and the background update check
+/// silently drops the badge. An http registry that never challenges (a plain `registry:2` with no
+/// auth) still works.
 enum RegistrySchemeResolver {
 
     /// `isInternalHost` is a verbatim port of the detection apple/container#2100 removed.

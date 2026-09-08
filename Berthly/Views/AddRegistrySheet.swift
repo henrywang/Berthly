@@ -126,6 +126,7 @@ struct AddRegistrySheet: View {
 
                     if let errorMessage {
                         Text(errorMessage).font(.caption).foregroundStyle(.red).lineLimit(4)
+                            .accessibilityIdentifier("addRegistryErrorMessage")
                     }
                 }
                 .padding(20)
