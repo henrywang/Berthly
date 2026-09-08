@@ -21,7 +21,10 @@ import ContainerizationExtras
 /// for auth fails: `signInRegistry` maps that to a clear message, and the background update check
 /// silently drops the badge. An http registry that never challenges (a plain `registry:2` with no
 /// auth) still works.
-enum RegistrySchemeResolver {
+///
+/// All `nonisolated` (like `ImageStaleness`): pure host/scheme logic with no main-actor state,
+/// called off-main from `checkOneImageUpdate`'s task group and from `BerthlyTests`.
+nonisolated enum RegistrySchemeResolver {
 
     /// `isInternalHost` is a verbatim port of the detection apple/container#2100 removed.
     static func scheme(forHost host: String, insecure: Bool, internalDnsDomain: String?) -> RequestScheme {
