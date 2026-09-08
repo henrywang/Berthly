@@ -2060,6 +2060,18 @@ final class LiveContainerService: ContainerServiceBase {
         return (scheme, urlHost, url.port)
     }
 
+    /// apple/container 1.3.1 (CVE-2026-65388) made `RegistryClient` refuse to exchange credentials
+    /// or a bearer token unless the registry and its token realm are both HTTPS and share a
+    /// registrable domain. Berthly routes `localhost`, the internal DNS domain, and RFC 1918 hosts
+    /// to http (`RegistrySchemeResolver`), and "Allow insecure registry" forces http for any host —
+    /// so signing in to an authenticated registry reached that way now fails. Anonymous HTTP
+    /// registries are unaffected (no credential exchange happens).
+    nonisolated static func insecureRegistryAuthMessage(host: String) -> String {
+        "Can't sign in to \(host): apple/container 1.3.1 refuses to send credentials to a registry "
+            + "over plain HTTP, or to a token server outside the registry's own domain (CVE-2026-65388). "
+            + "This registry needs an HTTPS endpoint."
+    }
+
     override func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {
         let host = Reference.resolveDomain(domain: host.trimmingCharacters(in: .whitespaces))
         let username = username.trimmingCharacters(in: .whitespaces)
@@ -2078,7 +2090,14 @@ final class LiveContainerService: ContainerServiceBase {
             authentication: BasicAuthentication(username: username, password: password),
             retryOptions: RetryOptions(maxRetries: 3, retryInterval: 300_000_000, shouldRetry: { $0.status.code >= 500 })
         )
-        try await client.ping()
+        do {
+            try await client.ping()
+        } catch let error as RegistryClient.Error {
+            if case .insecureCredentialExchange = error {
+                throw ContainerCLIError(exitCode: 1, message: Self.insecureRegistryAuthMessage(host: target.host))
+            }
+            throw error
+        }
 
         do {
             try await Self.keychainSave(hostname: host, username: username, password: password)
@@ -3225,6 +3244,10 @@ final class LiveContainerService: ContainerServiceBase {
                 checkedAt: .now
             ))
         } catch {
+            // Any failure → no badge. Since apple/container 1.3.1 that includes an authenticated
+            // registry reached over plain HTTP (internal host or insecure toggle): RegistryClient
+            // throws `insecureCredentialExchange` rather than send credentials in the clear. The
+            // caller clears every eligible reference before merging, so this can't pin a stale badge.
             return nil
         }
     }
