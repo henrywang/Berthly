@@ -139,9 +139,10 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   init-image fetch, so plain HTTP there needs the "Allow insecure registry"
   toggle. `pull` then `run` the local image for the same result without it.
   Since 1.3.1 (containerization 0.42.0, CVE-2026-65388) `RegistryClient` also
-  refuses to send credentials or a bearer token over a non-HTTPS connection, so
-  the restored `http` detection only carries an *anonymous* internal registry —
-  an authenticated one over plain HTTP fails the credential exchange either way
+  refuses the token exchange whenever an http registry answers with a
+  `WWW-Authenticate` challenge — credentials or not — so the restored `http`
+  detection only carries a registry that never asks for auth; one that does
+  (htpasswd, token) is unreachable over plain HTTP, sign-in included
   (`signInRegistry` maps that to a clear message; #139).
 - **Output formatting** (`--format json|yaml|toml`, `--quiet`, `--cidfile`,
   `--debug`) — scripting conveniences with no GUI meaning.

@@ -2060,12 +2060,13 @@ final class LiveContainerService: ContainerServiceBase {
         return (scheme, urlHost, url.port)
     }
 
-    /// apple/container 1.3.1 (CVE-2026-65388) made `RegistryClient` refuse to exchange credentials
-    /// or a bearer token unless the registry and its token realm are both HTTPS and share a
-    /// registrable domain. Berthly routes `localhost`, the internal DNS domain, and RFC 1918 hosts
-    /// to http (`RegistrySchemeResolver`), and "Allow insecure registry" forces http for any host —
-    /// so signing in to an authenticated registry reached that way now fails. Anonymous HTTP
-    /// registries are unaffected (no credential exchange happens).
+    /// apple/container 1.3.1 (CVE-2026-65388) made `RegistryClient` refuse the token exchange
+    /// whenever an http registry answers with a `WWW-Authenticate` challenge, or the token realm
+    /// isn't HTTPS / isn't in the registry's registrable domain. Berthly routes `localhost`, the
+    /// internal DNS domain, and RFC 1918 hosts to http (`RegistrySchemeResolver`), and "Allow
+    /// insecure registry" forces http for any host — so signing in to a registry that enforces
+    /// auth over one of those http paths now fails here (`client.ping()` throws
+    /// `insecureCredentialExchange` on the challenge). A plain http registry with no auth is fine.
     nonisolated static func insecureRegistryAuthMessage(host: String) -> String {
         "Can't sign in to \(host): apple/container 1.3.1 refuses to send credentials to a registry "
             + "over plain HTTP, or to a token server outside the registry's own domain (CVE-2026-65388). "
