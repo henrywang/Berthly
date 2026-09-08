@@ -13,6 +13,12 @@ import ContainerizationExtras
 /// "Allow insecure registry". This restores the removed rule — localhost, the daemon's internal
 /// DNS domain, and the RFC 1918 / loopback IPv4 ranges resolve to http; everything else to https
 /// — for the paths where Berthly controls a single host.
+///
+/// This only picks a scheme; it does not make plain HTTP fully usable. Since apple/container 1.3.1
+/// (CVE-2026-65388) `RegistryClient` refuses to send credentials or a bearer token over a non-HTTPS
+/// connection, so an *authenticated* registry that resolves to http here (internal host, or the
+/// insecure toggle) fails the credential exchange — `signInRegistry` maps that to a clear message,
+/// and the background update check silently drops the badge. Anonymous HTTP registries are fine.
 enum RegistrySchemeResolver {
 
     /// `isInternalHost` is a verbatim port of the detection apple/container#2100 removed.

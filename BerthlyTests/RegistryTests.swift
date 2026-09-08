@@ -93,6 +93,16 @@ struct RegistryOperationErrorTests {
     }
 }
 
+struct InsecureRegistryAuthMessageTests {
+
+    @Test func namesTheHostAndExplainsTheHTTPSRequirement() {
+        let message = LiveContainerService.insecureRegistryAuthMessage(host: "registry.lan")
+        #expect(message.contains("registry.lan"))
+        #expect(message.contains("HTTPS"))
+        #expect(message.contains("1.3.1"))
+    }
+}
+
 @MainActor
 struct RegistryMockTests {
 
