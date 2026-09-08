@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.3.0** (2026-08-28). When a change closes or
+> Audited against **container CLI 1.3.1** (2026-09-08). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
@@ -138,6 +138,11 @@ Expert or scripting-oriented flags the GUI intentionally leaves to the CLI:
   (`RegistrySchemeResolver`), but run/create pass one scheme that also covers the
   init-image fetch, so plain HTTP there needs the "Allow insecure registry"
   toggle. `pull` then `run` the local image for the same result without it.
+  Since 1.3.1 (containerization 0.42.0, CVE-2026-65388) `RegistryClient` also
+  refuses to send credentials or a bearer token over a non-HTTPS connection, so
+  the restored `http` detection only carries an *anonymous* internal registry —
+  an authenticated one over plain HTTP fails the credential exchange either way
+  (`signInRegistry` maps that to a clear message; #139).
 - **Output formatting** (`--format json|yaml|toml`, `--quiet`, `--cidfile`,
   `--debug`) — scripting conveniences with no GUI meaning.
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
