@@ -196,7 +196,9 @@ extension RegistryJourneyTests {
         // match would be flaky by comparison — this can't pass by accident). ──
         _ = try ContainerCLI.run(["stop", watchtowerRegistryName], timeout: 30)
         openRecreateSheet(app, on: mainRow)
-        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 30),
+        // 60s to match the other no-pull recreate above — the assertion is "succeeds without the
+        // registry", not "succeeds fast"; 30s flaked once when this test ran late in a full suite.
+        XCTAssertTrue(app.buttons["Done"].waitForExistence(timeout: 60),
                       "recreate must succeed with the registry unreachable — proves .localImageNewer needs no network")
         dismissDoneSheet(app)
 
