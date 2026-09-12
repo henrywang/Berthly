@@ -59,7 +59,7 @@ struct BerthlyApp: App {
             // Same major.minor as required (stays `.connected`, nothing blocks) but behind the
             // exact pinned patch — exercises SystemView's non-blocking update affordance, distinct
             // from the hard `.versionMismatch` gate above.
-            mock.installedContainerVersion = "1.2.0"
+            mock.installedContainerVersion = "1.4.0"
         default: break
         }
         if let warning = env["UITEST_STARTUP_WARNING"] {

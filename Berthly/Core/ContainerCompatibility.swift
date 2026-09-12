@@ -14,13 +14,14 @@ import Foundation
 /// which nonisolated callers (e.g. test suites) warn on under Swift 6 checking.
 nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
-    static let requiredVersion = "1.2.2"
+    static let requiredVersion = "1.4.1"
 
     /// One-line, hand-written summary of what `requiredVersion` adds — shown on the
     /// version-mismatch gate so an upgrade prompt isn't just two bare version numbers. Update
     /// this by hand alongside `requiredVersion` bumps; it's not generated from upstream's
     /// changelog.
-    static let requiredVersionRationale = "Adds kernel boot-arg support and kernel archive integrity checks."
+    static let requiredVersionRationale =
+        "Fixes an OCI-load symlink security issue (GHSA-4587-w9mm-xxvh) and adds a container clean command."
 
     /// How an incompatible install relates to the required version. `tooOld` is fixable in place
     /// with the upstream update script; `tooNew` (newer major) is not — downgrading requires a
@@ -61,8 +62,8 @@ nonisolated enum ContainerCompatibility {
     }
 
     /// Same major.minor as `requiredVersion` (so `mismatch` sees it as fully compatible and
-    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.2.0 against a
-    /// Berthly pinned to `requiredVersion` 1.2.2. `mismatch` deliberately ignores patch, so this
+    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.4.0 against a
+    /// Berthly pinned to `requiredVersion` 1.4.1. `mismatch` deliberately ignores patch, so this
     /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`, e.g.
     /// running-container export added in 1.2.1) can sit unreachable with no signal why. Drives
     /// the System page's non-blocking "Update available" affordance, distinct from the hard
