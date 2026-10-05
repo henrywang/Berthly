@@ -26,21 +26,36 @@ private func openOrFocusMainWindow(bridge: MenuBarBridge, openWindow: OpenWindow
 
 /// Captures the hosting `NSWindow` of whatever it's attached to, with no visible footprint —
 /// SwiftUI has no direct API for "give me my own window," so this is the standard workaround.
-/// Resolves in both `makeNSView` and `updateNSView`: `makeNSView` often runs during an off-window
-/// sizing/measurement pass (`view.window` is still nil then), so a single attempt in `makeNSView`
-/// alone misses it — `updateNSView` fires on every subsequent SwiftUI update, giving repeated
-/// chances to catch the window once the view is actually attached.
+/// Reports from `viewDidMoveToWindow`, the moment AppKit actually attaches the view. Polling
+/// `view.window` from `makeNSView`/`updateNSView` raced instead: on macOS 27 the window was still
+/// nil when that lookup ran (~30 ms after mount, roughly 1 mount in 8), and a static popover
+/// triggers no later `updateNSView` to retry. `bridge.menuBarPopoverWindow` then stayed nil and
+/// `close()` silently did nothing, leaving the popover open after "Open Berthly"/"Run…".
 private struct WindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow?) -> Void
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async { onResolve(view.window) }
+    func makeNSView(context: Context) -> WindowReportingView {
+        let view = WindowReportingView()
+        view.onWindowChange = onResolve
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { onResolve(nsView.window) }
+    func updateNSView(_ nsView: WindowReportingView, context: Context) {
+        nsView.onWindowChange = onResolve
+    }
+
+    final class WindowReportingView: NSView {
+        var onWindowChange: ((NSWindow?) -> Void)?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            // Deferred so the callback never mutates observable state mid-layout. `window` is read
+            // when it runs, so a detach that happens in between is still reported.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                onWindowChange?(window)
+            }
+        }
     }
 }
 
