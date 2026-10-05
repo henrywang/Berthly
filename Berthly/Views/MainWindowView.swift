@@ -15,6 +15,61 @@ private struct BuildSheetRequest: Identifiable {
     var existingJob: BuildJob?
 }
 
+/// Escape-to-close-detail/command-palette, driven by a raw `NSEvent` local monitor rather than
+/// SwiftUI's `.keyboardShortcut(.cancelAction)` on a hidden `Button`. On macOS 27, that SwiftUI
+/// key-equivalent path stopped firing for this specific shape — an invisible `Button` inside
+/// `.background`/`.overlay` of the top-level `NavigationSplitView`, with an active `List` row
+/// selection — even though the OS delivers the same raw keyDown event to the app completely
+/// normally (confirmed with a diagnostic monitor; see issue #157). AppKit-level key monitoring
+/// sidesteps SwiftUI's focus/key-equivalent machinery entirely, so it isn't affected by whatever
+/// changed there this cycle.
+///
+/// Scoped to this window specifically (`event.window === window`) so a presented sheet — a
+/// separate key window — keeps owning its own Escape/Cancel handling untouched, matching the
+/// previous mechanism's documented invariant. `isActive` re-checked on every keyDown (not
+/// captured once) so Esc still reaches the search field's own clear/cancel behavior whenever
+/// neither the palette nor a detail pane is showing.
+private struct EscapeKeyMonitor: NSViewRepresentable {
+    let isActive: () -> Bool
+    let onEscape: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        context.coordinator.install(for: view, isActive: isActive, onEscape: onEscape)
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    static func dismantleNSView(_ nsView: NSView, coordinator: Coordinator) {
+        coordinator.remove()
+    }
+
+    final class Coordinator {
+        private var monitor: Any?
+
+        func install(for view: NSView, isActive: @escaping () -> Bool, onEscape: @escaping () -> Void) {
+            guard monitor == nil else { return }
+            DispatchQueue.main.async { [weak self, weak view] in
+                self?.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak view] event in
+                    guard event.keyCode == 53, let window = view?.window, event.window === window, isActive() else {
+                        return event
+                    }
+                    onEscape()
+                    return nil
+                }
+            }
+        }
+
+        func remove() {
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+        }
+    }
+}
+
 struct MainWindowView: View {
     @Environment(ContainerServiceBase.self) private var service
     @Environment(MenuBarBridge.self) private var bridge
@@ -181,30 +236,21 @@ struct MainWindowView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: dropRejectionMessage)
         // ⎋ backs out one level: close the palette if it's up, else collapse the detail pane by
-        // clearing the selection. A hidden key-equivalent button, not `.onExitCommand` — key
-        // equivalents resolve window-wide regardless of focus, while cancelOperation only reaches
-        // an onExitCommand when a SwiftUI-focusable descendant currently has focus (it doesn't
-        // after a palette action or a plain row click, verified empirically). Mounted only while
-        // there's something to back out of, so Esc still reaches the search field's own
-        // clear/cancel behavior the rest of the time. Sheets are separate key windows, so their
-        // Cancel buttons keep owning Esc while presented.
-        .background {
-            if showCommandPalette || detailVisible {
-                Button("") {
-                    if showCommandPalette {
-                        showCommandPalette = false
-                    } else {
-                        selectedCompute = nil
-                        selectedImageID = nil
-                        selectedVolumeID = nil
-                        selectedNetworkID = nil
-                    }
+        // clearing the selection. See `EscapeKeyMonitor`'s doc comment for why this is a raw
+        // `NSEvent` monitor rather than SwiftUI's `.keyboardShortcut`/`.onExitCommand`.
+        .background(EscapeKeyMonitor(
+            isActive: { showCommandPalette || detailVisible },
+            onEscape: {
+                if showCommandPalette {
+                    showCommandPalette = false
+                } else {
+                    selectedCompute = nil
+                    selectedImageID = nil
+                    selectedVolumeID = nil
+                    selectedNetworkID = nil
                 }
-                .keyboardShortcut(.cancelAction)
-                .opacity(0)
-                .accessibilityHidden(true)
             }
-        }
+        ))
         .toolbar { toolbarContent }
         .sheet(isPresented: $showPullSheet) {
             PullImageSheet {
