@@ -17,6 +17,7 @@ struct BerthlyApp: App {
 
     init() {
         StatusButtonImageDedupe.install()
+        SheetTerminationPolicy.install()
         if Self.disableAnimations {
             // SwiftUI transactions are handled per-scene below; these AppKit-level defaults
             // cover what transactions can't reach — window/sheet present-dismiss slides and
