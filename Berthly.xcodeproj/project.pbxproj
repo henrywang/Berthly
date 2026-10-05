@@ -750,8 +750,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.13.0;
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.18.0;
 			};
 		};
 		B4C0FEED0000000000000001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
@@ -759,7 +759,7 @@
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
 			requirement = {
 				kind = upToNextMajorVersion;
-				minimumVersion = 2.6.0;
+				minimumVersion = 2.10.0;
 			};
 		};
 		E0985E3E9E9C1B6D951C3E45 /* XCRemoteSwiftPackageReference "swift-nio" */ = {
