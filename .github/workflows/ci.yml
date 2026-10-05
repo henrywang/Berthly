@@ -62,7 +62,7 @@ jobs:
           # assertions).
           - name: Unit tests
             runner: macos-26
-            xcode: 26
+            xcode-glob: /Applications/Xcode_26*.app
             only-testing: BerthlyTests
             coverage: true
           # Advisory: mock-mode UI tests (UITEST_USE_MOCK_SERVICE) run fine
@@ -73,7 +73,7 @@ jobs:
           # required checks until it proves stable, then promote it.
           - name: UI tests (mock mode)
             runner: macos-26
-            xcode: 26
+            xcode-glob: /Applications/Xcode_26*.app
             only-testing: BerthlyUITests
           # Advisory: both suites again on macOS 27, so `if #available(macOS 27, *)`
           # branches run somewhere; the macos-26 legs can only take the fallback
@@ -84,20 +84,22 @@ jobs:
           # to gates once the image has a green track record.
           - name: Unit tests (macOS 27, advisory)
             runner: xcode-27
-            xcode: 27
+            xcode-glob: /Applications/Xcode_27.app
             only-testing: BerthlyTests
           - name: UI tests (macOS 27, advisory)
             runner: xcode-27
-            xcode: 27
+            xcode-glob: /Applications/Xcode_27.app
             only-testing: BerthlyUITests
     steps:
       # Pinned to a full commit SHA so a moved tag can't silently change what runs.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
-      # Excluding betas keeps every leg on a shipping Xcode: the xcode-27 image
-      # carries Xcode_27.app next to Xcode_27.x_beta.app.
-      - name: Select latest stable Xcode ${{ matrix.xcode }}
-        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_${{ matrix.xcode }}*.app | grep -v beta | sort -V | tail -n 1)"
+      # The xcode-27 image carries the stable Xcode_27.app plus beta apps AND
+      # version-named symlinks to them (Xcode_27.2.app -> the 27.2 beta), so a
+      # version glob or a `beta` name filter silently lands on a beta. The 27
+      # legs therefore pin the stable app; the macos-26 image has no betas.
+      - name: Select Xcode
+        run: sudo xcode-select -s "$(ls -d ${{ matrix.xcode-glob }} | sort -V | tail -n 1)"
 
       - name: Show toolchain versions
         run: |
