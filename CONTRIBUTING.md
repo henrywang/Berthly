@@ -48,9 +48,9 @@ xcodebuild test -project Berthly.xcodeproj -scheme Berthly -destination 'platfor
 ```
 
 or ⌘U in Xcode. CI runs the unit tests (`BerthlyTests`) as the required
-check on every pull request, plus the mock-mode UI tests as an advisory job;
-tests that need the real container daemon skip themselves on CI, so run
-those locally.
+check on every pull request. The mock-mode UI tests, and both suites again on
+macOS 27, run as advisory jobs; tests that need the real container daemon
+skip themselves on CI, so run those locally.
 
 ### The rules
 
@@ -96,10 +96,10 @@ mock mode when the test's whole point is real daemon integration.
 
 ## For maintainers: reviewing PRs
 
-CI runs the unit tests (required) and the mock-mode UI tests (advisory), but
-it **cannot run the real-daemon integration tests** — hosted runners have no
-nested virtualization, so those tests `XCTSkip` themselves on CI. Review is
-therefore risk-based:
+CI runs the unit tests (required) and the mock-mode UI tests (advisory), plus
+both suites on macOS 27 (advisory), but it **cannot run the real-daemon
+integration tests** — hosted runners have no nested virtualization, so those
+tests `XCTSkip` themselves on CI. Review is therefore risk-based:
 
 **A green CI is enough when** the PR only touches `Views/`, docs, or `Core/`
 logic that ships with its own unit test. The required **Unit tests** check
