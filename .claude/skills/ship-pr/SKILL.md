@@ -45,7 +45,7 @@ conventional-commit prefix (`feat:`/`fix:`/`chore:`/`docs:`), no
 ## 2. Watch CI
 
 `gh pr checks <number> --watch` blocks until all checks finish. This
-project's `ci.yml` has four jobs to know apart:
+project's `ci.yml` has these checks to know apart:
 
 - **ShellCheck**, **SwiftLint**, and the **"Unit tests"** leg of the `test`
   matrix are the real gate — `ci.yml` calls "Unit tests" the merge gate in
@@ -54,6 +54,13 @@ project's `ci.yml` has four jobs to know apart:
   is known-flaky on timing/focus (per `ci.yml`'s comment and this repo's
   `ui-testing` skill's deflaking lore). A single red run here isn't proof
   of a real bug.
+- **The two "(macOS 27, advisory)" legs** of the `test` matrix run both
+  suites on the public-preview `xcode-27` runner image. Advisory because the
+  image is unproven, not because macOS 27 matters less. A failure in runner
+  provisioning, the Xcode path, or the Metal toolchain is image drift, not a
+  Berthly regression. A *test* that fails here but passes on `macos-26` is a
+  real macOS 27 finding — don't wave it off as preview noise. Retry once like
+  the macOS 26 UI leg, then treat a repeat as real.
 
 Branch protection is **not actually configured** on this repo (confirmed:
 `gh api repos/<owner>/<repo>/branches/main/protection` 404s) despite the
