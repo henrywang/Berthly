@@ -318,10 +318,7 @@ struct MainWindowView: View {
         }
         .onChange(of: bridge.commandPaletteToken) { _, _ in presentPaletteIfRequested() }
         // Palette "Delete" confirmation — the palette never deletes directly.
-        .alert("Delete \(pendingDeleteName)?", isPresented: Binding(
-            get: { pendingDelete != nil },
-            set: { if !$0 { pendingDelete = nil } }
-        ), presenting: pendingDelete) { item in
+        .alert("Delete \(pendingDeleteName)?", isPresented: $pendingDelete.isPresent(), presenting: pendingDelete) { item in
             Button("Delete", role: .destructive) { performPendingDelete(item) }
             Button("Cancel", role: .cancel) {}
         } message: { _ in

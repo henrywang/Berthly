@@ -104,14 +104,7 @@ private struct GeneralSettingsTab: View {
             }
         }
         .formStyle(.grouped)
-        .alert("Couldn't Change Login Item", isPresented: Binding(
-            get: { errorMessage != nil },
-            set: { if !$0 { errorMessage = nil } }
-        )) {
-            Button("OK") { errorMessage = nil }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .errorAlert($errorMessage, title: "Couldn't Change Login Item")
     }
 
     private func removeInsecureHost(_ host: String) {

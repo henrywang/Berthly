@@ -96,10 +96,7 @@ struct VolumesListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Volumes")
-        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
-            get: { deleteTargetID != nil },
-            set: { if !$0 { deleteTargetID = nil } }
-        )) {
+        .confirmationDialog(deleteConfirmTitle, isPresented: $deleteTargetID.isPresent()) {
             Button("Delete", role: .destructive) { performDelete() }
             Button("Cancel", role: .cancel) { deleteTargetID = nil }
         } message: {
