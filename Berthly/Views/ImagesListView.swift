@@ -154,18 +154,12 @@ struct ImagesListView: View {
         } message: {
             Text("Deletes every image not used by a container or machine, freeing about \(formatSize(diskUsage.reclaimableBytes)). Machine and builder images are never removed.")
         }
-        .alert("Done", isPresented: Binding(
-            get: { pruneResult != nil },
-            set: { if !$0 { pruneResult = nil } }
-        )) {
+        .alert("Done", isPresented: $pruneResult.isPresent()) {
             Button("OK") { pruneResult = nil }
         } message: {
             Text(pruneResult?.summaryText ?? "")
         }
-        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
-            get: { deleteTargetID != nil },
-            set: { if !$0 { deleteTargetID = nil } }
-        )) {
+        .confirmationDialog(deleteConfirmTitle, isPresented: $deleteTargetID.isPresent()) {
             Button("Delete", role: .destructive) { performDelete() }
             Button("Cancel", role: .cancel) { deleteTargetID = nil }
         } message: {

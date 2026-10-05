@@ -124,10 +124,7 @@ struct ComputeListView: View {
         .searchable(text: $filterText, isPresented: $isSearchPresented, prompt: "Filter by name or image")
         .onChange(of: bridge.searchFocusToken) { _, _ in isSearchPresented = true }
         .navigationTitle("Compute")
-        .confirmationDialog(deleteConfirmTitle, isPresented: Binding(
-            get: { deleteTarget != nil },
-            set: { if !$0 { deleteTarget = nil } }
-        )) {
+        .confirmationDialog(deleteConfirmTitle, isPresented: $deleteTarget.isPresent()) {
             Button("Delete", role: .destructive) { performDelete() }
             Button("Cancel", role: .cancel) { deleteTarget = nil }
         } message: {

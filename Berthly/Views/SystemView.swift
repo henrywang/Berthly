@@ -315,10 +315,7 @@ private struct DiskUsageSection: View {
                 here — use the Volumes row's own Prune if you're sure you don't need their data.
                 """)
         }
-        .alert("Done", isPresented: Binding(
-            get: { allResult != nil },
-            set: { if !$0 { allResult = nil } }
-        )) {
+        .alert("Done", isPresented: $allResult.isPresent()) {
             Button("OK") { allResult = nil }
         } message: {
             Text(allResult?.summaryText ?? "")
@@ -406,10 +403,7 @@ private struct DiskUsageGridRow: View {
         } message: {
             Text(cleanup?.confirmMessage ?? "")
         }
-        .alert("Done", isPresented: Binding(
-            get: { result != nil },
-            set: { if !$0 { result = nil } }
-        )) {
+        .alert("Done", isPresented: $result.isPresent()) {
             Button("OK") { result = nil }
         } message: {
             Text(result?.summaryText ?? "")
