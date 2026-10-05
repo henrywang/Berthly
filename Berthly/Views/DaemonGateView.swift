@@ -44,7 +44,9 @@ final class DaemonOperationCoordinator {
         NSApp.activate(ignoringOtherApps: true)
         self.message = message
         logs = []
-        task = Task {
+        // The task owns the coordinator until it ends; `task = nil` below breaks that cycle. Only the
+        // log callback is weak, so a late call can't keep the coordinator alive.
+        task = Task { [self] in
             do {
                 try await work(service) { [weak self] line in
                     self?.logs.append(line)

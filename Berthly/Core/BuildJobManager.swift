@@ -109,7 +109,10 @@ final class BuildJobManager {
     func start(options: BuildOptions, service: ContainerServiceBase) -> BuildJob {
         let job = BuildJob(reference: options.reference)
         jobs.insert(job, at: 0)
-        job.task = Task { [weak self] in
+        // The task owns `job` until it ends, even after `cancel(_:)` drops it from the list; the
+        // `job.task = nil` below breaks that cycle. Only the log callback is weak, so a late call
+        // can't keep the job alive.
+        job.task = Task { [weak self, job] in
             do {
                 try await service.buildImage(options: options) { [weak job] line in
                     job?.appendLog(line)
