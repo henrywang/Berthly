@@ -580,13 +580,20 @@ struct MainWindowView: View {
 
     // MARK: - Toolbar
 
+    // Run keeps priority so a narrowing window collapses Build/Pull/+ into overflow first. Its own
+    // item (not part of the group below) because `visibilityPriority` applies per toolbar item.
+    // macOS 26.1+ API; on 26.0 the toolbar keeps its default collapse order.
     @ToolbarContentBuilder
-    private var toolbarContent: some ToolbarContent {
-        // `.titleAndIcon` on the primary actions: macOS toolbars render Labels icon-only by
-        // default, which left two ambiguities — Run's play.fill collides with every row's
-        // "start this container" button, and the contextual + changes meaning per section. Text
-        // resolves both (Finder/Mail label their primary toolbar actions the same way).
-        ToolbarItemGroup(placement: .primaryAction) {
+    private var runToolbarItem: some ToolbarContent {
+        if #available(macOS 26.1, *) {
+            runItem.visibilityPriority(.high)
+        } else {
+            runItem
+        }
+    }
+
+    private var runItem: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
             Button {
                 showRunMenu = true
             } label: {
@@ -618,7 +625,18 @@ struct MainWindowView: View {
                     )
                 }
             )
+        }
+    }
 
+    @ToolbarContentBuilder
+    private var toolbarContent: some ToolbarContent {
+        // `.titleAndIcon` on the primary actions: macOS toolbars render Labels icon-only by
+        // default, which left two ambiguities — Run's play.fill collides with every row's
+        // "start this container" button, and the contextual + changes meaning per section. Text
+        // resolves both (Finder/Mail label their primary toolbar actions the same way).
+        runToolbarItem
+
+        ToolbarItemGroup(placement: .primaryAction) {
             if showsBuildAndPullActions {
                 Button {
                     buildSheetRequest = BuildSheetRequest()
