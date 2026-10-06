@@ -49,6 +49,7 @@ struct TypeStatusGlyph: View {
     /// (error) or paused row lives under STOPPED too, and its red triangle / amber bars are
     /// exactly what the eye must still catch through the recession.
     var dimmed: Bool = false
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
         Image(systemName: typeSystemImage)
@@ -60,6 +61,7 @@ struct TypeStatusGlyph: View {
                 StatusShapeBadge(status: status, size: badgeSize, chipped: false)
                     .offset(x: badgeSize * 0.55, y: badgeSize * 0.35)
             }
+            .opacity(appearsActive ? 1 : 0.5)
             .accessibilityElement()
             .accessibilityLabel("\(typeLabel), \(status.label)")
     }
