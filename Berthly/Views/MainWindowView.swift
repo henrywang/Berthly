@@ -582,14 +582,20 @@ struct MainWindowView: View {
 
     // Run keeps priority so a narrowing window collapses Build/Pull/+ into overflow first. Its own
     // item (not part of the group below) because `visibilityPriority` applies per toolbar item.
-    // macOS 26.1+ API; on 26.0 the toolbar keeps its default collapse order.
+    // `visibilityPriority` exists only in the Xcode 27 SDK (Swift 6.4), though it back-deploys to
+    // macOS 26.1: `#available` alone fails to compile on the Xcode 26 CI gate. Without it (older
+    // toolchain, or macOS 26.0) the toolbar keeps its default collapse order.
     @ToolbarContentBuilder
     private var runToolbarItem: some ToolbarContent {
+        #if compiler(>=6.4)
         if #available(macOS 26.1, *) {
             runItem.visibilityPriority(.high)
         } else {
             runItem
         }
+        #else
+        runItem
+        #endif
     }
 
     private var runItem: some ToolbarContent {
