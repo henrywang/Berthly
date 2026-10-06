@@ -912,6 +912,9 @@
     "New VMs pick up the kernel · running containers are unaffected." : {
 
     },
+    "Newer than Berthly supports" : {
+
+    },
     "No builder found. Create one with `container builder create`." : {
 
     },
@@ -1578,10 +1581,16 @@
     "Unused" : {
 
     },
+    "Up to date" : {
+
+    },
     "update" : {
 
     },
     "Update" : {
+
+    },
+    "Update available" : {
 
     },
     "Update available — pull and recreate to apply it" : {
