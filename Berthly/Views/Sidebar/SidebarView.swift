@@ -79,6 +79,7 @@ private struct SidebarRow: View {
     /// Used to mark a badge that means "currently running" rather than "total".
     var badgeTint: Color?
     var indent: Bool = false
+    @Environment(\.appearsActive) private var appearsActive
 
     var body: some View {
         Label(label, systemImage: icon)
@@ -92,7 +93,7 @@ private struct SidebarRow: View {
         if let badgeText { return Text(badgeText) }
         if let badge, badge > 0 {
             let text = Text("\(badge)")
-            return badgeTint.map { text.foregroundColor($0) } ?? text
+            return badgeTint.map { text.foregroundColor(appearsActive ? $0 : $0.opacity(0.5)) } ?? text
         }
         return nil
     }
