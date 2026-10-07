@@ -127,7 +127,7 @@ final class LogStreamJourneyTests: BerthlyE2ETestCase {
 
         // Segmented tab picker: "Logs" surfaces as a radioButton by label, same as the
         // "Terminal" tab elsewhere in this suite (runInTerminal).
-        let logsTab = app.radioButtons["Logs"]
+        let logsTab = app.detailTab("Logs")
         XCTAssertTrue(logsTab.waitForExistence(timeout: 10))
         logsTab.click()
 

@@ -15,6 +15,15 @@ extension XCUIApplication {
         return app
     }
 
+    /// The Overview/Logs/Terminal switcher is a segmented control (`radioButton`s) before macOS 27
+    /// and a real tab group (`tab`s) from 27 on, so query both roles by label.
+    func detailTab(_ name: String) -> XCUIElement {
+        let roles = NSPredicate(
+            format: "(elementType == %d OR elementType == %d) AND label == %@",
+            XCUIElement.ElementType.radioButton.rawValue, XCUIElement.ElementType.tab.rawValue, name)
+        return descendants(matching: .any).matching(roles).firstMatch
+    }
+
     static func terminateRunningBerthly() {
         let killer = Process()
         killer.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
@@ -417,10 +426,10 @@ final class BerthlyUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["palette.container.select.3f9a2b7c1d"].waitForExistence(timeout: 5))
         app.typeKey(.return, modifierFlags: [])
 
-        // The detail pane opened: its Overview/Logs/Terminal tab picker (radioButtons) is present,
+        // The detail pane opened: its Overview/Logs/Terminal tab picker is present,
         // which only renders when a compute item is selected. This fails without the defer fix.
-        XCTAssertTrue(app.radioButtons["Terminal"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.radioButtons["Overview"].exists)
+        XCTAssertTrue(app.detailTab("Terminal").waitForExistence(timeout: 5))
+        XCTAssertTrue(app.detailTab("Overview").exists)
     }
 
     /// Regression: palette "Open Shell in X" from a non-detail section must open X's detail *and*
@@ -447,7 +456,7 @@ final class BerthlyUITests: XCTestCase {
         // Detail opened on Terminal, not the default Overview. The segmented picker exposes
         // selection via its `value` (1 = selected), and the tab switch happens on the detail's
         // onAppear — so wait for value == 1 rather than reading it once (avoids a mount race).
-        let terminal = app.radioButtons["Terminal"]
+        let terminal = app.detailTab("Terminal")
         XCTAssertTrue(terminal.waitForExistence(timeout: 5))
         expectation(for: NSPredicate(format: "value == 1"), evaluatedWith: terminal)
         waitForExpectations(timeout: 5)
@@ -1006,7 +1015,7 @@ final class BerthlyUITests: XCTestCase {
         containerRow.click()
 
         // The detail tabs are a segmented Picker; its segments surface as radio buttons.
-        let terminalTab = app.radioButtons["Terminal"]
+        let terminalTab = app.detailTab("Terminal")
         XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
         terminalTab.click()
 
@@ -1084,8 +1093,8 @@ final class BerthlyUITests: XCTestCase {
         containerRow.click()
 
         // The detail tabs are a segmented Picker; its segments surface as radio buttons.
-        let terminalTab = app.radioButtons["Terminal"]
-        let overviewTab = app.radioButtons["Overview"]
+        let terminalTab = app.detailTab("Terminal")
+        let overviewTab = app.detailTab("Overview")
         XCTAssertTrue(terminalTab.waitForExistence(timeout: 5))
 
         let options = XCTMeasureOptions()
