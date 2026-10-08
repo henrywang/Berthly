@@ -23,6 +23,15 @@ extension XCUIApplication {
         return app
     }
 
+    /// Segmented control (`radioButton`s) before macOS 27, tab group (`tab`s) from 27 on; same
+    /// helper as BerthlyUITests, duplicated because the targets share no code.
+    func detailTab(_ name: String) -> XCUIElement {
+        let roles = NSPredicate(
+            format: "(elementType == %d OR elementType == %d) AND label == %@",
+            XCUIElement.ElementType.radioButton.rawValue, XCUIElement.ElementType.tab.rawValue, name)
+        return descendants(matching: .any).matching(roles).firstMatch
+    }
+
     /// Opens a sheet/page through the ⌘K command palette by its title (e.g. "Create Volume").
     /// Uniform, unambiguous entry point — avoids per-sheet toolbar/popover wiring. Returns
     /// false (via the caller's assert) if the palette or field never appears.
@@ -382,7 +391,7 @@ class BerthlyE2ETestCase: XCTestCase {
     @MainActor
     func runInTerminal(_ app: XCUIApplication, container: String, command: String,
                        awaitFile file: String, timeout: TimeInterval = 30) -> Bool {
-        let terminalTab = app.radioButtons["Terminal"]
+        let terminalTab = app.detailTab("Terminal")
         guard terminalTab.waitForExistence(timeout: 10) else { return false }
         terminalTab.click()
         let deadline = Date(timeIntervalSinceNow: timeout)

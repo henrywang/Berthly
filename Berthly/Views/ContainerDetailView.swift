@@ -446,24 +446,39 @@ struct DefaultChip: View {
 
 // MARK: - Detail Tab Picker
 
-/// Segmented switcher for the detail panes (Overview/Logs/Terminal), shared by the container
-/// and machine detail views. A native segmented control rather than a custom underline tab
-/// strip — keyboard focus, VoiceOver, and appearance come for free.
+/// Tab switcher for the detail panes (Overview/Logs/Terminal), shared by the container
+/// and machine detail views. A native picker (tabs on macOS 27, segmented before) rather than
+/// a custom underline tab strip — keyboard focus, VoiceOver, and appearance come for free.
 struct DetailTabPicker<Tab: Hashable & RawRepresentable & CaseIterable>: View
     where Tab.RawValue == String, Tab.AllCases: RandomAccessCollection {
     @Binding var selection: Tab
 
     var body: some View {
-        Picker("View", selection: $selection) {
+        styledPicker
+            .labelsHidden()
+            .fixedSize()
+            .padding(.horizontal, 24)
+            .padding(.vertical, 8)
+    }
+
+    // `.tabs` (macOS 27) exists only in the Xcode 27 SDK, so `#available` alone would not compile
+    // on the Xcode 26 gate; older toolchains and macOS 26 keep the segmented control.
+    @ViewBuilder
+    private var styledPicker: some View {
+        let picker = Picker("View", selection: $selection) {
             ForEach(Array(Tab.allCases), id: \.self) { t in
                 Text(t.rawValue)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
-        .padding(.horizontal, 24)
-        .padding(.vertical, 8)
+        #if compiler(>=6.4)
+        if #available(macOS 27, *) {
+            picker.pickerStyle(.tabs)
+        } else {
+            picker.pickerStyle(.segmented)
+        }
+        #else
+        picker.pickerStyle(.segmented)
+        #endif
     }
 }
 

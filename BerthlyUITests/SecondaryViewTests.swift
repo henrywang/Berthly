@@ -117,7 +117,7 @@ final class SecondaryViewTests: XCTestCase {
         XCTAssertTrue(machineRow.waitForExistence(timeout: 10))
         machineRow.click()
 
-        let logsTab = app.radioButtons["Logs"]
+        let logsTab = app.detailTab("Logs")
         XCTAssertTrue(logsTab.waitForExistence(timeout: 5))
         logsTab.click()
 
