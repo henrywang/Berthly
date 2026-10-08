@@ -23,6 +23,8 @@ class ContainerServiceBase {
     var buildContexts: [String: BuildContext] = [:]
     var pinnedContainerIDs: Set<String> = []
     var pinnedMachineIDs: Set<String> = []
+    var pinnedContainerOrder: [String] = []
+    var pinnedMachineOrder: [String] = []
 
     /// Remote digest-check results, keyed by `ContainerImage.id`. Lives here (not on the model)
     /// so badge views observe the dictionary through `@Environment` and re-render on check
@@ -70,16 +72,30 @@ class ContainerServiceBase {
     func togglePinContainer(_ id: String) {
         if !pinnedContainerIDs.insert(id).inserted {
             pinnedContainerIDs.remove(id)
+            pinnedContainerOrder.removeAll { $0 == id }
         } else {
+            pinnedContainerOrder.append(id)
             AppNotifier.shared.prepare()
         }
     }
     func togglePinMachine(_ id: String) {
         if !pinnedMachineIDs.insert(id).inserted {
             pinnedMachineIDs.remove(id)
+            pinnedMachineOrder.removeAll { $0 == id }
         } else {
+            pinnedMachineOrder.append(id)
             AppNotifier.shared.prepare()
         }
+    }
+
+    /// `visible` is the current on-screen order of the pinned list being reordered.
+    func movePinnedContainers(visible: [String], sources: [String], before target: String?) {
+        pinnedContainerOrder = PinOrder.moved(
+            visible: visible, sources: sources, before: target, remembered: pinnedContainerOrder)
+    }
+    func movePinnedMachines(visible: [String], sources: [String], before target: String?) {
+        pinnedMachineOrder = PinOrder.moved(
+            visible: visible, sources: sources, before: target, remembered: pinnedMachineOrder)
     }
     func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {}
     @discardableResult
@@ -267,6 +283,10 @@ class ContainerServiceBase {
     var errorContainerCount: Int { containers.filter { $0.status == .error }.count }
     var errorMachineCount: Int { machines.filter { $0.status == .error && !$0.isUtility }.count }
 
-    var pinnedContainers: [Container] { containers.filter { pinnedContainerIDs.contains($0.id) } }
-    var pinnedMachines: [Machine] { machines.filter { pinnedMachineIDs.contains($0.id) && !$0.isUtility } }
+    var pinnedContainers: [Container] {
+        PinOrder.sorted(containers.filter { pinnedContainerIDs.contains($0.id) }, by: pinnedContainerOrder)
+    }
+    var pinnedMachines: [Machine] {
+        PinOrder.sorted(machines.filter { pinnedMachineIDs.contains($0.id) && !$0.isUtility }, by: pinnedMachineOrder)
+    }
 }

@@ -148,6 +148,7 @@ final class MockContainerService: ContainerServiceBase {
     override func deleteContainer(_ id: String) async throws {
         containers.removeAll { $0.id == id }
         pinnedContainerIDs.remove(id)
+        pinnedContainerOrder.removeAll { $0 == id }
     }
 
     override func checkForImageUpdates(force: Bool = false) async {
@@ -304,6 +305,7 @@ final class MockContainerService: ContainerServiceBase {
     override func deleteMachine(_ id: String) async throws {
         machines.removeAll { $0.id == id }
         pinnedMachineIDs.remove(id)
+        pinnedMachineOrder.removeAll { $0 == id }
     }
 
     override func startBuilder(_ id: String) async throws {

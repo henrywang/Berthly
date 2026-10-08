@@ -686,6 +686,9 @@ struct ImageInspectData {
 nonisolated struct PinnedItems: Codable {
     var containers: Set<String>
     var machines: Set<String>
+    // Optional so files written before reordering existed still decode.
+    var containerOrder: [String]?
+    var machineOrder: [String]?
 }
 
 // MARK: - Build

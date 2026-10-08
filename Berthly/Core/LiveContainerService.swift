@@ -142,10 +142,14 @@ final class LiveContainerService: ContainerServiceBase {
               let items = try? JSONDecoder().decode(PinnedItems.self, from: data) else { return }
         pinnedContainerIDs = items.containers
         pinnedMachineIDs = items.machines
+        pinnedContainerOrder = items.containerOrder ?? []
+        pinnedMachineOrder = items.machineOrder ?? []
     }
 
     private func savePinnedItems() {
-        let items = PinnedItems(containers: pinnedContainerIDs, machines: pinnedMachineIDs)
+        let items = PinnedItems(
+            containers: pinnedContainerIDs, machines: pinnedMachineIDs,
+            containerOrder: pinnedContainerOrder, machineOrder: pinnedMachineOrder)
         guard let data = try? JSONEncoder().encode(items) else { return }
         try? Self.writePrivateData(data, to: Self.pinnedItemsURL)
     }
@@ -199,6 +203,16 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func togglePinMachine(_ id: String) {
         super.togglePinMachine(id)
+        savePinnedItems()
+    }
+
+    override func movePinnedContainers(visible: [String], sources: [String], before target: String?) {
+        super.movePinnedContainers(visible: visible, sources: sources, before: target)
+        savePinnedItems()
+    }
+
+    override func movePinnedMachines(visible: [String], sources: [String], before target: String?) {
+        super.movePinnedMachines(visible: visible, sources: sources, before: target)
         savePinnedItems()
     }
 
@@ -1370,7 +1384,10 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func deleteContainer(_ id: String) async throws {
         try await ContainerClient().delete(id: id)
-        if pinnedContainerIDs.remove(id) != nil { savePinnedItems() }
+        if pinnedContainerIDs.remove(id) != nil {
+            pinnedContainerOrder.removeAll { $0 == id }
+            savePinnedItems()
+        }
         await refresh()
     }
 
@@ -1432,7 +1449,10 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func deleteMachine(_ id: String) async throws {
         try await MachineClient().delete(id: id)
-        if pinnedMachineIDs.remove(id) != nil { savePinnedItems() }
+        if pinnedMachineIDs.remove(id) != nil {
+            pinnedMachineOrder.removeAll { $0 == id }
+            savePinnedItems()
+        }
         await refresh()
     }
 

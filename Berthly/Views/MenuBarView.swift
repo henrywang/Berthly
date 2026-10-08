@@ -110,12 +110,8 @@ struct MenuBarView: View {
                         // stay small, so truncating them would defeat the point.
                         if !pinnedContainers.isEmpty || !pinnedMachines.isEmpty {
                             MenuBarSectionHeader("PINNED")
-                            ForEach(pinnedContainers) { container in
-                                MenuBarContainerRow(container: container)
-                            }
-                            ForEach(pinnedMachines) { machine in
-                                MenuBarMachineRow(machine: machine)
-                            }
+                            pinnedContainerRows(pinnedContainers)
+                            pinnedMachineRows(pinnedMachines)
                         }
                         if !visibleContainers.isEmpty || !visibleMachines.isEmpty {
                             MenuBarSectionHeader("RUNNING")
@@ -170,6 +166,53 @@ struct MenuBarView: View {
         }
         .frame(width: 300)
         .background(WindowAccessor { bridge.menuBarPopoverWindow = $0 })
+    }
+
+    // MARK: - Pinned rows
+
+    // Drag-to-reorder is macOS 27 SDK API (Xcode 27 / Swift 6.4), so `#available` alone would not
+    // compile on the Xcode 26 gate. Without it pins keep their saved order but cannot be dragged.
+    // Containers and machines reorder within their own group, not across.
+    @ViewBuilder
+    private func pinnedContainerRows(_ pinned: [Container]) -> some View {
+        #if compiler(>=6.4)
+        if #available(macOS 27, *) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(pinned) { MenuBarContainerRow(container: $0) }
+                    .reorderable()
+            }
+            .reorderContainer(for: Container.self) { move in
+                var target: String?
+                if case .before(let id) = move.destination.position { target = id }
+                service.movePinnedContainers(visible: pinned.map(\.id), sources: move.sources, before: target)
+            }
+        } else {
+            ForEach(pinned) { MenuBarContainerRow(container: $0) }
+        }
+        #else
+        ForEach(pinned) { MenuBarContainerRow(container: $0) }
+        #endif
+    }
+
+    @ViewBuilder
+    private func pinnedMachineRows(_ pinned: [Machine]) -> some View {
+        #if compiler(>=6.4)
+        if #available(macOS 27, *) {
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(pinned) { MenuBarMachineRow(machine: $0) }
+                    .reorderable()
+            }
+            .reorderContainer(for: Machine.self) { move in
+                var target: String?
+                if case .before(let id) = move.destination.position { target = id }
+                service.movePinnedMachines(visible: pinned.map(\.id), sources: move.sources, before: target)
+            }
+        } else {
+            ForEach(pinned) { MenuBarMachineRow(machine: $0) }
+        }
+        #else
+        ForEach(pinned) { MenuBarMachineRow(machine: $0) }
+        #endif
     }
 
     // MARK: - Daemon header
