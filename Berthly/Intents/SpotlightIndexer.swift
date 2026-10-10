@@ -7,7 +7,7 @@ import Observation
 
 /// What changed between two index snapshots, keyed by entity id. A snapshot maps id to a
 /// fingerprint of everything the index shows, so an unchanged poll costs nothing.
-nonisolated struct IndexDiff: Equatable {
+nonisolated struct IndexDiff {
     var upserts: [String]
     var removals: [String]
 
@@ -78,28 +78,29 @@ final class SpotlightIndexer {
             hasSyncedSinceLaunch = true
         }
 
-        let containerSnapshotNow = Dictionary(uniqueKeysWithValues: containers.map { ($0.id, Self.fingerprint($0)) })
-        let containerDiff = IndexDiff(previous: containerSnapshot, current: containerSnapshotNow)
-        if !containerDiff.isEmpty {
-            try? await index.indexAppEntities(containers.filter { containerDiff.upserts.contains($0.id) })
-            try? await index.deleteAppEntities(identifiedBy: containerDiff.removals, ofType: ContainerEntity.self)
-            containerSnapshot = containerSnapshotNow
-        }
-
-        let machineSnapshotNow = Dictionary(uniqueKeysWithValues: machines.map { ($0.id, Self.fingerprint($0)) })
-        let machineDiff = IndexDiff(previous: machineSnapshot, current: machineSnapshotNow)
-        if !machineDiff.isEmpty {
-            try? await index.indexAppEntities(machines.filter { machineDiff.upserts.contains($0.id) })
-            try? await index.deleteAppEntities(identifiedBy: machineDiff.removals, ofType: MachineEntity.self)
-            machineSnapshot = machineSnapshotNow
-        }
+        containerSnapshot = await Self.sync(
+            containers, previous: containerSnapshot, index: index,
+            fingerprint: { Self.fingerprint(name: $0.name, image: $0.image, status: $0.status) })
+        machineSnapshot = await Self.sync(
+            machines, previous: machineSnapshot, index: index,
+            fingerprint: { Self.fingerprint(name: $0.name, image: $0.image, status: $0.status) })
     }
 
-    nonisolated static func fingerprint(_ entity: ContainerEntity) -> String {
-        "\(entity.name)|\(entity.image)|\(entity.status)"
+    /// Returns the snapshot to keep: the new one after sending a change, the old one when nothing
+    /// changed. Duplicate ids keep the first entry instead of trapping.
+    private static func sync<Entity: IndexedEntity>(
+        _ entities: [Entity], previous: [String: String], index: CSSearchableIndex,
+        fingerprint: (Entity) -> String
+    ) async -> [String: String] where Entity.ID == String {
+        let current = Dictionary(entities.map { ($0.id, fingerprint($0)) }, uniquingKeysWith: { first, _ in first })
+        let diff = IndexDiff(previous: previous, current: current)
+        guard !diff.isEmpty else { return previous }
+        try? await index.indexAppEntities(entities.filter { diff.upserts.contains($0.id) })
+        try? await index.deleteAppEntities(identifiedBy: diff.removals, ofType: Entity.self)
+        return current
     }
 
-    nonisolated static func fingerprint(_ entity: MachineEntity) -> String {
-        "\(entity.name)|\(entity.image)|\(entity.status)"
+    nonisolated private static func fingerprint(name: String, image: String, status: String) -> String {
+        "\(name)|\(image)|\(status)"
     }
 }
