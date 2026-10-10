@@ -29,22 +29,16 @@ final class LargeInventoryTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["containerDetailTitle"].waitForExistence(timeout: 5))
         app.typeKey(.escape, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["containerDetailTitle"].waitForNonExistence(timeout: 5))
-        let computeList = app.descendants(matching: .any)["computeList"]
-        XCTAssertTrue(computeList.waitForExistence(timeout: 5))
-        let computeOutline = computeList.descendants(matching: .outline).firstMatch
-        XCTAssertTrue(computeOutline.waitForExistence(timeout: 5))
-        for _ in 0..<3 {
-            computeOutline.scroll(byDeltaX: 0, deltaY: -10_000)
-        }
-        // container-099 is the last *container* row, seven stopped-machine rows above the actual
-        // bottom edge — landing a scroll-to-max click there avoids the boundary row (machine-018,
-        // dead last in the list), where the same click reproducibly raced a stale/degenerate frame.
+        // Reached through the filter, not by scrolling (#182): XCUITest's synthetic scroll on this
+        // 100+ row list doesn't settle. Measured locally: three -10_000 scrolls sometimes stopped
+        // short of the bottom, and after reaching it the list sometimes drifted ~1900pt back up
+        // within 2.5s, leaving the row offscreen right after it tested hittable.
+        setComputeFilter("container-099", in: app)
         let tailContainer = app.staticTexts["computeRow-container-099"]
-        let tailIsHittable = NSPredicate(format: "hittable == true")
-        expectation(for: tailIsHittable, evaluatedWith: tailContainer)
-        waitForExpectations(timeout: 5)
+        XCTAssertTrue(tailContainer.waitForExistence(timeout: 5))
         tailContainer.click()
         assertTitle(app.staticTexts["containerDetailTitle"], equals: "container-099")
+        clearComputeFilter(in: app)
 
         setComputeFilter("container-000", in: app)
         XCTAssertTrue(firstContainer.waitForExistence(timeout: 5))
