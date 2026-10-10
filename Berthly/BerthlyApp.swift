@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import AppIntents
 import SwiftUI
 
 @main
@@ -18,6 +19,17 @@ struct BerthlyApp: App {
     init() {
         StatusButtonImageDedupe.install()
         SheetTerminationPolicy.install()
+        // Intents run outside the view tree, so they reach the one service and bridge through
+        // the dependency manager. Both must be registered before any intent can run.
+        let service = Self.makeService()
+        let bridge = MenuBarBridge()
+        _service = State(initialValue: service)
+        _menuBarBridge = State(initialValue: bridge)
+        AppDependencyManager.shared.add(dependency: service)
+        AppDependencyManager.shared.add(dependency: bridge)
+        if SpotlightIndexer.shouldRun(environment: ProcessInfo.processInfo.environment) {
+            spotlightIndexer.start(service: service)
+        }
         if Self.disableAnimations {
             // SwiftUI transactions are handled per-scene below; these AppKit-level defaults
             // cover what transactions can't reach — window/sheet present-dismiss slides and
@@ -27,8 +39,9 @@ struct BerthlyApp: App {
         }
     }
 
-    @State private var service: ContainerServiceBase = Self.makeService()
-    @State private var menuBarBridge = MenuBarBridge()
+    @State private var service: ContainerServiceBase
+    @State private var menuBarBridge: MenuBarBridge
+    private let spotlightIndexer = SpotlightIndexer()
     @State private var buildJobManager = BuildJobManager()
     /// Sparkle self-updater (PLAN/UPGRADE.md). Not started under tests, so nothing can hit the
     /// update feed or pop update UI mid-test.
