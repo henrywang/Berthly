@@ -88,7 +88,7 @@ struct RunContainerSheet: View {
     @State private var removeWhenStopped = false
 
     @State private var labels: [KeyValuePair] = []
-    @State private var networks: [StringEntry] = []
+    @State private var networks: [NetworkEntry] = []
     @State private var workdir = ""
     @State private var user = ""
     @State private var entrypoint = ""
@@ -197,7 +197,7 @@ struct RunContainerSheet: View {
     }
 
     private var canRun: Bool {
-        !reference.trimmingCharacters(in: .whitespaces).isEmpty
+        !reference.trimmingCharacters(in: .whitespaces).isEmpty && networks.allSatisfy { $0.validationError == nil }
     }
 
     private var submitLabel: String {
@@ -321,7 +321,7 @@ struct RunContainerSheet: View {
         case .network:
             return ports.count { !$0.hostPort.trimmingCharacters(in: .whitespaces).isEmpty
                                  || !$0.containerPort.trimmingCharacters(in: .whitespaces).isEmpty }
-                + filled(networks)
+                + networks.count { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
         case .dns:
             if noDns { return 1 }
             return filled(dns) + filled(dnsDomain) + filled(dnsOptions) + filled(dnsSearch)
@@ -400,11 +400,16 @@ struct RunContainerSheet: View {
         StringListEditor(title: "Tmpfs paths", placeholder: "/tmp/scratch", identifierPrefix: "runTmpfs", entries: $tmpfs)
     }
 
+    private static let aliasHelpText = "Aliases are extra DNS names for the container on that network: "
+        + "use full names like api.example.test unless a default DNS domain is set, and a leading "
+        + "dot (.example.test) to match every name below one you own."
+
     private var defaultNetworkHelpText: String {
         guard let defaultNetwork = service.networks.first(where: \.isDefault) else {
-            return "Attach to one or more networks. Leave empty for the standard network."
+            return "Attach to one or more networks. Leave empty for the standard network. " + Self.aliasHelpText
         }
-        return "Attach to one or more networks. Leave empty to use the standard network (\(defaultNetwork.subnet))."
+        return "Attach to one or more networks. Leave empty to use the standard network (\(defaultNetwork.subnet)). "
+            + Self.aliasHelpText
     }
 
     @ViewBuilder
@@ -685,7 +690,9 @@ struct RunContainerSheet: View {
             attach: startImmediately && attachAndShowOutput,
             remove: removeWhenStopped,
             labels: dict(from: labels),
-            networks: strings(from: networks),
+            networks: networks
+                .filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
+                .map { NetworkAttachmentSpec.spec(network: $0.value, aliasesText: $0.aliases) },
             workdir: workdirTrimmed.isEmpty ? nil : workdirTrimmed,
             user: userTrimmed.isEmpty ? nil : userTrimmed,
             entrypoint: entrypointTrimmed.isEmpty ? nil : entrypointTrimmed,

@@ -153,13 +153,27 @@ struct StringListEditor: View {
 
 // MARK: - Network list editor (--network) — select-only rows, no free text
 
+struct NetworkEntry: Identifiable {
+    let id = UUID()
+    var value: String = ""
+    /// DNS aliases as typed (see `NetworkAttachmentSpec.aliases(from:)`).
+    var aliases: String = ""
+
+    /// An empty row is dropped at submit, like the other list editors' blank rows.
+    var validationError: String? {
+        guard !value.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return NetworkAttachmentSpec.validationError(network: value, aliasesText: aliases)
+    }
+}
+
 struct NetworkListEditor: View {
     let title: LocalizedStringKey
     var helpText: String?
     let availableNetworks: [Network]
-    /// Test-identifier prefix (see KeyValueEditor): "runNetwork" → "runNetworkPicker"/"runNetworkAddButton".
+    /// Test-identifier prefix (see KeyValueEditor): "runNetwork" → "runNetworkPicker"/
+    /// "runNetworkAliasesField"/"runNetworkAliasError"/"runNetworkAddButton".
     var identifierPrefix: String?
-    @Binding var entries: [StringEntry]
+    @Binding var entries: [NetworkEntry]
 
     /// New rows start on the standard network rather than blank, since that's what an empty
     /// `--network` list already resolves to — a fresh row shouldn't look unset.
@@ -174,28 +188,41 @@ struct NetworkListEditor: View {
                 .foregroundStyle(.secondary)
             VStack(spacing: 6) {
                 ForEach($entries) { $entry in
-                    HStack(spacing: 8) {
-                        Picker("", selection: $entry.value) {
-                            ForEach(availableNetworks) { network in
-                                Text(network.isDefault ? "\(network.name) (default)" : network.name)
-                                    .tag(network.name)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 8) {
+                            Picker("", selection: $entry.value) {
+                                ForEach(availableNetworks) { network in
+                                    Text(network.isDefault ? "\(network.name) (default)" : network.name)
+                                        .tag(network.name)
+                                }
                             }
+                            .labelsHidden()
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .accessibilityIdentifier(identifierPrefix.map { "\($0)Picker" } ?? "")
+                            TextField("Aliases (optional), e.g. api.example.test", text: $entry.aliases)
+                                .textFieldStyle(.roundedBorder)
+                                .fontDesign(.monospaced)
+                                .frame(maxWidth: .infinity)
+                                .accessibilityIdentifier(identifierPrefix.map { "\($0)AliasesField" } ?? "")
+                            Button {
+                                entries.removeAll { $0.id == entry.id }
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .accessibilityLabel("Remove")
                         }
-                        .labelsHidden()
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityIdentifier(identifierPrefix.map { "\($0)Picker" } ?? "")
-                        Button {
-                            entries.removeAll { $0.id == entry.id }
-                        } label: {
-                            Image(systemName: "minus.circle.fill")
+                        if let error = entry.validationError {
+                            Text(error)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                                .accessibilityIdentifier(identifierPrefix.map { "\($0)AliasError" } ?? "")
                         }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .accessibilityLabel("Remove")
                     }
                 }
                 Button {
-                    entries.append(StringEntry(value: defaultNetworkName ?? ""))
+                    entries.append(NetworkEntry(value: defaultNetworkName ?? ""))
                 } label: {
                     Label("Add", systemImage: "plus.circle.fill")
                         .font(.caption)

@@ -33,10 +33,19 @@ enum NetworkPresentation {
                 NetworkEndpoint(
                     id: container.id, name: container.name, ipv4: "–",
                     kind: "CONTAINER", isRunning: isRunning(container),
-                    aliases: []
+                    aliases: container.networkAliases[network.name] ?? []
                 )
             }
         return reported + derived
+    }
+
+    /// The container detail's Networks row, e.g. "default (api.test, .gateway.test), backend".
+    nonisolated static func networksDescription(for container: Container) -> String {
+        guard !container.networks.isEmpty else { return "–" }
+        return container.networks.map { name in
+            guard let aliases = container.networkAliases[name], !aliases.isEmpty else { return name }
+            return "\(name) (\(aliases.joined(separator: ", ")))"
+        }.joined(separator: ", ")
     }
 
     /// Trailing list-row summary, e.g. "3 endpoints" / "no endpoints".

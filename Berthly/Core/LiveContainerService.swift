@@ -1110,9 +1110,20 @@ final class LiveContainerService: ContainerServiceBase {
                                       isReadOnly: fs.options.contains("ro"))
             },
             networks: snap.networks.map { $0.network },
+            networkAliases: Self.networkAliases(from: snap.configuration.networks),
             environment: proc.environment,
             startedDate: snap.startedDate
         )
+    }
+
+    /// Aliases live on the configured attachments, not the runtime `snap.networks`. Networks
+    /// without aliases are left out.
+    nonisolated static func networkAliases(from attachments: [AttachmentConfiguration]) -> [String: [String]] {
+        var aliases: [String: [String]] = [:]
+        for attachment in attachments where !attachment.options.aliases.isEmpty {
+            aliases[attachment.network, default: []] += attachment.options.aliases
+        }
+        return aliases
     }
 
     /// Decodes everything `mapImage`/inspect views need from a fetched `ImageResource` once,

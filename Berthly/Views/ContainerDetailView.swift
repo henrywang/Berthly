@@ -321,7 +321,7 @@ private struct InspectSection: View {
             ("Command", container.command),
             ("Ports", container.ports.isEmpty ? "–" : container.ports.map(\.displayString).joined(separator: ", ")),
             ("Mounts", mountStr.isEmpty ? "–" : mountStr),
-            ("Networks", container.networks.isEmpty ? "–" : container.networks.joined(separator: ", ")),
+            ("Networks", NetworkPresentation.networksDescription(for: container)),
             ("Environment", container.environment.isEmpty ? "–"
                              : "\(container.environment[0])\(container.environment.count > 1 ? " (+\(container.environment.count - 1))" : "")")
         ]
