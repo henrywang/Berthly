@@ -35,7 +35,7 @@ private enum HomeMountChoice: String, CaseIterable {
     }
 }
 
-/// Only 6 fields total, so unlike RunContainerSheet this stays a flat form — a categorized
+/// Few enough fields that, unlike RunContainerSheet, this stays a flat form — a categorized
 /// sidebar would be mostly empty space for this few options.
 struct MachineCreateSheet: View {
     let service: ContainerServiceBase
@@ -53,6 +53,7 @@ struct MachineCreateSheet: View {
     @State private var homeMountChoice: HomeMountChoice = .default
     @State private var setDefault = false
     @State private var insecureRegistry = false
+    @State private var account = MachineAccountInput()
 
     @State private var state = MachineCreateState()
 
@@ -107,7 +108,7 @@ struct MachineCreateSheet: View {
     }
 
     private var canCreate: Bool {
-        !reference.trimmingCharacters(in: .whitespaces).isEmpty
+        !reference.trimmingCharacters(in: .whitespaces).isEmpty && account.validationError == nil
     }
 
     // MARK: - Idle
@@ -178,12 +179,50 @@ struct MachineCreateSheet: View {
                         .toggleStyle(.checkbox)
 
                     InsecureRegistryToggle(isOn: $insecureRegistry)
+
+                    accountFields
                 }
                 .padding(.top, 10)
             }
         }
         .font(.caption.weight(.medium))
         .foregroundStyle(.secondary)
+    }
+
+    private var accountFields: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Account")
+            HStack(spacing: 8) {
+                accountField("User", placeholder: MachineAccountInput.hostUsername,
+                             text: $account.user, identifier: "machineUserField")
+                accountField("UID", placeholder: "\(MachineAccountInput.hostUID)",
+                             text: $account.uid, identifier: "machineUIDField")
+                    .frame(width: 80)
+                accountField("GID", placeholder: "\(MachineAccountInput.hostGID)",
+                             text: $account.gid, identifier: "machineGIDField")
+                    .frame(width: 80)
+            }
+            accountField("Home directory", placeholder: account.defaultHome,
+                         text: $account.home, identifier: "machineHomeField")
+            if let error = account.validationError {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("machineAccountError")
+            } else {
+                Text("Defaults to your Mac user. Set when the machine is created; can't be changed later.")
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func accountField(_ title: String, placeholder: String, text: Binding<String>, identifier: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+            TextField(placeholder, text: text)
+                .accessibilityIdentifier(identifier)
+                .textFieldStyle(.roundedBorder)
+                .fontDesign(.monospaced)
+        }
     }
 
     // MARK: - Active / done
@@ -241,7 +280,7 @@ struct MachineCreateSheet: View {
         state.result = nil
         state.logLines = []
 
-        let options = MachineCreateOptions(
+        var options = MachineCreateOptions(
             reference: ref,
             name: nameTrimmed.isEmpty ? nil : nameTrimmed,
             platform: platform,
@@ -252,6 +291,7 @@ struct MachineCreateSheet: View {
             setDefault: setDefault,
             insecureRegistry: insecureRegistry
         )
+        account.apply(to: &options)
 
         state.runTask = Task {
             do {

@@ -833,6 +833,12 @@ nonisolated struct MachineCreateOptions {
     var boot: Bool = true
     var setDefault: Bool = false
     var insecureRegistry: Bool = false
+    /// Machine account; `nil` keeps upstream's host-user defaults. Fixed at create time —
+    /// `machine set` has no account options.
+    var user: String?
+    var uid: UInt32?
+    var gid: UInt32?
+    var home: String?
 }
 
 /// Arguments for `container machine set` — reconfigure an existing machine's boot settings.
