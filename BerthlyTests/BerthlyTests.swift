@@ -249,6 +249,40 @@ struct ExecProcessConfigurationTests {
         #expect(config.workingDirectory == "/home/dev")
         #expect(config.user == .id(uid: 501, gid: 20))
     }
+
+    @Test(arguments: [false, true])
+    func machineUserSetupRunsHostScriptEveryBootOnContainer16(initialized: Bool) throws {
+        // `init -u` on a 1.6.x daemon execs a second /sbin/init that tears the VM down.
+        let config = try #require(LiveContainerService.machineUserSetupProcessConfiguration(
+            daemonVersion: "1.6.1",
+            initialized: initialized,
+            environment: ["CONTAINER_USER=dev"]
+        ))
+        #expect(config.executable == "/bin/sh")
+        #expect(config.arguments == ["-c", MachineUserSetupScript.script])
+        #expect(config.environment == ["CONTAINER_USER=dev"])
+        #expect(config.terminal == false)
+    }
+
+    @Test func machineUserSetupStartsAtContainer160() throws {
+        let config = try #require(LiveContainerService.machineUserSetupProcessConfiguration(
+            daemonVersion: "1.6.0", initialized: false, environment: []
+        ))
+        #expect(config.executable == "/bin/sh")
+    }
+
+    @Test func machineUserSetupUsesInitFlagOnceBeforeContainer16() throws {
+        let config = try #require(LiveContainerService.machineUserSetupProcessConfiguration(
+            daemonVersion: "1.5.0", initialized: false, environment: ["CONTAINER_USER=dev"]
+        ))
+        #expect(config.executable == "/sbin.machine/init")
+        #expect(config.arguments == ["-u"])
+        #expect(config.environment == ["CONTAINER_USER=dev"])
+
+        #expect(LiveContainerService.machineUserSetupProcessConfiguration(
+            daemonVersion: "1.4.1", initialized: true, environment: []
+        ) == nil)
+    }
 }
 
 // MARK: - Terminal themes

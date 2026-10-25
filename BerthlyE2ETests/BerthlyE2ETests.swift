@@ -663,6 +663,45 @@ final class MachineJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(rowLine?.contains("4G") == true, "memory override should apply: \(rowLine ?? "")")
         // machine (stop+delete) and image swept by prefix in tearDown.
     }
+
+    /// Fast first-boot coverage the Fedora journey above is too slow to run routinely. Guards
+    /// #213: on a 1.6.x daemon, Berthly's old `init -u` user setup exec'd a second /sbin/init
+    /// that shut the VM down (`can't run '/sbin/openrc'` on Alpine). Oracle: the machine stays
+    /// running and a command inside it runs as the host user, which only the setup creates.
+    @MainActor
+    func testCreateAndBootPlainImageMachineCreatesHostUser() throws {
+        guard let version = try ContainerCLI.serverVersion(), version.lexicographicallyPrecedes([1, 6, 0]) == false else {
+            throw XCTSkip("Plain-image machine boot via host-side user setup needs container daemon 1.6.0+")
+        }
+        try ContainerCLI.ensureImage("alpine:latest")
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
+
+        XCTAssertTrue(app.openViaPalette("Create Machine"))
+        let imageField = app.windows.textFields["machineImageField"]
+        XCTAssertTrue(imageField.waitForExistence(timeout: 5), "Machine sheet should appear")
+        imageField.click(); imageField.typeText("alpine:latest")
+        let nameField = app.windows.textFields["machineNameField"]
+        nameField.click(); nameField.typeText(machineName)
+        app.buttons["machineCreateSubmitButton"].click()
+
+        let createDone = app.buttons["Done"]
+        XCTAssertTrue(createDone.waitForExistence(timeout: 240),
+                      "machine should create and boot; sheet:\n\(app.windows.firstMatch.debugDescription)")
+        createDone.click()
+
+        let list = try ContainerCLI.run(["machine", "ls"], timeout: 30)
+        let rowLine = list.output.split(separator: "\n").first { $0.contains(machineName) }.map(String.init)
+        XCTAssertTrue(rowLine?.contains("running") == true, "machine should still be running: \(rowLine ?? list.output)")
+
+        let whoami = try ContainerCLI.run(["machine", "run", "-n", machineName, "--", "id", "-un"], timeout: 60)
+        XCTAssertEqual(whoami.status, 0, "machine run should succeed:\n\(whoami.output)")
+        XCTAssertEqual(whoami.output.trimmingCharacters(in: .whitespacesAndNewlines), NSUserName(),
+                       "commands should run as the host user the setup created")
+        // machine (stop+delete) swept by prefix in tearDown.
+    }
 }
 
 /// Resource journeys (PLAN/E2E-TEST.md Tier 2): create a real resource through its sheet,

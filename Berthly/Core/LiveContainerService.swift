@@ -1427,9 +1427,9 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     override func startMachine(_ id: String) async throws {
-        // Routes through the same first-boot-aware helper `createMachine` uses: a no-op extra
-        // check for the common case (an already-initialized machine), but correct if this is
-        // ever reached for one that was created but never successfully booted.
+        // Routes through the same user-setup-aware helper `createMachine` uses: on a pre-1.6
+        // daemon a no-op for an already-initialized machine, but correct if this is ever reached
+        // for one that was created but never successfully booted.
         do {
             try await bootMachineNatively(id: id, client: MachineClient())
         } catch {
@@ -2786,6 +2786,35 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
+    /// container 1.6.0 (apple/container#2322) removed the guest init's `-u` user-setup mode: the
+    /// unknown flag falls through to `exec /sbin/init`, a second system init that tears the VM
+    /// down. From 1.6.0 the host runs the setup script on every boot instead — it's idempotent and
+    /// never writes the `initialized` marker, so that flag stays false there. Older daemons keep
+    /// the run-once `init -u`. `nil` means this boot needs no setup.
+    nonisolated static let machineUserSetupScriptMinimumVersion = "1.6.0"
+
+    nonisolated static func machineUserSetupProcessConfiguration(
+        daemonVersion: String,
+        initialized: Bool,
+        environment: [String]
+    ) -> ProcessConfiguration? {
+        if ContainerCompatibility.isAtLeast(installed: daemonVersion, machineUserSetupScriptMinimumVersion) {
+            return ProcessConfiguration(
+                executable: "/bin/sh",
+                arguments: ["-c", MachineUserSetupScript.script],
+                environment: environment,
+                terminal: false
+            )
+        }
+        guard !initialized else { return nil }
+        return ProcessConfiguration(
+            executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
+            arguments: ["-u"],
+            environment: environment,
+            terminal: false
+        )
+    }
+
     nonisolated static func runProcessFlags(for options: RunOptions) -> Flags.Process {
         Flags.Process(
             cwd: nilIfEmpty(options.workdir),
@@ -3110,8 +3139,8 @@ final class LiveContainerService: ContainerServiceBase {
         await refresh()
     }
 
-    /// Boots a container machine and, on its very first boot, runs the in-VM init script that
-    /// sets up the host user — without this, a freshly created machine boots but is unusable.
+    /// Boots a container machine and runs the in-VM user setup for the host user (see
+    /// `machineUserSetupProcessConfiguration`) — without it, a fresh machine boots but is unusable.
     /// This mirrors the CLI's own (non-public) `bootMachine` helper, but swaps `ProcessIO` (which
     /// wires to the CLI's own terminal) for a plain `stdio: [nil, nil, nil]` process — we don't
     /// need the init script's output, only its exit code, matching the detached-run pattern in
@@ -3123,18 +3152,16 @@ final class LiveContainerService: ContainerServiceBase {
             dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
         }
         let snapshot = try await client.boot(id: id, dynamicEnv: dynamicEnv)
-        guard !snapshot.initialized else { return snapshot }
+        guard let processConfig = Self.machineUserSetupProcessConfiguration(
+            daemonVersion: installedContainerVersion ?? "",
+            initialized: snapshot.initialized,
+            environment: snapshot.configuration.processEnvironment
+        ) else { return snapshot }
 
         do {
             guard let containerId = snapshot.containerId else {
                 throw ContainerizationError(.invalidState, message: "container machine is running but has no container ID")
             }
-            let processConfig = ProcessConfiguration(
-                executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
-                arguments: ["-u"],
-                environment: snapshot.configuration.processEnvironment,
-                terminal: false
-            )
             let process = try await ContainerClient().createProcess(
                 containerId: containerId,
                 processId: UUID().uuidString.lowercased(),
