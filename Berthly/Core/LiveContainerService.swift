@@ -3035,16 +3035,24 @@ final class LiveContainerService: ContainerServiceBase {
         return management
     }
 
-    /// All-nil keeps upstream's default: the host user's name/uid/gid and `/home/<user>`. Same
+    /// `nil` fields keep upstream's default: the host user's name/uid/gid and `/home/<user>`. Same
     /// explicit-assignment reason as `machineManagementFlags` — `Flags.MachineUser` (1.6.0,
     /// apple/container#2322) has only an empty init.
-    nonisolated static func machineUserFlags() -> Flags.MachineUser {
+    nonisolated static func machineUserFlags(for options: MachineCreateOptions) -> Flags.MachineUser {
         var user = Flags.MachineUser()
-        user.user = nil
-        user.uid = nil
-        user.gid = nil
-        user.home = nil
+        user.user = nilIfEmpty(options.user)
+        user.uid = options.uid
+        user.gid = options.gid
+        user.home = nilIfEmpty(options.home)
         return user
+    }
+
+    /// `MachineUserSetup.script` exits non-zero only when the image already has a different
+    /// account with this uid or username, or something at the home path. Its stderr isn't captured
+    /// (it would race the guest's output relay after exit), so name the account instead.
+    nonisolated static func machineUserSetupFailureMessage(username: String, uid: UInt32, home: String) -> String {
+        "container machine failed to create user '\(username)' (UID \(uid)): the image may already "
+            + "have a different account with that UID or username, or something at \(home)"
     }
 
     nonisolated static func machineRegistryFlags(for options: MachineCreateOptions) -> Flags.Registry {
@@ -3084,7 +3092,7 @@ final class LiveContainerService: ContainerServiceBase {
             id: id,
             image: options.reference,
             management: Self.machineManagementFlags(for: options),
-            user: Self.machineUserFlags(),
+            user: Self.machineUserFlags(for: options),
             registry: Self.machineRegistryFlags(for: options),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: containerSystemConfig,
@@ -3167,7 +3175,10 @@ final class LiveContainerService: ContainerServiceBase {
             try await process.start()
             let exitCode = try await process.wait()
             guard exitCode == 0 else {
-                throw ContainerizationError(.invalidState, message: "container machine failed to create user")
+                let account = snapshot.configuration.userSetup
+                throw ContainerizationError(.invalidState, message: Self.machineUserSetupFailureMessage(
+                    username: account.username, uid: account.uid, home: account.home
+                ))
             }
         } catch {
             try? await client.stop(id: snapshot.id)

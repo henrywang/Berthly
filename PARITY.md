@@ -59,7 +59,7 @@ entries as the CLI.
 
 | CLI | Berthly |
 |---|---|
-| `create` | Machine sheet (image, name, cpus, memory, home-mount, no-boot, set-default) |
+| `create` | Machine sheet (image, name, cpus, memory, home-mount, no-boot, set-default, account: user/uid/gid/home) |
 | `delete` / `stop` | Row/detail actions |
 | `list` / `inspect` | Sidebar + detail view |
 | `logs` / `logs --boot` | Logs tab with Output/Boot source picker |
@@ -98,9 +98,6 @@ New upstream surface not yet in the GUI, each with an open issue:
   entries verbatim, but nothing hints at the syntax and the live service
   doesn't populate `NetworkEndpoint.aliases`, so attached aliases aren't
   shown. #207.
-- **Machine account** — `machine create --user/--uid/--gid/--home`
-  ([apple/container#2322](https://github.com/apple/container/pull/2322), 1.6.0).
-  Berthly passes them unset, so the daemon defaults to the host user. #208.
 - **Image-inferred platform and runtime** on run/create
   ([apple/container#2422](https://github.com/apple/container/pull/2422), 1.6.1):
   `--os`/`--arch` now default to the image's platform, and
