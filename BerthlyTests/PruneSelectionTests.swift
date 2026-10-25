@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import ContainerResource
 import Foundation
 import Testing
 @testable import Berthly
@@ -74,6 +75,21 @@ struct PruneSelectionTests {
         #expect(ids == ["job1"])
         #expect(!ids.contains("vm1"))
         #expect(!ids.contains("builder1"))
+    }
+
+    // MARK: - Cluster node detection
+
+    @Test(arguments: ["k8s", "cluster"])
+    func recognizesClusterNodesUnderBothPluginNames(plugin: String) {
+        // Pre-1.6.1 clusters keep `plugin=k8s`; 1.6.1's rename (apple/container#2427) labels new
+        // ones `plugin=cluster`. Missing either lets prune delete that cluster's stopped nodes.
+        #expect(LiveContainerService.isClusterNode(labels: [ResourceLabelKeys.plugin: plugin]))
+    }
+
+    @Test func doesNotTreatOtherContainersAsClusterNodes() {
+        #expect(!LiveContainerService.isClusterNode(labels: [:]))
+        #expect(!LiveContainerService.isClusterNode(labels: [ResourceLabelKeys.plugin: "builder"]))
+        #expect(!LiveContainerService.isClusterNode(labels: ["app": "cluster"]))
     }
 
     @Test func emptyInputsProduceEmptySelections() {
