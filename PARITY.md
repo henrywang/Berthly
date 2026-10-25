@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.4.1** (2026-09-14). When a change closes or
+> Audited against **container CLI 1.6.1** (2026-10-25). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
@@ -80,6 +80,35 @@ can hold real data, so it never rides along with bulk cleanup.
 (status badge, Start on a stopped builder, Stop, Delete-with-cache-reset).
 Builds also start the builder on demand, like the CLI.
 
+1.6.0 moved `build`/`builder` out of the core CLI into a plugin
+([apple/container#2298](https://github.com/apple/container/pull/2298)). Berthly
+is unaffected: it builds in-process through the `ContainerBuild` library and
+bootstraps the buildkit container itself, never invoking either command
+(verified against a 1.6.1 daemon in #196).
+
+## Tracked for container 1.6.x
+
+New upstream surface not yet in the GUI, each with an open issue:
+
+- **`commit`** ([apple/container#1762](https://github.com/apple/container/pull/1762),
+  1.6.0) — snapshot a container's filesystem into a new image. #206.
+- **DNS aliases** — `--network <name>,alias=NAME` on run/create
+  ([apple/container#2390](https://github.com/apple/container/pull/2390), 1.6.0).
+  Already works when typed into the Run sheet's Networks field, which passes
+  entries verbatim, but nothing hints at the syntax and the live service
+  doesn't populate `NetworkEndpoint.aliases`, so attached aliases aren't
+  shown. #207.
+- **Machine account** — `machine create --user/--uid/--gid/--home`
+  ([apple/container#2322](https://github.com/apple/container/pull/2322), 1.6.0).
+  Berthly passes them unset, so the daemon defaults to the host user. #208.
+- **Image-inferred platform and runtime** on run/create
+  ([apple/container#2422](https://github.com/apple/container/pull/2422), 1.6.1):
+  `--os`/`--arch` now default to the image's platform, and
+  `CONTAINER_DEFAULT_PLATFORM` sets a default. Berthly still passes the host
+  architecture and `linux` explicitly unless the sheet's Platform field is
+  set, and a GUI app doesn't inherit a shell's `CONTAINER_DEFAULT_PLATFORM`.
+  #209 decides whether to adopt inference.
+
 ## System
 
 | CLI | Berthly |
@@ -125,26 +154,27 @@ to the CLI:
   both source and `--help` text. Still genuinely expert, security-sensitive
   sandbox tuning with no identified Berthly use case (spike: #80). Revisit
   once upstream stabilizes the flags.
-- **`k8s`** — local Kubernetes cluster management, added in 1.2.1
-  ([apple/container#2044](https://github.com/apple/container/pull/2044)) as
-  an explicitly experimental plugin. Not a parity gap Berthly intends to
-  close: driving `container k8s create` natively is structurally blocked —
-  `loadKindnetManifest` locates its CNI manifest via
+- **`cluster`** (formerly `k8s`) — local Kubernetes cluster management, added
+  in 1.2.1 ([apple/container#2044](https://github.com/apple/container/pull/2044))
+  as an explicitly experimental plugin and renamed in 1.6.1
+  ([apple/container#2427](https://github.com/apple/container/pull/2427)). Not
+  a parity gap Berthly intends to close: the entire post-`create` workflow is
+  `kubectl`, leaving no meaningful GUI surface to add, and the command is
+  still `EXPERIMENTAL`. Driving `create` natively is also blocked for the
+  default CNI: `loadKindnetManifest` locates the bundled kindnet manifest via
   `pluginLoader.findPlugin(forExecutable: CommandLine.executablePath)`, which
-  fails for Berthly's own binary since it isn't a registered plugin — and the
-  entire post-`create` workflow is `kubectl`, leaving no meaningful GUI
-  surface to add. 1.3.0's k8s refactor
-  ([apple/container#2115](https://github.com/apple/container/pull/2115),
-  [#2110](https://github.com/apple/container/pull/2110)) split `K8sHelper` and
-  moved `createPluginLoader` into a shared helper, but that manifest lookup
-  and the `kubectl` workflow are unchanged and the command is still
-  `EXPERIMENTAL`. Berthly does treat k8s cluster containers as infrastructure
-  (hidden from the Compute list, protected from prune) so they don't get
-  caught by unrelated container-management actions. 1.4.1 added only a k8s
-  plugin reference doc ([apple/container#2244](https://github.com/apple/container/pull/2244));
-  the manifest-lookup block and `EXPERIMENTAL` marker are unchanged. Revisit
-  only if upstream both drops EXPERIMENTAL and exposes cluster operations
-  over the XPC API.
+  fails for Berthly's own binary since it isn't a registered plugin. 1.5.0's
+  `--cni <path>` ([apple/container#2254](https://github.com/apple/container/pull/2254))
+  and `--cni none` ([#2277](https://github.com/apple/container/pull/2277),
+  1.6.0) skip that lookup, but only by making the user supply or install the
+  CNI themselves. 1.5.0 also removed `k8s start`
+  ([#2290](https://github.com/apple/container/pull/2290)), and 1.6.0 added
+  worker nodes (`--workers`, [#2276](https://github.com/apple/container/pull/2276)).
+  Berthly treats cluster node containers as infrastructure (hidden from the
+  Compute list, protected from prune) so they don't get caught by unrelated
+  container-management actions; it recognizes both the 1.6.1 `plugin=cluster`
+  label and the earlier `plugin=k8s` (#204). Revisit only if upstream both
+  drops EXPERIMENTAL and exposes cluster operations over the XPC API.
 - **`--scheme http` on run/machine create against an internal registry** — 1.3.0
   ([apple/container#2100](https://github.com/apple/container/pull/2100)) removed
   the `auto` scheme and its localhost/private-IP detection. Berthly restores that
