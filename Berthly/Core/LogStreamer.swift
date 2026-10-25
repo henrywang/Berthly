@@ -57,15 +57,17 @@ enum LogStreamer {
         }.value
         for line in lines(from: existing) { onLine(line) }
 
-        // Follow new data. `read(upToCount:)` (not the deprecated `availableData`) returns nil at
-        // EOF instead of an empty Data(), so the loop ends cleanly once the source closes rather
-        // than polling a dead handle forever.
+        // Follow new data until cancelled. The daemon's logs are regular files, where
+        // `read(upToCount:)` returns nil at EOF yet picks up later appends, so nil means "nothing
+        // new yet" — breaking on it stopped the tail at the first quiet poll (#205). A closed or
+        // invalid descriptor throws instead, so this can't spin on a dead handle.
         while !Task.isCancelled {
             try await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { break }
-            guard let data = try await Task.detached(priority: .utility, operation: {
+            let data = try await Task.detached(priority: .utility, operation: {
                 try fh.read(upToCount: 65_536)
-            }).value else { break }
+            }).value
+            guard let data else { continue }
             for line in lines(from: data) { onLine(line) }
         }
     }
