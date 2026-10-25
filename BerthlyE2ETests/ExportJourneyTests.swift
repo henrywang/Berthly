@@ -5,11 +5,10 @@ import XCTest
 
 /// Export Filesystem coverage against a real daemon — previously untested at any layer beyond
 /// unit (mock exportContainer) and mock UI (menu enablement only). Covers both paths:
-/// stopped (always allowed, no version gate) and running (gated behind
-/// `ContainerCompatibility.isAtLeast(installed:, "1.2.1")` — `ComputeListView.canExportFilesystem`,
-/// added in #107 per apple/container#1630). The running half skips cleanly on a daemon older
-/// than 1.2.1 rather than failing, matching `testBuildWithSSHForwardingMountsAgentSocket`'s
-/// SSH_AUTH_SOCK skip pattern.
+/// stopped and running (`ComputeListView.canExportFilesystem` gates it on daemon 1.2.1, added in
+/// #107 per apple/container#1630). The running half once skipped below 1.2.1, but its version
+/// probe read `apiserver.version`, which current CLIs print as `server.version`, so it skipped on
+/// every daemon (#212). Berthly's 1.6.1 floor makes that gate moot, so the half is unconditional.
 ///
 /// `ComputeListView.exportFilesystem()` calls `NSSavePanel.runModal()` directly — no sheet, no
 /// existing test seam, same shape as Save/Load before `UITEST_SAVE_DESTINATION` — so this adds
@@ -37,7 +36,7 @@ final class ExportJourneyTests: BerthlyE2ETestCase {
         app.launch()
         XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 15))
 
-        // ── Stopped container: always allowed, no daemon-version gate. ──
+        // ── Stopped container. ──
         let stoppedMarker = "export-marker-\(UUID().uuidString.prefix(8))"
         let runStopped = try ContainerCLI.run(
             ["run", "-d", "--name", containerName, Self.fixtureImage, "sleep", "300"], timeout: 60
@@ -51,10 +50,7 @@ final class ExportJourneyTests: BerthlyE2ETestCase {
         let stoppedArchive = try exportViaUI(app: app, containerName: containerName, exportDir: exportDir)
         try assertArchiveContains(stoppedArchive, entry: "\(stoppedMarker).txt")
 
-        // ── Running container: gated behind daemon >= 1.2.1. ──
-        guard try daemonIsAtLeast(major: 1, minor: 2, patch: 1) else {
-            throw XCTSkip("Running-container export requires container daemon 1.2.1+; this machine reports an older version.")
-        }
+        // ── Running container. ──
 
         let runningName = "\(containerName)-running"
         let runningMarker = "export-marker-\(UUID().uuidString.prefix(8))"
@@ -120,20 +116,5 @@ final class ExportJourneyTests: BerthlyE2ETestCase {
         let output = String(decoding: pipe.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
         XCTAssertEqual(process.terminationStatus, 0, "tar should read the archive as valid:\n\(output)")
         XCTAssertTrue(output.contains(entry), "archive should contain \(entry):\n\(output)")
-    }
-
-    /// `container system status`'s `apiserver.version` line, e.g. "container-apiserver version
-    /// 1.2.2 (build: release, commit: …)" — parsed the same way
-    /// `ContainerCompatibility.extractVersion` does, without a dependency on the app target
-    /// (this suite is a black-box XCUITest bundle with no `@testable import`).
-    private func daemonIsAtLeast(major: Int, minor: Int, patch: Int) throws -> Bool {
-        let status = try ContainerCLI.run(["system", "status"], timeout: 10)
-        guard let versionLine = status.output.split(separator: "\n").first(where: { $0.contains("apiserver.version") }),
-              let match = versionLine.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) else {
-            return false
-        }
-        let parts = versionLine[match].split(separator: ".").compactMap { Int($0) }
-        guard parts.count == 3 else { return false }
-        return parts.lexicographicallyPrecedes([major, minor, patch]) == false
     }
 }
