@@ -1431,9 +1431,7 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     override func startMachine(_ id: String) async throws {
-        // Routes through the same user-setup-aware helper `createMachine` uses: on a pre-1.6
-        // daemon a no-op for an already-initialized machine, but correct if this is ever reached
-        // for one that was created but never successfully booted.
+        // Routes through the same helper `createMachine` uses, so user setup runs on every boot.
         do {
             try await bootMachineNatively(id: id, client: MachineClient())
         } catch {
@@ -2789,30 +2787,14 @@ final class LiveContainerService: ContainerServiceBase {
         )
     }
 
-    /// container 1.6.0 (apple/container#2322) removed the guest init's `-u` user-setup mode: the
-    /// unknown flag falls through to `exec /sbin/init`, a second system init that tears the VM
-    /// down. From 1.6.0 the host runs the setup script on every boot instead — it's idempotent and
-    /// never writes the `initialized` marker, so that flag stays false there. Older daemons keep
-    /// the run-once `init -u`. `nil` means this boot needs no setup.
-    nonisolated static let machineUserSetupScriptMinimumVersion = "1.6.0"
-
-    nonisolated static func machineUserSetupProcessConfiguration(
-        daemonVersion: String,
-        initialized: Bool,
-        environment: [String]
-    ) -> ProcessConfiguration? {
-        if ContainerCompatibility.isAtLeast(installed: daemonVersion, machineUserSetupScriptMinimumVersion) {
-            return ProcessConfiguration(
-                executable: "/bin/sh",
-                arguments: ["-c", MachineUserSetupScript.script],
-                environment: environment,
-                terminal: false
-            )
-        }
-        guard !initialized else { return nil }
-        return ProcessConfiguration(
-            executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
-            arguments: ["-u"],
+    /// Runs on every boot, as the 1.6.1 CLI's `bootMachine` does: the script is idempotent and
+    /// never writes the `initialized` marker. Never the guest init's old `-u` mode — 1.6.0 removed
+    /// it (apple/container#2322), and the unknown flag falls through to `exec /sbin/init`, a second
+    /// system init that tears the VM down (#213).
+    nonisolated static func machineUserSetupProcessConfiguration(environment: [String]) -> ProcessConfiguration {
+        ProcessConfiguration(
+            executable: "/bin/sh",
+            arguments: ["-c", MachineUserSetup.script],
             environment: environment,
             terminal: false
         )
@@ -3053,6 +3035,18 @@ final class LiveContainerService: ContainerServiceBase {
         return management
     }
 
+    /// All-nil keeps upstream's default: the host user's name/uid/gid and `/home/<user>`. Same
+    /// explicit-assignment reason as `machineManagementFlags` — `Flags.MachineUser` (1.6.0,
+    /// apple/container#2322) has only an empty init.
+    nonisolated static func machineUserFlags() -> Flags.MachineUser {
+        var user = Flags.MachineUser()
+        user.user = nil
+        user.uid = nil
+        user.gid = nil
+        user.home = nil
+        return user
+    }
+
     nonisolated static func machineRegistryFlags(for options: MachineCreateOptions) -> Flags.Registry {
         // See runRegistryFlags: "auto" is gone (apple/container#2100), one scheme covers both the
         // image and init-image fetch, so the insecure toggle is the only path to http here.
@@ -3086,10 +3080,11 @@ final class LiveContainerService: ContainerServiceBase {
         let reporter = onLog.map { onLog in
             DownloadReporter(label: "Fetching image", onLog: onLog)
         }
-        let (config, resources) = try await MachineClient.machineConfigFromFlags(
+        let config = try await MachineClient.machineConfigFromFlags(
             id: id,
             image: options.reference,
             management: Self.machineManagementFlags(for: options),
+            user: Self.machineUserFlags(),
             registry: Self.machineRegistryFlags(for: options),
             imageFetch: Flags.ImageFetch(maxConcurrentDownloads: 3),
             containerSystemConfig: containerSystemConfig,
@@ -3100,7 +3095,7 @@ final class LiveContainerService: ContainerServiceBase {
         try Task.checkCancellation()
 
         do {
-            try await client.create(configuration: config, resources: resources, bootConfig: bootConfig)
+            try await client.create(configuration: config, bootConfig: bootConfig)
         } catch let error as ContainerizationError {
             if let cause = error.cause as? ContainerizationError, cause.isCode(.exists) {
                 let hint = (options.name?.isEmpty ?? true) ? " (give it a name to avoid this)" : ""
@@ -3155,11 +3150,9 @@ final class LiveContainerService: ContainerServiceBase {
             dynamicEnv["SSH_AUTH_SOCK"] = sshAuthSock
         }
         let snapshot = try await client.boot(id: id, dynamicEnv: dynamicEnv)
-        guard let processConfig = Self.machineUserSetupProcessConfiguration(
-            daemonVersion: installedContainerVersion ?? "",
-            initialized: snapshot.initialized,
+        let processConfig = Self.machineUserSetupProcessConfiguration(
             environment: snapshot.configuration.processEnvironment
-        ) else { return snapshot }
+        )
 
         do {
             guard let containerId = snapshot.containerId else {

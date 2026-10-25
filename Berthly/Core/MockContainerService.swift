@@ -653,7 +653,7 @@ final class MockContainerService: ContainerServiceBase {
 
     override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         await stopDaemon()
-        onLog("Updating to version \(ContainerCompatibility.requiredVersion)...")
+        onLog("Updating to version \(requiredContainerVersion)...")
         do {
             // Long enough to hold the progress screen up for a couple of XCUITest polls (it only
             // samples element existence ~once/sec), or an assertion that it survives the
@@ -665,7 +665,7 @@ final class MockContainerService: ContainerServiceBase {
             throw error
         }
         onLog("Updated successfully")
-        installedContainerVersion = ContainerCompatibility.requiredVersion
+        installedContainerVersion = requiredContainerVersion
         await startDaemon()
     }
 

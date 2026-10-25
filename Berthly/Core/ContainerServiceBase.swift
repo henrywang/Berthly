@@ -47,6 +47,11 @@ class ContainerServiceBase {
     /// `.connected` vs `.versionMismatch`.
     var installedContainerVersion: String?
 
+    /// The version the System page compares `installedContainerVersion` against. Always the real
+    /// pin, except in the mock's `patchBehind` state: when the pin equals `patchFloor`, no real
+    /// daemon is patch-behind, so that state supplies its own pair to stay reachable (#194).
+    var requiredContainerVersion = ContainerCompatibility.requiredVersion
+
     /// System-page data, fetched on demand when that page appears rather than on every
     /// `refresh()` poll — it's low-frequency, look-it-up-when-needed information.
     var diskUsage: DiskUsageSummary?

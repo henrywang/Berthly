@@ -7,21 +7,27 @@ import Foundation
 /// against. Post-1.0, `container` follows semver: a daemon with the same major version but a
 /// newer minor is additive and safe to talk to, an older daemon may lack APIs this client calls,
 /// and a different major may break the wire protocol. So compatibility is: same major, and
-/// installed minor >= required minor. Patch releases are ignored.
+/// installed minor >= required minor. Patch releases are ignored, except below `patchFloor`.
 ///
 /// `nonisolated`: pure string comparison with no shared state — without it, the module's
 /// MainActor default isolation makes `Mismatch`'s `Equatable` conformance actor-isolated,
 /// which nonisolated callers (e.g. test suites) warn on under Swift 6 checking.
 nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
-    static let requiredVersion = "1.4.1"
+    static let requiredVersion = "1.6.1"
+
+    /// A known-incompatible patch range: within this version's major.minor line, anything older
+    /// is `.tooOld`. Linked against 1.6.1, Run/Create calls the `imagePlatforms` images route
+    /// (apple/container#2422) for any image not stored locally, and 1.6.0 daemons don't have it
+    /// (#193). Other minor lines are unaffected.
+    static let patchFloor = "1.6.1"
 
     /// One-line, hand-written summary of what `requiredVersion` adds — shown on the
     /// version-mismatch gate so an upgrade prompt isn't just two bare version numbers. Update
     /// this by hand alongside `requiredVersion` bumps; it's not generated from upstream's
     /// changelog.
     static let requiredVersionRationale =
-        "Fixes an OCI-load symlink security issue (GHSA-4587-w9mm-xxvh) and adds a container clean command."
+        "Fixes a build-context symlink security issue (GHSA-fqxg-rrf3-358v) and verifies images pulled by digest (GHSA-vgrw-36j7-r93w)."
 
     /// How an incompatible install relates to the required version. `tooOld` is fixable in place
     /// with the upstream update script; `tooNew` (newer major) is not — downgrading requires a
@@ -31,13 +37,13 @@ nonisolated enum ContainerCompatibility {
         case tooNew
     }
 
-    static func isCompatible(installed: String, required: String = requiredVersion) -> Bool {
-        mismatch(installed: installed, required: required) == nil
+    static func isCompatible(installed: String, required: String = requiredVersion, floor: String? = patchFloor) -> Bool {
+        mismatch(installed: installed, required: required, floor: floor) == nil
     }
 
     /// Returns `nil` when compatible. Unparseable versions are `tooOld` — the safe assumption,
     /// since the fix it triggers (reinstall the pinned version) is valid either way.
-    static func mismatch(installed: String, required: String = requiredVersion) -> Mismatch? {
+    static func mismatch(installed: String, required: String = requiredVersion, floor: String? = patchFloor) -> Mismatch? {
         guard let installedComponents = majorMinor(of: installed),
               let requiredComponents = majorMinor(of: required) else {
             return .tooOld
@@ -45,7 +51,11 @@ nonisolated enum ContainerCompatibility {
         if installedComponents[0] != requiredComponents[0] {
             return installedComponents[0] > requiredComponents[0] ? .tooNew : .tooOld
         }
-        return installedComponents[1] >= requiredComponents[1] ? nil : .tooOld
+        guard installedComponents[1] >= requiredComponents[1] else { return .tooOld }
+        if let floor, majorMinor(of: floor) == installedComponents, !isAtLeast(installed: installed, floor) {
+            return .tooOld
+        }
+        return nil
     }
 
     /// Full major.minor.patch comparison, unlike `mismatch`'s major.minor-only floor — for gating
@@ -62,14 +72,14 @@ nonisolated enum ContainerCompatibility {
     }
 
     /// Same major.minor as `requiredVersion` (so `mismatch` sees it as fully compatible and
-    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.4.0 against a
-    /// Berthly pinned to `requiredVersion` 1.4.1. `mismatch` deliberately ignores patch, so this
+    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.7.0 against a
+    /// Berthly pinned to `requiredVersion` 1.7.1. `mismatch` ignores patch above `patchFloor`, so this
     /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`, e.g.
     /// running-container export added in 1.2.1) can sit unreachable with no signal why. Drives
     /// the System page's non-blocking "Update available" affordance, distinct from the hard
     /// `.versionMismatch` gate that `mismatch` drives.
-    static func isPatchBehind(installed: String, required: String = requiredVersion) -> Bool {
-        isCompatible(installed: installed, required: required) && !isAtLeast(installed: installed, required)
+    static func isPatchBehind(installed: String, required: String = requiredVersion, floor: String? = patchFloor) -> Bool {
+        isCompatible(installed: installed, required: required, floor: floor) && !isAtLeast(installed: installed, required)
     }
 
     /// The health-check ping's `apiServerVersion` isn't a bare version string — it's

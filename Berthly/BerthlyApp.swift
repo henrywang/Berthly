@@ -72,8 +72,10 @@ struct BerthlyApp: App {
         case "patchBehind":
             // Same major.minor as required (stays `.connected`, nothing blocks) but behind the
             // exact pinned patch — exercises SystemView's non-blocking update affordance, distinct
-            // from the hard `.versionMismatch` gate above.
-            mock.installedContainerVersion = "1.4.0"
+            // from the hard `.versionMismatch` gate above. Its own pair rather than the real pin,
+            // which can equal `patchFloor` and leave nothing patch-behind (#194).
+            mock.installedContainerVersion = "1.6.1"
+            mock.requiredContainerVersion = "1.6.2"
         default: break
         }
         if let warning = env["UITEST_STARTUP_WARNING"] {
