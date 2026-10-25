@@ -364,7 +364,7 @@ struct RunContainerSheet: View {
                 .fontDesign(.monospaced)
         }
 
-        PlatformPicker(title: "Platform", selection: $platformChoice)
+        PlatformPicker(title: "Platform", defaultLabel: "Default (from image)", selection: $platformChoice)
 
         Toggle("Start immediately", isOn: $startImmediately)
             .toggleStyle(.checkbox)

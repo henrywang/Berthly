@@ -399,6 +399,8 @@ enum SheetPlatformChoice: String, CaseIterable {
 
 struct PlatformPicker: View {
     let title: LocalizedStringKey
+    /// Run infers the platform from the image (#209); the other sheets default to the host.
+    var defaultLabel = SheetPlatformChoice.default.label
     @Binding var selection: SheetPlatformChoice
 
     var body: some View {
@@ -408,7 +410,7 @@ struct PlatformPicker: View {
                 .foregroundStyle(.secondary)
             Picker(title, selection: $selection) {
                 ForEach(SheetPlatformChoice.allCases, id: \.self) {
-                    Text($0.label).tag($0)
+                    Text($0 == .default ? defaultLabel : $0.label).tag($0)
                 }
             }
             .pickerStyle(.menu)
