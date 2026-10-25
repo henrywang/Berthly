@@ -113,6 +113,18 @@ enum ContainerCLI {
         (try? run(["system", "status"], timeout: 10))?.status == 0
     }
 
+    /// The daemon's `major.minor.patch` from `container system status`'s `server.version` row,
+    /// or `nil` if it can't be read.
+    static func serverVersion() throws -> [Int]? {
+        let status = try run(["system", "status"], timeout: 10)
+        guard let line = status.output.split(separator: "\n").first(where: { $0.hasPrefix("server.version") }),
+              let match = line.range(of: #"\d+\.\d+\.\d+"#, options: .regularExpression) else {
+            return nil
+        }
+        let parts = line[match].split(separator: ".").compactMap { Int($0) }
+        return parts.count == 3 ? parts : nil
+    }
+
     /// Pulls `reference` if it isn't already present. Pulls are the slowest step in the
     /// suite, so `scripts/e2e.sh` pre-pulls the fixture image — this is the in-test
     /// fallback for running a single test straight from Xcode.
