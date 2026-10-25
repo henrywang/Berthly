@@ -91,14 +91,14 @@ private struct DaemonVersionSection: View {
 
     private var mismatch: ContainerCompatibility.Mismatch? {
         guard let installed = service.installedContainerVersion else { return nil }
-        return ContainerCompatibility.mismatch(installed: installed)
+        return ContainerCompatibility.mismatch(installed: installed, required: service.requiredContainerVersion)
     }
 
     private var isCompatible: Bool { mismatch == nil }
 
     private var isPatchBehind: Bool {
         guard let installed = service.installedContainerVersion else { return false }
-        return ContainerCompatibility.isPatchBehind(installed: installed)
+        return ContainerCompatibility.isPatchBehind(installed: installed, required: service.requiredContainerVersion)
     }
 
     private var statusText: String {
@@ -132,7 +132,7 @@ private struct DaemonVersionSection: View {
             }
 
             LabeledContent("Installed") { monoValue(service.installedContainerVersion ?? "Unknown") }
-            LabeledContent("Required") { monoValue(ContainerCompatibility.requiredVersion) }
+            LabeledContent("Required") { monoValue(service.requiredContainerVersion) }
 
             // Non-blocking: unlike the hard `.versionMismatch` gate (major.minor floor, handled
             // entirely by DaemonGateView), a patch-behind daemon is still fully compatible, so
@@ -141,7 +141,7 @@ private struct DaemonVersionSection: View {
             // `operationCoordinator` (owned by DaemonGateView, injected via environment) keeps
             // the progress screen alive across that teardown instead of losing it.
             if isPatchBehind {
-                Button("Update Container to v\(ContainerCompatibility.requiredVersion)…") {
+                Button("Update Container to v\(service.requiredContainerVersion)…") {
                     showPatchUpdateConfirm = true
                 }
                 .accessibilityIdentifier("updatePatchButton")
@@ -170,10 +170,10 @@ private struct DaemonVersionSection: View {
         } message: {
             Text("This stops every running container on this Mac, not just ones Berthly manages.")
         }
-        .alert("Update container to v\(ContainerCompatibility.requiredVersion)?", isPresented: $showPatchUpdateConfirm) {
+        .alert("Update container to v\(service.requiredContainerVersion)?", isPresented: $showPatchUpdateConfirm) {
             Button("Update", role: .destructive) {
                 operationCoordinator.run(
-                    message: String(localized: "Updating container to v\(ContainerCompatibility.requiredVersion)…"),
+                    message: String(localized: "Updating container to v\(service.requiredContainerVersion)…"),
                     failureTitle: String(localized: "Update Failed"),
                     service: service
                 ) { service, onLog in

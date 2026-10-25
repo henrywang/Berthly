@@ -131,4 +131,31 @@ struct ContainerCompatibilityTests {
     @Test func isPatchBehindNewerMajorIsFalse() {
         #expect(!ContainerCompatibility.isPatchBehind(installed: "2.0.0", required: "1.2.2"))
     }
+
+    // The patch floor blocks a known-incompatible patch range inside its own minor line only:
+    // a 1.6.1-linked Berthly calls an images route 1.6.0 daemons lack (#193).
+    @Test func patchFloorBlocksOlderPatchInItsLine() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.6.0", required: "1.6.1", floor: "1.6.1") == .tooOld)
+        #expect(ContainerCompatibility.mismatch(installed: "1.6.0", required: "1.5.0", floor: "1.6.1") == .tooOld)
+    }
+
+    @Test func patchFloorAllowsFloorAndLaterVersions() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.6.1", required: "1.6.1", floor: "1.6.1") == nil)
+        #expect(ContainerCompatibility.mismatch(installed: "1.6.4", required: "1.6.1", floor: "1.6.1") == nil)
+        #expect(ContainerCompatibility.mismatch(installed: "1.7.0", required: "1.6.1", floor: "1.6.1") == nil)
+    }
+
+    @Test func patchFloorLeavesOtherMinorLinesPatchAgnostic() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.7.0", required: "1.7.2", floor: "1.6.1") == nil)
+        #expect(ContainerCompatibility.isPatchBehind(installed: "1.7.0", required: "1.7.2", floor: "1.6.1"))
+    }
+
+    @Test func patchFloorAtTheRequiredVersionLeavesNothingPatchBehind() {
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "1.6.0", required: "1.6.1", floor: "1.6.1"))
+    }
+
+    @Test func shippedFloorBlocksContainer160() {
+        #expect(!ContainerCompatibility.isCompatible(installed: "1.6.0"))
+        #expect(ContainerCompatibility.isCompatible(installed: "1.6.1"))
+    }
 }
