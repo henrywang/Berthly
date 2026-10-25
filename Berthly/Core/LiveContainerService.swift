@@ -2835,7 +2835,11 @@ final class LiveContainerService: ContainerServiceBase {
                 searchDomains: options.dnsSearch
             )
         return Flags.Management(
-            arch: Arch.hostArchitecture().rawValue,
+            // nil lets `containerConfigFromFlags` infer os/arch from the image's index, as the
+            // 1.6.1 CLI does (apple/container#2422): an amd64-only image then runs under Rosetta
+            // instead of failing "does not support linux/arm64", and a multi-platform image still
+            // resolves to the host (or CONTAINER_DEFAULT_PLATFORM). The Platform field still wins.
+            arch: nil,
             capAdd: options.capAdd,
             capDrop: options.capDrop,
             cidfile: nilIfEmpty(options.cidFile) ?? "",
@@ -2853,7 +2857,7 @@ final class LiveContainerService: ContainerServiceBase {
             mounts: options.mounts,
             name: nilIfEmpty(options.name),
             networks: options.networks,
-            os: "linux",
+            os: nil,
             platform: nilIfEmpty(options.platform),
             publishPorts: options.ports,
             publishSockets: [],

@@ -342,6 +342,18 @@ struct RunFlagsMappingTests {
         #expect(flags.labels == ["team=web"])
     }
 
+    @Test func managementFlagsLeavePlatformToImageInferenceUnlessChosen() {
+        let inferred = LiveContainerService.runManagementFlags(for: RunOptions(reference: "amd64/alpine:3.20"))
+        #expect(inferred.arch == nil)
+        #expect(inferred.os == nil)
+        #expect(inferred.platform == nil)
+
+        let chosen = LiveContainerService.runManagementFlags(
+            for: RunOptions(reference: "alpine:3.22", platform: "linux/amd64")
+        )
+        #expect(chosen.platform == "linux/amd64")
+    }
+
     @Test func managementFlagsMapAdvancedFields() {
         let options = RunOptions(
             reference: "local/web:1.0",

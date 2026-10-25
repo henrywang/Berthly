@@ -28,7 +28,12 @@ volumes, mounts, tmpfs, networks with DNS aliases (`alias=`), labels, entrypoint
 cpus/memory, capabilities add/drop, kernel boot arguments (`--kernel-arg`),
 ulimits, DNS (nameserver, domain, search, options, no-dns), platform/os/arch,
 read-only rootfs, init process, cidfile, interactive/tty, ssh, shm-size,
-Rosetta, virtualization.
+Rosetta, virtualization. As in the 1.6.1 CLI
+([apple/container#2422](https://github.com/apple/container/pull/2422)), the
+platform is inferred from the image when Platform is left at its default, so
+an amd64-only image runs under Rosetta. A GUI app launched from Finder doesn't
+inherit a shell's `CONTAINER_DEFAULT_PLATFORM`, so multi-platform images
+default to the host.
 
 ## Images
 
@@ -92,13 +97,6 @@ New upstream surface not yet in the GUI, each with an open issue:
 
 - **`commit`** ([apple/container#1762](https://github.com/apple/container/pull/1762),
   1.6.0) — snapshot a container's filesystem into a new image. #206.
-- **Image-inferred platform and runtime** on run/create
-  ([apple/container#2422](https://github.com/apple/container/pull/2422), 1.6.1):
-  `--os`/`--arch` now default to the image's platform, and
-  `CONTAINER_DEFAULT_PLATFORM` sets a default. Berthly still passes the host
-  architecture and `linux` explicitly unless the sheet's Platform field is
-  set, and a GUI app doesn't inherit a shell's `CONTAINER_DEFAULT_PLATFORM`.
-  #209 decides whether to adopt inference.
 
 ## System
 
