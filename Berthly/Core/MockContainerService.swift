@@ -13,8 +13,8 @@ extension Container {
         Container(id: id, name: name, image: image, imageDigest: imageDigest ?? self.imageDigest,
                   status: status, ports: ports, cpuPercent: 0, memoryMB: 0,
                   memoryLimitMB: memoryLimitMB, networkIOString: "–", uptime: uptime,
-                  command: command, mounts: mounts, networks: networks, environment: environment,
-                  startedDate: startedDate)
+                  command: command, mounts: mounts, networks: networks, networkAliases: networkAliases,
+                  environment: environment, startedDate: startedDate)
     }
 }
 
@@ -90,32 +90,6 @@ final class MockContainerService: ContainerServiceBase {
         if dataset == .large { applyLargeFixture() }
     }
 
-    private static func mockInspectData() -> [String: ImageInspectData] {
-        let webVariants = [
-            ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 182 * 1_048_576, digest: "sha256:arm64variant001"),
-            ImageVariantInfo(arch: "amd64", archVariant: nil, sizeBytes: 188 * 1_048_576, digest: "sha256:amd64variant001")
-        ]
-        let webEnv = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "PORT=3000", "NGINX_VERSION=1.25.4"]
-        let webLabels: [String: String] = ["maintainer": "berthly@example.com", "version": "1.4", "org.opencontainers.image.title": "web-frontend"]
-        let webHistory = [
-            "ADD file:abc123 in /",
-            "apt-get update && apt-get install -y nodejs npm",
-            "WORKDIR /app",
-            "npm ci --omit=dev",
-            "COPY . .",
-            "EXPOSE 3000",
-            "CMD [\"nginx\",\"-g\",\"daemon off;\"]"
-        ]
-
-        let apiVariants = [ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 240 * 1_048_576, digest: "sha256:apiarm64variant001")]
-        let apiEnv = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "NODE_VERSION=22.2.0"]
-        let apiHistory = ["ADD file:def456 in /", "WORKDIR /srv", "npm install", "CMD [\"node\",\"server.js\"]"]
-
-        return [
-            "sha256:3f9a2b7c1d": ImageInspectData(variants: webVariants, command: "nginx -g daemon off;", workDir: "/app", user: "www-data", stopSignal: "SIGTERM", env: webEnv, labels: webLabels, history: webHistory),
-            "sha256:a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory)
-        ]
-    }
     // swiftlint:enable line_length
 
     // MARK: - Operations (simulated in mock)
@@ -590,7 +564,8 @@ final class MockContainerService: ContainerServiceBase {
             uptime: isRunning ? "0m" : "–",
             command: command.isEmpty ? "–" : command,
             mounts: [],
-            networks: options.networks,
+            networks: options.networks.map { NetworkAttachmentSpec.parse($0).network },
+            networkAliases: NetworkAttachmentSpec.aliasesByNetwork(options.networks),
             environment: options.env.map { "\($0.key)=\($0.value)" }.sorted(),
             startedDate: isRunning ? Date() : nil
         ))
@@ -818,6 +793,41 @@ final class MockContainerService: ContainerServiceBase {
         }
     }
 }
+
+// MARK: - Image inspect fixtures
+
+// Fixture literals, one entry per line like the container fixtures above; kept out of the
+// class body so it stays under the type_body_length ratchet.
+// swiftlint:disable line_length
+extension MockContainerService {
+    private static func mockInspectData() -> [String: ImageInspectData] {
+        let webVariants = [
+            ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 182 * 1_048_576, digest: "sha256:arm64variant001"),
+            ImageVariantInfo(arch: "amd64", archVariant: nil, sizeBytes: 188 * 1_048_576, digest: "sha256:amd64variant001")
+        ]
+        let webEnv = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "PORT=3000", "NGINX_VERSION=1.25.4"]
+        let webLabels: [String: String] = ["maintainer": "berthly@example.com", "version": "1.4", "org.opencontainers.image.title": "web-frontend"]
+        let webHistory = [
+            "ADD file:abc123 in /",
+            "apt-get update && apt-get install -y nodejs npm",
+            "WORKDIR /app",
+            "npm ci --omit=dev",
+            "COPY . .",
+            "EXPOSE 3000",
+            "CMD [\"nginx\",\"-g\",\"daemon off;\"]"
+        ]
+
+        let apiVariants = [ImageVariantInfo(arch: "arm64", archVariant: "v8", sizeBytes: 240 * 1_048_576, digest: "sha256:apiarm64variant001")]
+        let apiEnv = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin", "NODE_ENV=production", "NODE_VERSION=22.2.0"]
+        let apiHistory = ["ADD file:def456 in /", "WORKDIR /srv", "npm install", "CMD [\"node\",\"server.js\"]"]
+
+        return [
+            "sha256:3f9a2b7c1d": ImageInspectData(variants: webVariants, command: "nginx -g daemon off;", workDir: "/app", user: "www-data", stopSignal: "SIGTERM", env: webEnv, labels: webLabels, history: webHistory),
+            "sha256:a17c44e9b2": ImageInspectData(variants: apiVariants, command: "node server.js", workDir: "/srv", user: "", stopSignal: "", env: apiEnv, labels: [:], history: apiHistory)
+        ]
+    }
+}
+// swiftlint:enable line_length
 
 // MARK: - Fake progress reporting (issue #97)
 

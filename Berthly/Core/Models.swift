@@ -80,6 +80,9 @@ struct Container: Identifiable, Hashable {
     let command: String
     let mounts: [ContainerMount]
     let networks: [String]
+    /// DNS aliases per attached network name (container 1.6.0, apple/container#2390). Defaulted
+    /// like `imageDigest`.
+    var networkAliases: [String: [String]] = [:]
     let environment: [String]
     var startedDate: Date?
 

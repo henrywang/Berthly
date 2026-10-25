@@ -24,7 +24,7 @@ CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 | `export` | Export Filesystem… save panel (writes `<name>-rootfs.tar`) |
 
 The Run/Create sheet exposes the full flag surface: env + env-file, ports,
-volumes, mounts, tmpfs, networks, labels, entrypoint, workdir, user/uid/gid,
+volumes, mounts, tmpfs, networks with DNS aliases (`alias=`), labels, entrypoint, workdir, user/uid/gid,
 cpus/memory, capabilities add/drop, kernel boot arguments (`--kernel-arg`),
 ulimits, DNS (nameserver, domain, search, options, no-dns), platform/os/arch,
 read-only rootfs, init process, cidfile, interactive/tty, ssh, shm-size,
@@ -92,12 +92,6 @@ New upstream surface not yet in the GUI, each with an open issue:
 
 - **`commit`** ([apple/container#1762](https://github.com/apple/container/pull/1762),
   1.6.0) — snapshot a container's filesystem into a new image. #206.
-- **DNS aliases** — `--network <name>,alias=NAME` on run/create
-  ([apple/container#2390](https://github.com/apple/container/pull/2390), 1.6.0).
-  Already works when typed into the Run sheet's Networks field, which passes
-  entries verbatim, but nothing hints at the syntax and the live service
-  doesn't populate `NetworkEndpoint.aliases`, so attached aliases aren't
-  shown. #207.
 - **Image-inferred platform and runtime** on run/create
   ([apple/container#2422](https://github.com/apple/container/pull/2422), 1.6.1):
   `--os`/`--arch` now default to the image's platform, and
