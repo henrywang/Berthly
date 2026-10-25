@@ -161,4 +161,48 @@ final class LogStreamJourneyTests: BerthlyE2ETestCase {
         XCTAssertTrue(markerText().waitForExistence(timeout: 10),
                       "clearing the filter should restore the marker lines")
     }
+
+    /// #205: the daemon's stdio.log is a regular file, where `read(upToCount:)` returns nil at EOF,
+    /// and the follow loop once treated that as end-of-stream — so the first quiet 500 ms poll
+    /// silently stopped the tail. The late line is gated on a file the test creates only after the
+    /// early line has rendered, so it can only arrive through the follow loop, never the drain.
+    @MainActor
+    func testLogsTabFollowsLinesWrittenAfterAQuietPeriod() throws {
+        try ContainerCLI.ensureImage(Self.fixtureImage)
+        let tag = UUID().uuidString.prefix(8).lowercased()
+        let early = "berthly-e2e-early-\(tag)", late = "berthly-e2e-late-\(tag)"
+        let create = try ContainerCLI.run(
+            ["run", "-d", "--name", containerName, Self.fixtureImage, "sh", "-c",
+             "echo \(early); until [ -e /tmp/go ]; do sleep 0.2; done; echo \(late); sleep 600"],
+            timeout: 120
+        )
+        XCTAssertEqual(create.status, 0, "container run failed:\n\(create.output)")
+
+        let app = XCUIApplication.berthlyE2E()
+        app.launch()
+
+        let row = app.staticTexts["computeRow-\(containerName)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 30))
+        row.click()
+        let logsTab = app.detailTab("Logs")
+        XCTAssertTrue(logsTab.waitForExistence(timeout: 10))
+        logsTab.click()
+
+        func logText(_ text: String) -> XCUIElement {
+            app.staticTexts
+                .matching(NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", text, text))
+                .firstMatch
+        }
+
+        XCTAssertTrue(logText(early).waitForExistence(timeout: 30))
+        // Several empty polls before the late line is written.
+        let quiet = expectation(description: "quiet period")
+        quiet.isInverted = true
+        wait(for: [quiet], timeout: 2)
+
+        let trigger = try ContainerCLI.exec(containerName, ["touch", "/tmp/go"])
+        XCTAssertEqual(trigger.status, 0, "exec failed:\n\(trigger.output)")
+        XCTAssertTrue(logText(late).waitForExistence(timeout: 15),
+                      "a line written after a quiet period should still stream into the Logs tab")
+    }
 }

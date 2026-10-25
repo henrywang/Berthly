@@ -5,10 +5,8 @@ import Foundation
 import Testing
 @testable import Berthly
 
-// Serialized: several tests below do raw fd surgery (`close(fh.fileDescriptor)`) and now
-// `LogStreamer` also closes the handles it's given (fixing a per-view fd leak). A double-close is
-// harmless only if no *other* test reuses that fd number in between — which Swift Testing's default
-// parallel execution can't guarantee. Serializing this suite removes the intra-suite fd-reuse race.
+// Serialized: several tests below do raw fd surgery, and `LogStreamer` closes the handles it's
+// given, so keep this suite's descriptor juggling from interleaving with itself.
 @Suite(.serialized)
 struct LogStreamerTests {
 
@@ -137,13 +135,13 @@ struct LogStreamerTests {
         // is needed, not a plain #expect failure.
         let pipe = Pipe()
         let fh = pipe.fileHandleForReading
-        close(fh.fileDescriptor)
+        invalidateForReading(fh)
         #expect(throws: (any Error).self) { _ = try fh.read(upToCount: 65_536) }
     }
 
     @MainActor
     @Test func streamThrowsWhenFdIsInvalidatedBehindFileHandlesBack() async throws {
-        // Regression test: the raw fd is closed via POSIX `close`, so `FileHandle` still believes
+        // Regression test: the raw fd is invalidated behind `FileHandle`'s back, so it still believes
         // it's open and the read has to hit the OS and get back EBADF — the exact failure the
         // production trace shows (`readDataUpToLength:error:` raising an uncatchable NSException
         // via the deprecated `readDataToEndOfFile()`/`availableData` APIs). This is the
@@ -152,7 +150,7 @@ struct LogStreamerTests {
         // process instead of failing cleanly.
         let pipe = Pipe()
         let fh = pipe.fileHandleForReading
-        close(fh.fileDescriptor)
+        invalidateForReading(fh)
 
         let collector = Collector()
         await #expect(throws: (any Error).self) {
@@ -187,5 +185,50 @@ struct LogStreamerTests {
 
         #expect(collector.lines == ["boot: ok"])
         #expect(fcntl(readFd, F_GETFD) == -1) // stream closed the handle it was handed
+    }
+
+    @MainActor
+    @Test func streamFollowsAppendsAfterAQuietPollOnARegularFile() async throws {
+        // #205: the daemon's logs are regular files, where `read(upToCount:)` returns nil at EOF.
+        // The follow loop must keep polling through that rather than end the stream.
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("logstreamer-\(UUID().uuidString).log")
+        try Data("early\n".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let reader = try FileHandle(forReadingFrom: url)
+
+        let collector = Collector()
+        let task = Task { @MainActor in
+            try await LogStreamer.stream(fetch: { [reader] }, onLine: { collector.lines.append($0) })
+        }
+        defer { task.cancel() }
+        try await waitUntil { collector.lines == ["early"] }
+        // Long enough for at least one empty poll (500 ms interval) before the append.
+        try await Task.sleep(for: .milliseconds(1_200))
+
+        let writer = try FileHandle(forWritingTo: url)
+        try writer.seekToEnd()
+        try writer.write(contentsOf: Data("late\n".utf8))
+        try writer.close()
+
+        try await waitUntil { collector.lines == ["early", "late"] }
+        #expect(collector.lines == ["early", "late"])
+    }
+
+    @MainActor
+    private func waitUntil(_ condition: () -> Bool) async throws {
+        var waited = 0
+        while !condition(), waited < 600 {
+            try await Task.sleep(for: .milliseconds(5))
+            waited += 1
+        }
+    }
+
+    /// Makes reads on `fh` fail with EBADF while keeping its fd number allocated. A raw `close`
+    /// freed the number, a parallel test or the system could be handed it, and the later close
+    /// from `LogStreamer`'s defer (or `Pipe`'s dealloc) then hit a guarded fd: EXC_GUARD (#215).
+    private func invalidateForReading(_ fh: FileHandle) {
+        let devNull = open("/dev/null", O_WRONLY)
+        dup2(devNull, fh.fileDescriptor)
+        close(devNull)
     }
 }
