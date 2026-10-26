@@ -134,6 +134,9 @@
     "A vmlinux binary already on disk." : {
 
     },
+    "Account" : {
+
+    },
     "Add" : {
 
     },
@@ -347,6 +350,9 @@
     "container" : {
 
     },
+    "Container" : {
+
+    },
     "CONTAINER" : {
 
     },
@@ -477,6 +483,9 @@
 
     },
     "Defaults to Dockerfile or Containerfile in the build context." : {
+
+    },
+    "Defaults to your Mac user. Set when the machine is created; can't be changed later." : {
 
     },
     "Delete" : {
@@ -846,6 +855,9 @@
     "Log source" : {
 
     },
+    "Machine" : {
+
+    },
     "Machine created" : {
 
     },
@@ -964,6 +976,12 @@
 
     },
     "on disk" : {
+
+    },
+    "Open Container" : {
+
+    },
+    "Open Machine" : {
 
     },
     "Operation Failed" : {
@@ -1293,6 +1311,12 @@
     "Show token" : {
 
     },
+    "Shows a container in Berthly." : {
+
+    },
+    "Shows a machine in Berthly." : {
+
+    },
     "sign in via Registries." : {
 
     },
@@ -1339,6 +1363,12 @@
     "Start" : {
 
     },
+    "Start ${container}" : {
+
+    },
+    "Start ${machine}" : {
+
+    },
     "Start a new container from an image" : {
 
     },
@@ -1375,6 +1405,12 @@
     "Starting container…" : {
 
     },
+    "Starts a stopped container." : {
+
+    },
+    "Starts a stopped machine." : {
+
+    },
     "Status" : {
 
     },
@@ -1382,6 +1418,12 @@
 
     },
     "Stop %@?" : {
+
+    },
+    "Stop ${container}" : {
+
+    },
+    "Stop ${machine}" : {
 
     },
     "Stop Builder" : {
@@ -1412,6 +1454,12 @@
 
     },
     "Stopping container…" : {
+
+    },
+    "Stops a running container." : {
+
+    },
+    "Stops a running machine." : {
 
     },
     "Storage" : {
