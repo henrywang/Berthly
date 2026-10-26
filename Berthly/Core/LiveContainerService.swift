@@ -2498,10 +2498,13 @@ final class LiveContainerService: ContainerServiceBase {
         }
     }
 
-    /// Native replication of the CLI's non-public `BuilderStart.start()`: reuses a running/stopped
-    /// "buildkit" container when its image/cpu/memory/ssh still match, otherwise (re)creates it —
-    /// fetching the builder image, wiring the tmpfs `/run` + virtiofs exports mounts, network, and
-    /// kernel exactly as the CLI does — then bootstraps the `container-builder-shim` process.
+    /// Replica of `ContainerBuild.Builder.start` (public since 1.6.0, apple/container#2298): reuses
+    /// a running/stopped "buildkit" container when its image/cpu/memory/ssh still match, otherwise
+    /// (re)creates it with the CLI's mounts, network, and kernel, then bootstraps the shim. Not
+    /// called directly (#210): upstream reports "Fetching BuildKit image" even when it does no
+    /// work, which breaks the `onLog` "did work" signal `dialOrStartBuilder` relies on, and it
+    /// also recreates on `BUILDKIT_COLORS`/`NO_COLOR` drift, which a Finder-launched app never
+    /// has, so alternating with a shell that sets them would discard the build cache each time.
     private func startBuilderContainer(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
@@ -2528,16 +2531,9 @@ final class LiveContainerService: ContainerServiceBase {
         let client = ContainerClient()
         let builderContainerId = ContainerBuild.Builder.builderContainerId
         if let existing = try? await client.get(id: builderContainerId) {
-            let imageChanged = existing.configuration.image.reference != builderImage
-            let cpuChanged = existing.configuration.resources.cpus != resources.cpus
-            let memChanged = existing.configuration.resources.memoryInBytes != resources.memoryInBytes
-            // `config.ssh` gates the host↔guest agent-socket forwarding itself, set only at
-            // container creation — bootstrapBuilderShim's SSH_AUTH_SOCK env var alone (below)
-            // just tells the shim where to look, it can't wire up forwarding a stale container
-            // never had. So a request that flips ssh on/off must trigger a recreate too, exactly
-            // like an image/cpu/memory change.
-            let sshChanged = existing.configuration.ssh != wantsSSH
-            let needsRecreate = imageChanged || cpuChanged || memChanged || sshChanged
+            let needsRecreate = Self.builderNeedsRecreate(
+                existing.configuration, image: builderImage, resources: resources, ssh: wantsSSH
+            )
             switch existing.status {
             case .running:
                 guard needsRecreate else { return }
@@ -2545,12 +2541,20 @@ final class LiveContainerService: ContainerServiceBase {
                 try await client.stop(id: existing.id)
                 try await client.delete(id: existing.id)
             case .stopped:
-                guard needsRecreate else {
-                    try await bootstrapBuilderShim(client: client, id: existing.id)
-                    return
+                if needsRecreate {
+                    onLog("Restarting the build environment for updated settings…")
+                    try await client.delete(id: existing.id)
+                } else {
+                    do {
+                        try await bootstrapBuilderShim(client: client, id: existing.id)
+                        return
+                    } catch {
+                        // Upstream's fallback: a stopped builder that won't restart is rebuilt
+                        // rather than failing the build. bootstrapBuilderShim already deleted it.
+                        Self.log.warning("failed to restart stopped builder, recreating", metadata: ["error": "\(error)"])
+                        onLog("Couldn't restart the build environment; recreating it…")
+                    }
                 }
-                onLog("Restarting the build environment for updated settings…")
-                try await client.delete(id: existing.id)
             case .stopping:
                 throw ContainerizationError(.invalidState, message: "Builder is stopping; wait until it's fully stopped before rebuilding.")
             case .unknown:
@@ -2616,8 +2620,29 @@ final class LiveContainerService: ContainerServiceBase {
 
         let kernel = try await ClientKernel.getDefaultKernel(for: .current)
 
-        try await client.create(configuration: config, options: .default, kernel: kernel)
+        do {
+            try await client.create(configuration: config, options: .default, kernel: kernel)
+        } catch let error as ContainerizationError where error.code == .exists {
+            // A concurrent `container build` created the builder while the image and kernel
+            // were fetched; bootstrap is idempotent, so use the one it made (as upstream does).
+        }
         try await bootstrapBuilderShim(client: client, id: builderContainerId)
+    }
+
+    /// `config.ssh` gates the host↔guest agent-socket forwarding itself and is set only at
+    /// creation — bootstrapBuilderShim's SSH_AUTH_SOCK env var just tells the shim where to look —
+    /// so flipping ssh needs a recreate like an image/cpu/memory change. Unlike upstream, managed
+    /// env (`BUILDKIT_COLORS`/`NO_COLOR`) is ignored; see `startBuilderContainer`.
+    nonisolated static func builderNeedsRecreate(
+        _ existing: ContainerConfiguration,
+        image: String,
+        resources: ContainerConfiguration.Resources,
+        ssh: Bool
+    ) -> Bool {
+        existing.image.reference != image
+            || existing.resources.cpus != resources.cpus
+            || existing.resources.memoryInBytes != resources.memoryInBytes
+            || existing.ssh != ssh
     }
 
     /// Starts the `container-builder-shim` process inside a freshly created (or reused, stopped)
