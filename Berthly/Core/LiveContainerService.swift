@@ -1397,6 +1397,40 @@ final class LiveContainerService: ContainerServiceBase {
         try FileManager.default.moveItem(at: archive, to: destination)
     }
 
+    /// The CLI's `ContainerCommit` flow: export the rootfs, wrap it as a one-layer OCI archive
+    /// built from the source image's config, then load it. Nothing daemon-side is new, so this
+    /// needs no version gate beyond the running-container export Berthly's floor already has.
+    override func commitContainer(_ id: String, reference: String) async throws -> String {
+        let client = ContainerClient()
+        let config = await resolvedSystemConfig()
+        let target = try ClientImage.normalizeReference(reference, containerSystemConfig: config)
+        let snapshot = try await client.get(id: id)
+        let platform = snapshot.configuration.platform
+        let sourceImage = try await ClientImage(description: snapshot.configuration.image).config(for: platform)
+
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let rootfs = tempDir.appendingPathComponent("rootfs.tar")
+        try await client.export(id: id, archive: rootfs)
+        let archive = try ContainerCommitArchive.create(
+            from: rootfs,
+            in: tempDir,
+            reference: target,
+            platform: platform,
+            imageConfig: ContainerCommitArchive.imageConfig(
+                process: snapshot.configuration.initProcess,
+                containerLabels: snapshot.configuration.labels,
+                stopSignal: snapshot.configuration.stopSignal,
+                sourceImage: sourceImage
+            ),
+            sourceImage: sourceImage
+        )
+        _ = try await loadImages(from: archive.path)
+        return target
+    }
+
     override func deleteContainer(_ id: String) async throws {
         try await ContainerClient().delete(id: id)
         if pinnedContainerIDs.remove(id) != nil {

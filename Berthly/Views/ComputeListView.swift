@@ -196,6 +196,7 @@ private struct ContainerComputeRow: View {
     @State private var isWorking = false
     @State private var errorMessage: String?
     @State private var showRecreateSheet = false
+    @State private var showCommitSheet = false
 
     private var isRunning: Bool { container.status == .running }
 
@@ -305,6 +306,8 @@ private struct ContainerComputeRow: View {
             // with the gate implied — see `canExportFilesystem`.
             Button("Export Filesystem…") { exportFilesystem() }
                 .disabled(!canExportFilesystem)
+            Button("Commit to Image…") { showCommitSheet = true }
+                .disabled(!CommitContainerSheet.canCommit(container))
             // Always enabled, not just when the badge shows: with no update it's the
             // "reset to a fresh container" action, which is just as legitimate.
             Button("Recreate with Latest Image…") { showRecreateSheet = true }
@@ -329,6 +332,9 @@ private struct ContainerComputeRow: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This can't be undone.")
+        }
+        .sheet(isPresented: $showCommitSheet) {
+            CommitContainerSheet(container: container)
         }
         .sheet(isPresented: $showRecreateSheet) {
             RecreateContainerSheet(container: container)

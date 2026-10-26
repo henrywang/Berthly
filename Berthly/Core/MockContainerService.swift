@@ -214,6 +214,21 @@ final class MockContainerService: ContainerServiceBase {
 
     /// Mirrors the daemon's stopped-only rule and writes a placeholder file, so the export flow
     /// is exercised end to end in mock mode (panel → service → file at the chosen path).
+    override func commitContainer(_ id: String, reference: String) async throws -> String {
+        guard let container = containers.first(where: { $0.id == id }) else {
+            throw ContainerCLIError(exitCode: 1, message: "container \(id) not found")
+        }
+        let parts = reference.trimmingCharacters(in: .whitespaces).split(separator: ":", maxSplits: 1)
+        let repo = String(parts.first ?? "")
+        let tag = parts.count > 1 ? String(parts[1]) : "latest"
+        let full = "\(repo):\(tag)"
+        images.removeAll { $0.fullName == full }
+        images.append(ContainerImage(id: full, repository: repo, tag: tag, digest: "sha256:commit\(container.id.prefix(8))",
+                                     arch: images.first { $0.fullName == container.image }?.arch ?? ["arm64"],
+                                     sizeBytes: 64 * 1_048_576, created: "just now", source: .built, usage: .unused))
+        return full
+    }
+
     override func exportContainer(_ id: String, to path: String) async throws {
         guard let container = containers.first(where: { $0.id == id }) else {
             throw ContainerCLIError(exitCode: 1, message: "container \(id) not found")
