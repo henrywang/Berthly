@@ -32,6 +32,7 @@ private struct ContainerDetailContent: View {
     @State private var errorMessage: String?
     @State private var showCopySheet     = false
     @State private var showRecreateSheet = false
+    @State private var showCommitSheet   = false
 
     // Reads directly from service so every `container.xxx` access in body/computed-props
     // is tracked by @Observable — re-renders immediately when status/stats change.
@@ -90,6 +91,9 @@ private struct ContainerDetailContent: View {
         }
         .sheet(isPresented: $showRecreateSheet) {
             RecreateContainerSheet(container: container)
+        }
+        .sheet(isPresented: $showCommitSheet) {
+            CommitContainerSheet(container: container)
         }
         // Palette "Open Shell" routing. `.onChange` covers the already-selected container;
         // `.onAppear` covers the usual case where selecting this container mounts the view fresh
@@ -151,6 +155,15 @@ private struct ContainerDetailContent: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("containerRecreateButton")
             .help("Recreate with Latest Image…")
+            .hoverScale()
+
+            Button { showCommitSheet = true } label: {
+                Image(systemName: "square.and.arrow.down.on.square")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("containerCommitButton")
+            .disabled(!CommitContainerSheet.canCommit(container))
+            .help("Commit to Image…")
             .hoverScale()
 
             Button { showCopySheet = true } label: {

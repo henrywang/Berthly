@@ -121,6 +121,10 @@ class ContainerServiceBase {
     /// export -o`). The daemon refuses a non-stopped container, so callers gate the action on
     /// stopped status. No progress reporting — the export API offers none.
     func exportContainer(_ id: String, to path: String) async throws {}
+    /// Snapshot a container's filesystem into a new local image (like `container commit`).
+    /// Returns the normalized reference created, as `tagImage` does.
+    @discardableResult
+    func commitContainer(_ id: String, reference: String) async throws -> String { reference }
 
     /// Copy a file or directory between the host and container `containerID`'s filesystem.
     /// `hostPath` is a path on the Mac, `containerPath` a path inside the container; `direction`

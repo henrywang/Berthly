@@ -22,6 +22,7 @@ CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 | `exec` | Integrated terminal tab (SwiftTerm) |
 | `copy` | Copy Files sheet, both directions |
 | `export` | Export Filesystem… save panel (writes `<name>-rootfs.tar`) |
+| `commit` | Commit to Image… sheet (detail header and row menu), running or stopped |
 
 The Run/Create sheet exposes the full flag surface: env + env-file, ports,
 volumes, mounts, tmpfs, networks with DNS aliases (`alias=`), labels, entrypoint, workdir, user/uid/gid,
@@ -90,13 +91,6 @@ Builds also start the builder on demand, like the CLI.
 is unaffected: it builds in-process through the `ContainerBuild` library and
 bootstraps the buildkit container itself, never invoking either command
 (verified against a 1.6.1 daemon in #196).
-
-## Tracked for container 1.6.x
-
-New upstream surface not yet in the GUI, each with an open issue:
-
-- **`commit`** ([apple/container#1762](https://github.com/apple/container/pull/1762),
-  1.6.0) — snapshot a container's filesystem into a new image. #206.
 
 ## System
 
