@@ -15,6 +15,8 @@ import AppKit
 enum SheetTerminationPolicy {
     private static var installed = false
 
+    /// Covers quits that don't go through `terminate()` below (Dock Quit, logout). Only fires once the
+    /// sheet becomes key, which isn't guaranteed to happen before the user quits.
     static func install() {
         guard !installed else { return }
         installed = true
@@ -26,5 +28,16 @@ enum SheetTerminationPolicy {
                 window.preventsApplicationTerminationWhenModal = false
             }
         }
+    }
+
+    /// Clears the flag at quit time so it can't depend on key status: on the macos-26 CI runner ⌘Q
+    /// with the delete-confirmation alert open was vetoed in about 1 run in 10, though `install()`'s
+    /// observer was active.
+    @MainActor
+    static func terminate() {
+        for window in NSApp.windows {
+            window.preventsApplicationTerminationWhenModal = false
+        }
+        NSApp.terminate(nil)
     }
 }

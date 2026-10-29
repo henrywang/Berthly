@@ -97,6 +97,10 @@ struct BerthlyApp: App {
         .windowToolbarStyle(.unified(showsTitle: true))
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(replacing: .appTermination) {
+                Button("Quit Berthly") { SheetTerminationPolicy.terminate() }
+                    .keyboardShortcut("q")
+            }
             UpdaterCommands(updater: updaterService)
             ContainerCommands(service: service, bridge: menuBarBridge)
         }

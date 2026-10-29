@@ -159,7 +159,7 @@ struct MenuBarView: View {
                 }
                 MenuBarFooterButton("Quit Berthly", systemImage: "power", shortcut: "⌘Q",
                                     key: KeyboardShortcut("q", modifiers: .command)) {
-                    NSApplication.shared.terminate(nil)
+                    SheetTerminationPolicy.terminate()
                 }
             }
             .padding(6)
