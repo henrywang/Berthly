@@ -2499,7 +2499,7 @@ final class LiveContainerService: ContainerServiceBase {
     }
 
     /// Replica of `ContainerBuild.Builder.start` (public since 1.6.0, apple/container#2298): reuses
-    /// a running/stopped "buildkit" container when its image/cpu/memory/ssh still match, otherwise
+    /// a running/stopped "buildkit" container when its image/cpu/memory/ssh/DNS still match, otherwise
     /// (re)creates it with the CLI's mounts, network, and kernel, then bootstraps the shim. Not
     /// called directly (#210): upstream reports "Fetching BuildKit image" even when it does no
     /// work, which breaks the `onLog` "did work" signal `dialOrStartBuilder` relies on, and it
@@ -2527,12 +2527,13 @@ final class LiveContainerService: ContainerServiceBase {
             defaultMemory: containerSystemConfig.build.memory
         )
         let wantsSSH = Self.resolveBuilderSSH(requested: ssh)
+        let dns = Self.builderDNS(defaults: containerSystemConfig.container.dns)
 
         let client = ContainerClient()
         let builderContainerId = ContainerBuild.Builder.builderContainerId
         if let existing = try? await client.get(id: builderContainerId) {
             let needsRecreate = Self.builderNeedsRecreate(
-                existing.configuration, image: builderImage, resources: resources, ssh: wantsSSH
+                existing.configuration, image: builderImage, resources: resources, ssh: wantsSSH, dns: dns
             )
             switch existing.status {
             case .running:
@@ -2616,7 +2617,7 @@ final class LiveContainerService: ContainerServiceBase {
         config.networks = [
             AttachmentConfiguration(network: defaultNetwork.id, options: AttachmentOptions(hostname: builderContainerId))
         ]
-        config.dns = ContainerConfiguration.DNSConfiguration()
+        config.dns = dns
 
         let kernel = try await ClientKernel.getDefaultKernel(for: .current)
 
@@ -2629,20 +2630,40 @@ final class LiveContainerService: ContainerServiceBase {
         try await bootstrapBuilderShim(client: client, id: builderContainerId)
     }
 
+    /// The builder's DNS: `[container.dns]` from `config.toml` (apple/container#1614), else empty
+    /// nameservers, which the runtime replaces with the network gateway's resolver. Same resolution
+    /// as upstream's `Builder.start`: no host-domain fallback, and the four-argument `Flags.DNS`
+    /// init, since the empty one leaves its `@Option`s in ArgumentParser's unset `.definition`
+    /// state. Berthly used to hard-code `DNSConfiguration()`, whose default is `1.1.1.1`.
+    nonisolated static func builderDNS(defaults: ContainerDNSConfig?) -> ContainerConfiguration.DNSConfiguration {
+        Utility.dnsConfiguration(
+            from: Flags.DNS(domain: nil, nameservers: [], options: [], searchDomains: []),
+            defaults: defaults
+        )
+    }
+
     /// `config.ssh` gates the host↔guest agent-socket forwarding itself and is set only at
     /// creation — bootstrapBuilderShim's SSH_AUTH_SOCK env var just tells the shim where to look —
-    /// so flipping ssh needs a recreate like an image/cpu/memory change. Unlike upstream, managed
+    /// so flipping ssh needs a recreate like an image/cpu/memory/DNS change. Unlike upstream, managed
     /// env (`BUILDKIT_COLORS`/`NO_COLOR`) is ignored; see `startBuilderContainer`.
     nonisolated static func builderNeedsRecreate(
         _ existing: ContainerConfiguration,
         image: String,
         resources: ContainerConfiguration.Resources,
-        ssh: Bool
+        ssh: Bool,
+        dns: ContainerConfiguration.DNSConfiguration
     ) -> Bool {
-        existing.image.reference != image
+        // `?? .init()` (nameservers `1.1.1.1`) copies upstream's `dnsConfigurationChanged`, so the
+        // CLI and Berthly agree on when a builder is stale instead of recreating each other's.
+        let existingDNS = existing.dns ?? .init()
+        return existing.image.reference != image
             || existing.resources.cpus != resources.cpus
             || existing.resources.memoryInBytes != resources.memoryInBytes
             || existing.ssh != ssh
+            || existingDNS.nameservers != dns.nameservers
+            || existingDNS.domain != dns.domain
+            || existingDNS.searchDomains != dns.searchDomains
+            || existingDNS.options != dns.options
     }
 
     /// Starts the `container-builder-shim` process inside a freshly created (or reused, stopped)
