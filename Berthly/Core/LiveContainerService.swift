@@ -1675,7 +1675,6 @@ final class LiveContainerService: ContainerServiceBase {
         AsyncStream { continuation in
             let task = Task {
                 var tracker = ContainerStatsDeltaTracker()
-                let cores = ProcessInfo.processInfo.processorCount
                 while !Task.isCancelled {
                     if let stats = try? await ContainerClient().stats(id: id) {
                         continuation.yield(tracker.sample(
@@ -1683,8 +1682,7 @@ final class LiveContainerService: ContainerServiceBase {
                             memoryUsageBytes: stats.memoryUsageBytes,
                             networkRxBytes: stats.networkRxBytes,
                             networkTxBytes: stats.networkTxBytes,
-                            at: Date(),
-                            cores: cores
+                            at: Date()
                         ))
                     }
                     try? await Task.sleep(for: .seconds(2))

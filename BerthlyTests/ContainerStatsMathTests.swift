@@ -9,47 +9,41 @@ struct ContainerStatsMathTests {
 
     // MARK: - cpuPercent
 
-    @Test func cpuPercentComputesFromCounterDelta() {
-        // 2_000_000 µs of CPU over 1s on 2 cores = 100% of one core = 100/2 = 100% ... check math:
-        // delta 2e6 µs / (1s * 1e6) = 2.0 core-seconds/s; / 2 cores * 100 = 100%.
-        let pct = ContainerStatsMath.cpuPercent(
-            previousUsec: 0, currentUsec: 2_000_000, elapsed: 1, cores: 2)
-        #expect(pct == 100)
+    // #235: percent of one core, like `container stats` and `docker stats` — two saturated cores
+    // read 200%, not 200% divided by the host's core count.
+    @Test func cpuPercentIsPerCoreAndCanExceed100() {
+        // 2e6 µs of CPU over 1s = 2 core-seconds/s = 200%.
+        let pct = ContainerStatsMath.cpuPercent(previousUsec: 0, currentUsec: 2_000_000, elapsed: 1)
+        #expect(pct == 200)
     }
 
     @Test func cpuPercentHalfOfOneCore() {
-        // 500_000 µs over 1s on 4 cores = 0.5 core-seconds/s / 4 * 100 = 12.5%.
-        let pct = ContainerStatsMath.cpuPercent(
-            previousUsec: 1_000_000, currentUsec: 1_500_000, elapsed: 1, cores: 4)
-        #expect(pct == 12.5)
+        let pct = ContainerStatsMath.cpuPercent(previousUsec: 1_000_000, currentUsec: 1_500_000, elapsed: 1)
+        #expect(pct == 50)
+    }
+
+    @Test func cpuPercentMatchesTheCLIsCPUUtilizationTimes100() {
+        // The CLI's formula (ContainerStats.calculateCPUUtilization): cpuDelta / timeInterval.
+        // 750_000 µs over 2s = 0.375 → the CLI table prints "37.50%".
+        let pct = ContainerStatsMath.cpuPercent(previousUsec: 250_000, currentUsec: 1_000_000, elapsed: 2)
+        #expect(pct == 0.375 * 100)
     }
 
     @Test func cpuPercentZeroWithoutPreviousSample() {
-        #expect(ContainerStatsMath.cpuPercent(
-            previousUsec: nil, currentUsec: 5_000_000, elapsed: 2, cores: 4) == 0)
+        #expect(ContainerStatsMath.cpuPercent(previousUsec: nil, currentUsec: 5_000_000, elapsed: 2) == 0)
     }
 
     @Test func cpuPercentZeroWhenCurrentMissing() {
-        #expect(ContainerStatsMath.cpuPercent(
-            previousUsec: 1_000, currentUsec: nil, elapsed: 2, cores: 4) == 0)
+        #expect(ContainerStatsMath.cpuPercent(previousUsec: 1_000, currentUsec: nil, elapsed: 2) == 0)
     }
 
     @Test func cpuPercentZeroOnCounterReset() {
         // Counter went backwards (container restart) — don't report a negative/garbage spike.
-        #expect(ContainerStatsMath.cpuPercent(
-            previousUsec: 9_000_000, currentUsec: 1_000, elapsed: 2, cores: 4) == 0)
+        #expect(ContainerStatsMath.cpuPercent(previousUsec: 9_000_000, currentUsec: 1_000, elapsed: 2) == 0)
     }
 
     @Test func cpuPercentZeroWhenNoTimeElapsed() {
-        #expect(ContainerStatsMath.cpuPercent(
-            previousUsec: 0, currentUsec: 2_000_000, elapsed: 0, cores: 2) == 0)
-    }
-
-    @Test func cpuPercentClampsCoresToAtLeastOne() {
-        // Guards against a divide-by-zero if a bogus core count ever arrives.
-        let pct = ContainerStatsMath.cpuPercent(
-            previousUsec: 0, currentUsec: 1_000_000, elapsed: 1, cores: 0)
-        #expect(pct == 100)
+        #expect(ContainerStatsMath.cpuPercent(previousUsec: 0, currentUsec: 2_000_000, elapsed: 0) == 0)
     }
 
     // MARK: - networkRateMBPerSecond
@@ -125,7 +119,7 @@ struct ContainerStatsDeltaTrackerTests {
         let sample = tracker.sample(
             cpuUsageUsec: 5_000_000, memoryUsageBytes: 256 * 1_048_576,
             networkRxBytes: 9_999, networkTxBytes: 9_999,
-            at: t0, cores: 4)
+            at: t0)
         #expect(sample.cpuPercent == 0)
         #expect(sample.networkMBPerSecond == 0)
         #expect(sample.memoryMB == 256)
@@ -136,13 +130,13 @@ struct ContainerStatsDeltaTrackerTests {
         _ = tracker.sample(
             cpuUsageUsec: 0, memoryUsageBytes: 0,
             networkRxBytes: 0, networkTxBytes: 0,
-            at: t0, cores: 2)
-        // +2s wall clock: 2e6 µs CPU on 2 cores = 50%; rx+tx +2 MiB over 2s = 1 MB/s.
+            at: t0)
+        // +2s wall clock: 2e6 µs CPU = 1 core-second/s = 100%; rx+tx +2 MiB over 2s = 1 MB/s.
         let sample = tracker.sample(
             cpuUsageUsec: 2_000_000, memoryUsageBytes: 128 * 1_048_576,
             networkRxBytes: 1_048_576, networkTxBytes: 1_048_576,
-            at: t0.addingTimeInterval(2), cores: 2)
-        #expect(sample.cpuPercent == 50)
+            at: t0.addingTimeInterval(2))
+        #expect(sample.cpuPercent == 100)
         #expect(sample.networkMBPerSecond == 1)
         #expect(sample.memoryMB == 128)
     }
@@ -151,17 +145,17 @@ struct ContainerStatsDeltaTrackerTests {
         var tracker = ContainerStatsDeltaTracker()
         _ = tracker.sample(cpuUsageUsec: 9_000_000, memoryUsageBytes: 0,
                            networkRxBytes: 9_000_000, networkTxBytes: 0,
-                           at: t0, cores: 1)
+                           at: t0)
         // Counters went backwards (container restart) — no negative/garbage spike.
         let reset = tracker.sample(cpuUsageUsec: 1_000, memoryUsageBytes: 0,
                                    networkRxBytes: 10, networkTxBytes: 0,
-                                   at: t0.addingTimeInterval(2), cores: 1)
+                                   at: t0.addingTimeInterval(2))
         #expect(reset.cpuPercent == 0)
         #expect(reset.networkMBPerSecond == 0)
         // The reset read becomes the new baseline: the next delta computes normally.
         let recovered = tracker.sample(cpuUsageUsec: 1_001_000, memoryUsageBytes: 0,
                                        networkRxBytes: 1_048_586, networkTxBytes: 0,
-                                       at: t0.addingTimeInterval(3), cores: 1)
+                                       at: t0.addingTimeInterval(3))
         #expect(recovered.cpuPercent == 100)
         #expect(recovered.networkMBPerSecond == 1)
     }
@@ -170,7 +164,7 @@ struct ContainerStatsDeltaTrackerTests {
         var tracker = ContainerStatsDeltaTracker()
         let sample = tracker.sample(cpuUsageUsec: nil, memoryUsageBytes: nil,
                                     networkRxBytes: nil, networkTxBytes: nil,
-                                    at: t0, cores: 8)
+                                    at: t0)
         #expect(sample == ContainerStatsSample(cpuPercent: 0, memoryMB: 0, networkMBPerSecond: 0))
     }
 }

@@ -19,19 +19,21 @@ nonisolated enum ContainerStatsMath {
         case down(Double)  // magnitude of the decrease (positive number)
     }
 
-    /// CPU utilisation as a percentage of all cores, from the delta between two cumulative
-    /// `cpu_usage_usec` reads. Returns 0 when there's no previous sample, the interval is
-    /// non-positive, or the counter went backwards (a reset) — i.e. the "can't compute a rate
-    /// yet" cases, so the first poll after opening a container reads 0%.
+    /// CPU utilisation as a percentage of one core (100% = one core saturated, 250% = two and a
+    /// half), from the delta between two cumulative `cpu_usage_usec` reads. Same unit as
+    /// `container stats` (its `cpuUtilization` × 100, apple/container#2146) and `docker stats`,
+    /// so Berthly and the terminal agree (#235); not divided by host cores or the container's
+    /// cpus. Returns 0 when there's no previous sample, the interval is non-positive, or the
+    /// counter went backwards (a reset) — i.e. the "can't compute a rate yet" cases, so the
+    /// first poll after opening a container reads 0%.
     static func cpuPercent(
         previousUsec: UInt64?,
         currentUsec: UInt64?,
-        elapsed: TimeInterval,
-        cores: Int
+        elapsed: TimeInterval
     ) -> Double {
         guard let cur = currentUsec, let prev = previousUsec,
               elapsed > 0, cur >= prev else { return 0 }
-        return Double(cur - prev) / (elapsed * 1_000_000) / Double(max(1, cores)) * 100
+        return Double(cur - prev) / (elapsed * 1_000_000) * 100
     }
 
     /// Combined network throughput (rx + tx) as a true per-second rate, in MB/s, from the delta
@@ -62,7 +64,7 @@ nonisolated enum ContainerStatsMath {
 }
 
 /// One reduced sample of a running container's live resource usage, in display units: CPU as a
-/// percentage of all host cores, memory in MB (mebibytes), network as combined rx+tx MB/s.
+/// percentage of one core (can exceed 100%), memory in MB (mebibytes), network as combined rx+tx MB/s.
 /// What `ContainerServiceBase.containerStatsStream(id:)` yields — the view layer charts these
 /// directly, with no daemon counter math of its own.
 nonisolated struct ContainerStatsSample: Equatable, Sendable {
@@ -92,16 +94,14 @@ nonisolated struct ContainerStatsDeltaTracker {
         memoryUsageBytes: UInt64?,
         networkRxBytes: UInt64?,
         networkTxBytes: UInt64?,
-        at now: Date,
-        cores: Int
+        at now: Date
     ) -> ContainerStatsSample {
         let elapsed = previousTime.map { now.timeIntervalSince($0) } ?? 0
 
         let cpu = ContainerStatsMath.cpuPercent(
             previousUsec: previousCpuUsec,
             currentUsec: cpuUsageUsec,
-            elapsed: elapsed,
-            cores: cores
+            elapsed: elapsed
         )
         previousCpuUsec = cpuUsageUsec
         previousTime = now
