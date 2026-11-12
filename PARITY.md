@@ -3,7 +3,7 @@
 How Berthly's GUI maps onto [Apple's `container`](https://github.com/apple/container)
 CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 
-> Audited against **container CLI 1.6.1** (2026-10-25). When a change closes or
+> Audited against **container CLI 1.7.1** (2026-11-12). When a change closes or
 > opens a gap, update this file in the same commit.
 
 ## Containers
@@ -18,7 +18,7 @@ CLI, subcommand by subcommand — and the few places it deliberately doesn't.
 | `list` | Compute sidebar + list (running and stopped) |
 | `inspect` | Detail view Overview/Config tabs |
 | `logs` / `logs --boot` | Logs tab with follow, filter, wrap, copy; Output/Boot source picker |
-| `stats` | Live CPU/memory/network charts in the detail view |
+| `stats` | Live CPU/memory/network charts in the detail view; CPU is a percentage of one core, the CLI's `cpuUtilization` × 100 (#235) |
 | `exec` | Integrated terminal tab (SwiftTerm) |
 | `copy` | Copy Files sheet, both directions |
 | `export` | Export Filesystem… save panel (writes `<name>-rootfs.tar`) |
@@ -34,7 +34,11 @@ Rosetta, virtualization. As in the 1.6.1 CLI
 platform is inferred from the image when Platform is left at its default, so
 an amd64-only image runs under Rosetta. A GUI app launched from Finder doesn't
 inherit a shell's `CONTAINER_DEFAULT_PLATFORM`, so multi-platform images
-default to the host.
+default to the host. DNS fields left empty fall back to the `[container.dns]`
+defaults in `config.toml` (new in 1.7.1,
+[apple/container#1614](https://github.com/apple/container/pull/1614)). A value
+in the sheet overrides them, like the CLI's flags. Out-of-range cpus or memory
+get the CLI's own error, since 1.7.1 validates both on the client.
 
 ## Images
 
@@ -90,7 +94,9 @@ Builds also start the builder on demand, like the CLI.
 ([apple/container#2298](https://github.com/apple/container/pull/2298)). Berthly
 is unaffected: it builds in-process through the `ContainerBuild` library and
 bootstraps the buildkit container itself, never invoking either command
-(verified against a 1.6.1 daemon in #196).
+(verified against a 1.6.1 daemon in #196). Like the CLI, it gives the builder
+the `[container.dns]` defaults, or the network gateway's resolver when none are
+set, and recreates the builder when its DNS changes (#233).
 
 ## System
 
@@ -101,7 +107,7 @@ bootstraps the buildkit container itself, never invoking either command
 | `dns` | Local DNS domains list / create / delete |
 | `kernel` | Kernel info + Set Kernel sheet (binary, tar/URL, arch, force, digest) |
 | `logs` | Daemon Logs viewer |
-| `property` | System properties list |
+| `property` | System properties list, including the `container.dns.*` defaults (#234) |
 | `version` | Versions shown on the System page |
 
 ## Deliberate gaps
@@ -153,11 +159,21 @@ to the CLI:
   CNI themselves. 1.5.0 also removed `k8s start`
   ([#2290](https://github.com/apple/container/pull/2290)), and 1.6.0 added
   worker nodes (`--workers`, [#2276](https://github.com/apple/container/pull/2276)).
+  1.7.1 replaced `load-image` with `cluster run --shared-image-store`
+  ([#2437](https://github.com/apple/container/pull/2437)), made `cluster ls`
+  one row per cluster with `--nodes` for the old view
+  ([#2451](https://github.com/apple/container/pull/2451)), and added per-worker
+  cpus/memory ([#2448](https://github.com/apple/container/pull/2448)).
   Berthly treats cluster node containers as infrastructure (hidden from the
   Compute list, protected from prune) so they don't get caught by unrelated
   container-management actions; it recognizes both the 1.6.1 `plugin=cluster`
-  label and the earlier `plugin=k8s` (#204). Revisit only if upstream both
-  drops EXPERIMENTAL and exposes cluster operations over the XPC API.
+  label and the earlier `plugin=k8s` (#204). Since 1.7.1 the CLI also skips
+  cluster nodes in `ls`, `start`, `stop`, `kill`, `delete` and `prune`
+  ([#2462](https://github.com/apple/container/pull/2462)). Revisit only if
+  upstream both drops EXPERIMENTAL and exposes cluster operations over the XPC
+  API. 1.7.1 adds a `container-core-clusters` XPC service (`ClusterClient`),
+  but it only creates, gets, lists and deletes cluster records; it doesn't
+  provision nodes, and the command is still EXPERIMENTAL.
 - **`--scheme http` on run/machine create against an internal registry** — 1.3.0
   ([apple/container#2100](https://github.com/apple/container/pull/2100)) removed
   the `auto` scheme and its localhost/private-IP detection. Berthly restores that
