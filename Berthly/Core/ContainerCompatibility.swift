@@ -14,20 +14,21 @@ import Foundation
 /// which nonisolated callers (e.g. test suites) warn on under Swift 6 checking.
 nonisolated enum ContainerCompatibility {
     /// Keep in sync with the `container` SPM package pin (Package.resolved / Package.swift).
-    static let requiredVersion = "1.6.1"
+    static let requiredVersion = "1.7.1"
 
     /// A known-incompatible patch range: within this version's major.minor line, anything older
-    /// is `.tooOld`. Linked against 1.6.1, Run/Create calls the `imagePlatforms` images route
-    /// (apple/container#2422) for any image not stored locally, and 1.6.0 daemons don't have it
-    /// (#193). Other minor lines are unaffected.
-    static let patchFloor = "1.6.1"
+    /// is `.tooOld`. `nil` when no patch in the required line is known-bad. The last floor was
+    /// 1.6.1 (#193): a 1.6.1-linked client called the `imagePlatforms` route
+    /// (apple/container#2422) that 1.6.0 daemons lack. The 1.7 line needs none: 1.7.1 is its
+    /// first release (#232).
+    static let patchFloor: String? = nil
 
     /// One-line, hand-written summary of what `requiredVersion` adds — shown on the
     /// version-mismatch gate so an upgrade prompt isn't just two bare version numbers. Update
     /// this by hand alongside `requiredVersion` bumps; it's not generated from upstream's
     /// changelog.
     static let requiredVersionRationale =
-        "Fixes a build-context symlink security issue (GHSA-fqxg-rrf3-358v) and verifies images pulled by digest (GHSA-vgrw-36j7-r93w)."
+        "Fixes image builds with the newer BuildKit builder and build steps that need the whole build context, and adds default DNS settings for containers."
 
     /// How an incompatible install relates to the required version. `tooOld` is fixable in place
     /// with the upstream update script; `tooNew` (newer major) is not — downgrading requires a
@@ -72,8 +73,8 @@ nonisolated enum ContainerCompatibility {
     }
 
     /// Same major.minor as `requiredVersion` (so `mismatch` sees it as fully compatible and
-    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.7.0 against a
-    /// Berthly pinned to `requiredVersion` 1.7.1. `mismatch` ignores patch above `patchFloor`, so this
+    /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.7.1 against a
+    /// Berthly pinned to `requiredVersion` 1.7.2. `mismatch` ignores patch above `patchFloor`, so this
     /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`, e.g.
     /// running-container export added in 1.2.1) can sit unreachable with no signal why. Drives
     /// the System page's non-blocking "Update available" affordance, distinct from the hard
