@@ -154,8 +154,10 @@ struct ContainerCompatibilityTests {
         #expect(!ContainerCompatibility.isPatchBehind(installed: "1.6.0", required: "1.6.1", floor: "1.6.1"))
     }
 
-    @Test func shippedFloorBlocksContainer160() {
-        #expect(!ContainerCompatibility.isCompatible(installed: "1.6.0"))
-        #expect(ContainerCompatibility.isCompatible(installed: "1.6.1"))
+    // #232: linked against 1.7.1, every 1.6.x daemon is blocked.
+    @Test func shippedGateBlocks16xAndAccepts171() {
+        #expect(ContainerCompatibility.mismatch(installed: "1.6.1") == .tooOld)
+        #expect(ContainerCompatibility.isCompatible(installed: "1.7.1"))
+        #expect(!ContainerCompatibility.isPatchBehind(installed: "1.7.1"))
     }
 }
