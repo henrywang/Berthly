@@ -1984,13 +1984,18 @@ final class LiveContainerService: ContainerServiceBase {
     /// order. Unset optionals render as an em dash rather than being omitted, so the list always
     /// shows the full settable surface.
     nonisolated static func mapSystemProperties(_ config: ContainerSystemConfig) -> [SystemProperty] {
-        [
+        let containerDNS = config.container.dns
+        return [
             SystemProperty(key: "build.rosetta", value: String(config.build.rosetta)),
             SystemProperty(key: "build.cpus", value: String(config.build.cpus)),
             SystemProperty(key: "build.memory", value: String(describing: config.build.memory)),
             SystemProperty(key: "build.image", value: config.build.image),
             SystemProperty(key: "container.cpus", value: String(config.container.cpus)),
             SystemProperty(key: "container.memory", value: String(describing: config.container.memory)),
+            SystemProperty(key: "container.dns.domain", value: containerDNS?.domain ?? "–"),
+            SystemProperty(key: "container.dns.nameservers", value: propertyListValue(containerDNS?.nameservers)),
+            SystemProperty(key: "container.dns.searchDomains", value: propertyListValue(containerDNS?.searchDomains)),
+            SystemProperty(key: "container.dns.options", value: propertyListValue(containerDNS?.options)),
             SystemProperty(key: "dns.domain", value: config.dns.domain ?? "–"),
             SystemProperty(key: "kernel.binaryPath", value: config.kernel.binaryPath),
             SystemProperty(key: "kernel.url", value: config.kernel.url.absoluteString),
@@ -2003,6 +2008,13 @@ final class LiveContainerService: ContainerServiceBase {
             SystemProperty(key: "registry.domain", value: config.registry.domain),
             SystemProperty(key: "vminit.image", value: config.vminit.image)
         ]
+    }
+
+    /// An empty list renders as the em dash too: for `[container.dns]` it means the same as
+    /// unset (no default; the runtime falls back to the network gateway's resolver).
+    private nonisolated static func propertyListValue(_ values: [String]?) -> String {
+        guard let values, !values.isEmpty else { return "–" }
+        return values.joined(separator: ", ")
     }
 
     override func fetchSystemProperties() async {

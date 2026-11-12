@@ -34,6 +34,32 @@ struct SystemPropertyMappingTests {
         #expect(properties.first(where: { $0.key == "dns.domain" })?.value == "test")
     }
 
+    // #234: `[container.dns]` (container 1.7.1) — absent by default, so every row is a dash.
+    @Test func containerDNSDefaultsAreDashesWhenUnset() {
+        let byKey = Dictionary(uniqueKeysWithValues: LiveContainerService.mapSystemProperties(ContainerSystemConfig()).map { ($0.key, $0.value) })
+        for field in ["domain", "nameservers", "searchDomains", "options"] {
+            #expect(byKey["container.dns.\(field)"] == "–")
+        }
+    }
+
+    @Test func containerDNSDefaultsRenderConfiguredValues() {
+        let dns = ContainerDNSConfig(domain: "test", nameservers: ["10.0.0.53", "10.0.0.54"], searchDomains: [], options: ["ndots:2"])
+        let config = ContainerSystemConfig(container: ContainerConfig(dns: dns))
+        let byKey = Dictionary(uniqueKeysWithValues: LiveContainerService.mapSystemProperties(config).map { ($0.key, $0.value) })
+        #expect(byKey["container.dns.domain"] == "test")
+        #expect(byKey["container.dns.nameservers"] == "10.0.0.53, 10.0.0.54")
+        #expect(byKey["container.dns.searchDomains"] == "–")
+        #expect(byKey["container.dns.options"] == "ndots:2")
+    }
+
+    @Test func containerDNSRowsFollowTheContainerSection() {
+        let keys = LiveContainerService.mapSystemProperties(ContainerSystemConfig()).map(\.key)
+        let memory = keys.firstIndex(of: "container.memory")
+        #expect(memory.map { Array(keys[($0 + 1)...($0 + 4)]) } == [
+            "container.dns.domain", "container.dns.nameservers", "container.dns.searchDomains", "container.dns.options"
+        ])
+    }
+
     @Test func keyOrderFollowsTheTOMLSectionOrder() {
         // Stable, CLI-matching order — the view renders rows in array order.
         let keys = LiveContainerService.mapSystemProperties(ContainerSystemConfig()).map(\.key)
