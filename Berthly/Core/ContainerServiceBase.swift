@@ -57,9 +57,6 @@ class ContainerServiceBase {
     var diskUsage: DiskUsageSummary?
     var kernelInfo: KernelInfo?
     var systemConfigInfo: SystemConfigInfo?
-    /// Local DNS domains registered for containers (like `container system dns list`).
-    /// `nil` until the first `fetchDNSDomains()`, so the UI can show a loading state.
-    var dnsDomains: [String]?
     /// Resolved system properties (like `container system property list`), defaults included.
     /// Read-only in Berthly — editing stays a `config.toml` / CLI affair.
     var systemProperties: [SystemProperty]?
@@ -261,16 +258,8 @@ class ContainerServiceBase {
     }
     func fetchKernelInfo() async throws {}
     func fetchSystemConfig() async throws {}
-    /// Refreshes `dnsDomains` from the host's resolver configuration. Read-only, no elevation.
-    func fetchDNSDomains() async {}
     /// Refreshes `systemProperties` from the resolved system configuration.
     func fetchSystemProperties() async {}
-    /// Register a local DNS domain for containers (like `container system dns create`). Writes
-    /// `/etc/resolver`, so the live implementation shows the macOS administrator-password prompt;
-    /// dismissing it surfaces as `CancellationError`.
-    func createDNSDomain(_ name: String) async throws {}
-    /// Remove a local DNS domain (like `container system dns delete`). Elevated like create.
-    func deleteDNSDomain(_ name: String) async throws {}
     func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
     func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
 

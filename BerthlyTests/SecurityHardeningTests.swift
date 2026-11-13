@@ -5,37 +5,6 @@ import Foundation
 import Testing
 @testable import Berthly
 
-struct PrivilegedExecutableHierarchyTests {
-
-    @Test func hierarchyPathsWalkFromLeafToButNotIncludingRoot() {
-        #expect(LiveContainerService.hierarchyPaths(startingAt: "/usr/local/bin/container") == [
-            "/usr/local/bin/container", "/usr/local/bin", "/usr/local", "/usr"
-        ])
-        #expect(LiveContainerService.hierarchyPaths(startingAt: "/").isEmpty)
-    }
-
-    @Test func rejectsAnyWritableOrNonRootEntry() {
-        #expect(LiveContainerService.isRootOwnedHierarchy([
-            (ownerID: 0, permissions: 0o755),
-            (ownerID: 0, permissions: 0o755),
-            (ownerID: 0, permissions: 0o700)
-        ]))
-        #expect(!LiveContainerService.isRootOwnedHierarchy([]))
-        #expect(!LiveContainerService.isRootOwnedHierarchy([
-            (ownerID: 0, permissions: 0o755),
-            (ownerID: 501, permissions: 0o755)
-        ]))
-        #expect(!LiveContainerService.isRootOwnedHierarchy([
-            (ownerID: 0, permissions: 0o755),
-            (ownerID: 0, permissions: 0o775)
-        ]))
-        #expect(!LiveContainerService.isRootOwnedHierarchy([
-            (ownerID: 0, permissions: 0o755),
-            (ownerID: 0, permissions: 0o757)
-        ]))
-    }
-}
-
 struct LocalFileHardeningTests {
 
     @Test func persistedApplicationDataIsOwnerOnly() throws {

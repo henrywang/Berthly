@@ -467,28 +467,6 @@ final class MockContainerService: ContainerServiceBase {
         ]
     }
 
-    override func fetchDNSDomains() async {
-        // Seed only on first fetch, so create/delete mutations survive later refetches.
-        if dnsDomains == nil { dnsDomains = ["test"] }
-    }
-
-    override func createDNSDomain(_ name: String) async throws {
-        let domain = name.trimmingCharacters(in: .whitespaces)
-        if let problem = LiveContainerService.validateDNSDomainName(domain) {
-            throw ContainerCLIError(exitCode: 1, message: problem)
-        }
-        var domains = dnsDomains ?? []
-        guard !domains.contains(domain) else {
-            throw ContainerCLIError(exitCode: 1, message: "domain \(domain) already exists")
-        }
-        domains.append(domain)
-        dnsDomains = domains.sorted()
-    }
-
-    override func deleteDNSDomain(_ name: String) async throws {
-        dnsDomains?.removeAll { $0 == name }
-    }
-
     override func fetchSystemConfig() async throws {
         systemConfigInfo = SystemConfigInfo(
             vminitImage: "ghcr.io/apple/containerization/vminit:latest",

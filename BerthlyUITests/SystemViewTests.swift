@@ -4,18 +4,16 @@
 import XCTest
 
 /// Mock-mode coverage for the System page's mutating actions — disk-usage prune rows, "Clean Up
-/// All", local DNS domain add/delete, and the builder Stop/Start/Delete lifecycle — none of which
-/// had UI-layer coverage despite being fully reachable through `MockContainerService` (unlike the
-/// E2E suite, where `prune` is permanently descoped as too destructive against a real daemon; see
-/// PLAN/E2E-TEST.md §6.4). Same conventions as BerthlyUITests.swift/SecondaryViewTests.swift.
+/// All", and the builder Stop/Start/Delete lifecycle — none of which had UI-layer coverage despite
+/// being fully reachable through `MockContainerService` (unlike the E2E suite, where `prune` is
+/// permanently descoped as too destructive against a real daemon; see PLAN/E2E-TEST.md §6.4).
+/// Same conventions as BerthlyUITests.swift/SecondaryViewTests.swift.
 ///
-/// These rows previously had no accessibility identifiers, only `.help()` tooltip text — and the
-/// DNS row and builder row each have their own identically-labeled "Delete" button, both visible
-/// at once, so a bare label query for one could silently match the other. Added
-/// `.accessibilityIdentifier` to each (`prune-<name>`, `dnsDeleteButton-<domain>`,
-/// `builder{Stop,Start,Delete}Button-<id>`) instead. Alert-driven confirm buttons are queried via
-/// `app.sheets`, not `app.windows`, which can't disambiguate a trigger from its same-labeled
-/// confirm button when both are on screen.
+/// These rows previously had no accessibility identifiers, only `.help()` tooltip text, so a bare
+/// label query could silently match the wrong button. Added `.accessibilityIdentifier` to each
+/// (`prune-<name>`, `builder{Stop,Start,Delete}Button-<id>`) instead. Alert-driven confirm buttons
+/// are queried via `app.sheets`, not `app.windows`, which can't disambiguate a trigger from its
+/// same-labeled confirm button when both are on screen.
 ///
 /// Builder stop/delete was initially dropped from this file: the row's UI didn't reflect a
 /// confirmed-successful model change, and it wasn't clear whether that was a real bug or an
@@ -98,45 +96,6 @@ final class SystemViewTests: XCTestCase {
         let done = app.sheets.buttons["OK"]
         XCTAssertTrue(done.waitForExistence(timeout: 10), "Clean Up All should report a Done alert")
         done.click()
-    }
-
-    // MARK: - Local DNS
-
-    /// Mock seeds one domain ("test"); adding a second proves the create path end-to-end, no
-    /// admin-password prompt to drive since MockContainerService never shells out.
-    @MainActor
-    func testLocalDNSAddDomainAppendsToTheList() throws {
-        let app = launchMock()
-        let addButton = app.buttons["Add Domain…"]
-        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
-        addButton.click()
-
-        let field = app.sheets.textFields.firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5), "add-domain alert should appear")
-        field.click()
-        field.typeText("example")
-        app.sheets.buttons["Add"].click()
-
-        XCTAssertTrue(app.staticTexts["example"].waitForExistence(timeout: 5),
-                      "the new domain should appear in the list")
-    }
-
-    /// Deleting the seeded "test" domain requires confirmation, then it's gone from the list.
-    @MainActor
-    func testLocalDNSDeleteDomainRequiresConfirmation() throws {
-        let app = launchMock()
-        let row = app.staticTexts["test"]
-        XCTAssertTrue(row.waitForExistence(timeout: 5), "mock should seed a \"test\" domain")
-
-        app.buttons["dnsDeleteButton-test"].click()
-        // Scoped to app.sheets: the builder row's own Delete button (once stopped) would share
-        // this exact label too, though it's not stopped in this test — scoped consistently with
-        // every other confirm click in this file regardless.
-        let confirm = app.sheets.buttons["Delete"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
-        confirm.click()
-
-        XCTAssertTrue(row.waitForNonExistence(timeout: 5))
     }
 
     // MARK: - Builder

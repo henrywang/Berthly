@@ -275,7 +275,6 @@ final class LiveContainerService: ContainerServiceBase {
     // main actor. Without `nonisolated` they'd be MainActor-isolated (this is a `@MainActor` class)
     // and every off-actor read would warn under Swift 6 concurrency.
     private nonisolated static let apiServerExecutablePath = "/usr/local/bin/container-apiserver"
-    private nonisolated static let containerExecutablePath = "/usr/local/bin/container"
     // `InstallRoot.defaultPath` derives this from `CommandLine.executablePath`, which for a GUI
     // .app resolves to Berthly's own bundle path, not the `container` CLI's install location —
     // hardcode the layout the CLI's own installer uses instead (`container-apiserver` lives next
@@ -530,10 +529,6 @@ final class LiveContainerService: ContainerServiceBase {
     nonisolated static let appleSignatureMarkers = [
         "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
     ]
-    nonisolated static let appleExecutableSignatureMarkers = [
-        "Authority=Developer ID Application: Apple Inc. - Containerization (UPBK2H6LZM)",
-        "TeamIdentifier=UPBK2H6LZM"
-    ]
 
     /// The acceptance predicate for `pkgutil --check-signature`, extracted pure so the
     /// security-critical decision is testable without spawning a process.
@@ -553,81 +548,6 @@ final class LiveContainerService: ContainerServiceBase {
             throw ContainerizationError(
                 .internalError,
                 message: "The downloaded installer package failed signature verification — refusing to install it.\n\(output)"
-            )
-        }
-    }
-
-    nonisolated static func isTrustedPrivilegedExecutable(
-        ownerID: UInt32,
-        permissions: Int,
-        signatureOutput: String,
-        terminationStatus: Int32
-    ) -> Bool {
-        ownerID == 0
-            && permissions & 0o022 == 0
-            && terminationStatus == 0
-            && appleExecutableSignatureMarkers.allSatisfy { signatureOutput.contains($0) }
-    }
-
-    nonisolated static func hierarchyPaths(startingAt path: String) -> [String] {
-        var paths: [String] = []
-        var currentURL = URL(fileURLWithPath: path)
-        while currentURL.path != "/" {
-            paths.append(currentURL.path)
-            currentURL.deleteLastPathComponent()
-        }
-        return paths
-    }
-
-    nonisolated static func isRootOwnedHierarchy(_ entries: [(ownerID: UInt32, permissions: Int)]) -> Bool {
-        !entries.isEmpty && entries.allSatisfy { $0.ownerID == 0 && $0.permissions & 0o022 == 0 }
-    }
-
-    private nonisolated static func verifyContainerExecutableForDNSPrivilege() async throws {
-        let path = containerExecutablePath
-        let resolvedPath = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
-        for hierarchyStart in Set([path, resolvedPath]) {
-            let entries = try hierarchyPaths(startingAt: hierarchyStart).map { currentPath in
-                let attributes = try FileManager.default.attributesOfItem(atPath: currentPath)
-                return (
-                    ownerID: (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max,
-                    permissions: (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
-                )
-            }
-            guard isRootOwnedHierarchy(entries) else {
-                throw ContainerizationError(
-                    .invalidState,
-                    message: "The container executable or one of its parent directories is writable by a non-root user. "
-                        + "Reinstall Apple's container package before changing DNS domains."
-                )
-            }
-        }
-        let attributes = try FileManager.default.attributesOfItem(atPath: resolvedPath)
-        let ownerID = (attributes[.ownerAccountID] as? NSNumber)?.uint32Value ?? UInt32.max
-        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0o777
-        let (verificationStatus, _) = try await runProcessCollectingOutput(
-            executablePath: "/usr/bin/codesign",
-            arguments: ["--verify", "--strict", "--verbose=2", resolvedPath]
-        )
-        guard verificationStatus == 0 else {
-            throw ContainerizationError(
-                .invalidState,
-                message: "The container executable's code signature is invalid. Reinstall Apple's container package before changing DNS domains."
-            )
-        }
-        let (status, output) = try await runProcessCollectingOutput(
-            executablePath: "/usr/bin/codesign",
-            arguments: ["-dv", "--verbose=4", resolvedPath]
-        )
-        guard isTrustedPrivilegedExecutable(
-            ownerID: ownerID,
-            permissions: permissions,
-            signatureOutput: output,
-            terminationStatus: status
-        ) else {
-            throw ContainerizationError(
-                .invalidState,
-                message: "The container executable isn't a trusted, root-owned Apple binary. Reinstall Apple's container package before changing DNS domains."
             )
         }
     }
@@ -2017,78 +1937,6 @@ final class LiveContainerService: ContainerServiceBase {
 
     override func fetchSystemProperties() async {
         systemProperties = Self.mapSystemProperties(await resolvedSystemConfig())
-    }
-
-    // MARK: - Local DNS domains
-
-    /// `HostDNSResolver`'s resolver directory. The type's `defaultConfigPath` constant can't be
-    /// referenced here (its `FilePath` type comes from SystemPackage, which Berthly doesn't
-    /// import), but the path is a decades-stable macOS resolver(5) convention.
-    private nonisolated static let resolverConfigDirectory = "/etc/resolver"
-
-    /// Domain names recovered from `/etc/resolver` filenames — the same filename convention
-    /// `HostDNSResolver.listDomains()` reads (`containerization.<domain>`). Only entries with
-    /// that prefix are containers' domains; anything else there (VPN split-DNS files, etc.) is
-    /// someone else's and ignored. Sorted for a stable display order.
-    nonisolated static func dnsDomains(fromResolverFilenames filenames: [String]) -> [String] {
-        let prefix = HostDNSResolver.containerizationPrefix
-        return filenames
-            .filter { $0.hasPrefix(prefix) && $0.count > prefix.count }
-            .map { String($0.dropFirst(prefix.count)) }
-            .sorted()
-    }
-
-    /// Pre-flight validation for a new local DNS domain, mirroring RFC-1035 label rules (what
-    /// the CLI's `DNSName` enforces). Returns a user-facing problem, or `nil` when valid — run
-    /// *before* the admin-password prompt so a typo doesn't cost the user an authentication.
-    nonisolated static func validateDNSDomainName(_ raw: String) -> String? {
-        let name = raw.trimmingCharacters(in: .whitespaces)
-        if name.isEmpty { return "Enter a domain name." }
-        if name.count > 253 { return "Domain names can be at most 253 characters." }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-"))
-        for label in name.split(separator: ".", omittingEmptySubsequences: false) {
-            if label.isEmpty { return "Domain labels can't be empty — check for stray dots." }
-            if label.count > 63 { return "Each dot-separated label can be at most 63 characters." }
-            if label.hasPrefix("-") || label.hasSuffix("-") { return "Labels can't start or end with a hyphen." }
-            if label.unicodeScalars.contains(where: { !allowed.contains($0) }) {
-                return "Only letters, digits, hyphens, and dots are allowed."
-            }
-        }
-        return nil
-    }
-
-    nonisolated static func dnsCreateShellCommand(domain: String) -> String {
-        "\(containerExecutablePath) system dns create \(shellQuoted(domain))"
-    }
-
-    nonisolated static func dnsDeleteShellCommand(domain: String) -> String {
-        "\(containerExecutablePath) system dns delete \(shellQuoted(domain))"
-    }
-
-    override func fetchDNSDomains() async {
-        // A missing /etc/resolver directory (never created any domain) reads as "no domains".
-        let filenames = (try? FileManager.default.contentsOfDirectory(atPath: Self.resolverConfigDirectory)) ?? []
-        dnsDomains = Self.dnsDomains(fromResolverFilenames: filenames)
-    }
-
-    /// Runs the CLI (`container system dns create`) under the elevated-shell machinery rather
-    /// than calling `HostDNSResolver` in-process: the write to `/etc/resolver` requires root,
-    /// and the CLI also owns the follow-up steps (pf rules, mDNSResponder reload) that make the
-    /// domain actually resolve.
-    override func createDNSDomain(_ name: String) async throws {
-        let domain = name.trimmingCharacters(in: .whitespaces)
-        if let problem = Self.validateDNSDomainName(domain) {
-            throw ContainerizationError(.invalidArgument, message: problem)
-        }
-        try await Self.verifyContainerExecutableForDNSPrivilege()
-        try await runPrivilegedShellCommand(Self.dnsCreateShellCommand(domain: domain)) { _ in }
-        await fetchDNSDomains()
-    }
-
-    override func deleteDNSDomain(_ name: String) async throws {
-        try await Self.verifyContainerExecutableForDNSPrivilege()
-        try await runPrivilegedShellCommand(Self.dnsDeleteShellCommand(domain: name)) { _ in }
-        await fetchDNSDomains()
     }
 
     // MARK: - Registries
