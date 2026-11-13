@@ -30,14 +30,10 @@ extension LiveContainerService {
     /// CLI and daemon do, in-process, no shelling out.
     private nonisolated static let registryKeychain = KeychainHelper(securityDomain: Constants.keychainID)
 
-    /// Maps the Keychain's registry logins straight to `[Registry]`, sorted by host for a stable
-    /// display order — a faithful mirror of `container registry list`, which is likewise just
-    /// `keychain.list()`. No curated defaults, no persisted "signed-out" rows: the Keychain is
-    /// the whole source of truth. Shown verbatim (e.g. `registry-1.docker.io`), same as the CLI.
-    ///
-    /// Takes plain `(hostname, username)` pairs rather than `RegistryInfo` directly: that type's
-    /// memberwise init is internal to `ContainerizationOS` (only `KeychainQuery` itself
-    /// constructs it), so it can't be fabricated from `BerthlyTests` — and we only need these two.
+    /// The Keychain's registry logins as `[Registry]`, sorted by host: a mirror of `container
+    /// registry list` (`keychain.list()`), with the Keychain as the whole source of truth. Takes
+    /// plain `(hostname, username)` pairs because `RegistryInfo`'s memberwise init is internal to
+    /// `ContainerizationOS`, so `BerthlyTests` can't construct one.
     nonisolated static func mapRegistries(keychainEntries: [(hostname: String, username: String)]) -> [Registry] {
         keychainEntries
             .map { Registry(host: $0.hostname, username: $0.username) }
@@ -49,13 +45,9 @@ extension LiveContainerService {
         registries = Self.mapRegistries(keychainEntries: entries.map { (hostname: $0.hostname, username: $0.username) })
     }
 
-    /// Resolves the scheme and splits `host` into (bare host, port) for a `RegistryClient`
-    /// connection — mirrors `container registry login` (`RegistryLogin.swift`): build a URL from
-    /// scheme+host so a `host:port` string (e.g. a local test registry) splits into a bare host
-    /// and an explicit port. `RegistryClient`'s host-only initializer doesn't split "host:port"
-    /// itself, so passing the raw string straight through mishandles any registry with a port.
-    /// Pure and `nonisolated` so it's testable without a live daemon (`LiveContainerService.buildArguments(for:)`
-    /// is the pattern) — no `Process`/XPC involved.
+    /// Resolves the scheme and splits `host` into (bare host, port) for `RegistryClient`, as
+    /// `container registry login` does (`RegistryLogin.swift`): `RegistryClient`'s host-only init
+    /// doesn't split "host:port", so a registry with a port would be mishandled.
     nonisolated static func resolveRegistryConnectionTarget(
         host: String, insecure: Bool, internalDnsDomain: String?
     ) throws -> (scheme: RequestScheme, host: String, port: Int?) {
@@ -167,26 +159,19 @@ extension LiveContainerService {
         }
     }
 
-    /// Remembers `host` (already canonicalized by the caller via `ImageStaleness.registryHost`/
-    /// `foldedBareHost`) as one the user has explicitly told Berthly is insecure — so the
-    /// background update checker and recreate's own pull can use HTTP for it later without
-    /// re-asking. Deliberately **not** `nonisolated`: it inherits this class's `@MainActor`
-    /// isolation like every other instance-triggered write here, which statically guarantees no
-    /// two callers' read-merge-write of `UserDefaults` can interleave — MainActor code only
-    /// yields at `await`, and this function has none, so each call runs to completion before
-    /// anything else on MainActor can touch the key. UserDefaults itself needs no background-
-    /// queue offload the way Keychain does (no Security-framework IPC involved).
+    /// Remembers `host` (canonicalized by the caller) as one the user marked insecure, so the update
+    /// checker and recreate's pull can use HTTP later without re-asking. Deliberately MainActor, not
+    /// `nonisolated`: with no `await`, each read-merge-write of `UserDefaults` runs to completion,
+    /// so concurrent callers can't interleave.
     static func rememberInsecureHost(_ host: String) {
         let existing = UserDefaults.standard.stringArray(forKey: ImageStaleness.insecureHostsDefaultsKey) ?? []
         UserDefaults.standard.set(ImageStaleness.addingInsecureHost(host, to: existing),
                                   forKey: ImageStaleness.insecureHostsDefaultsKey)
     }
 
-    /// Same offload as `keychainList`/`keychainSave`/`keychainDelete` — used by the background
-    /// image-update check, which runs several of these concurrently in a task group. Without the
-    /// offload, a slow Security-framework IPC or an ACL prompt would block the calling
-    /// cooperative-thread-pool thread, and with only a handful of threads in the pool, a few
-    /// concurrent private-registry checks could stall the whole pool indefinitely.
+    /// Same offload as `keychainList`: the background update check runs several of these at once, and
+    /// a slow Security-framework IPC or ACL prompt would otherwise block cooperative-pool threads and
+    /// could stall the whole pool.
     nonisolated static func keychainLookup(hostname: String) async throws -> Authentication {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {

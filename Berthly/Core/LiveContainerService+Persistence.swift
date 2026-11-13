@@ -41,11 +41,9 @@ extension LiveContainerService {
         return systemConfig ?? ContainerSystemConfig()
     }
 
-    /// `ConfigurationLoader.load()` only throws when a config file exists on disk but fails to
-    /// parse or decode — it already returns cleanly with defaults when no file is present at all
-    /// (`loadAndDecode`'s all-paths-missing short-circuit). So any caught error here means the
-    /// user's actual customized `config.toml` is being discarded, not just "there was nothing to
-    /// load" — worth a warning rather than a silent `try?` fallback to defaults.
+    /// `ConfigurationLoader.load()` throws only when a config file exists but fails to parse; it
+    /// returns defaults when none is present. So an error means the user's customized
+    /// `config.toml` is being discarded: worth a warning, not a silent `try?`.
     nonisolated static func mapSystemConfigLoadResult(
         _ result: Result<ContainerSystemConfig, Error>
     ) -> (config: ContainerSystemConfig, warning: String?) {

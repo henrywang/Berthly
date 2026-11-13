@@ -116,10 +116,8 @@ extension LiveContainerService {
                 host: domain, insecure: isInsecure, internalDnsDomain: internalDnsDomain
             )
             // try? on the lookup: a CLI-owned Keychain item Berthly can't read (see
-            // errSecInvalidOwnerEdit) degrades to an anonymous check, not a failure.
-            // Offloaded (keychainLookup, not a direct registryKeychain.lookup call) — several of
-            // these run concurrently in checkForImageUpdates' task group, and the synchronous
-            // Security-framework call would otherwise tie up the cooperative thread pool.
+            // errSecInvalidOwnerEdit) degrades to an anonymous check, not a failure. Offloaded via
+            // keychainLookup because several of these run concurrently in checkForImageUpdates.
             let auth: Authentication? = signedInHosts.contains(domain)
                 ? try? await Self.keychainLookup(hostname: domain)
                 : nil
@@ -216,18 +214,12 @@ extension LiveContainerService {
         do {
             try await client.delete(id: id)
         } catch let deleteError {
-            // `ContainerClient.delete` wraps every failure as `.internalError` with the real
-            // error buried in `cause`, so a notFound can't be matched directly. An --rm
-            // container deletes itself on stop (autoRemove isn't part of the snapshot, so it
-            // can't be detected up front — or preserved; the recreated container is plain);
-            // post-stop absence is therefore success here.
-            //
-            // The follow-up `get` must distinguish a *confirmed* absence from a failed lookup:
-            // `get` throws `.notFound` directly only when the container list came back empty —
-            // any other outcome (the container still exists, or the lookup itself failed —
-            // e.g. a transient XPC hiccup, which `list` wraps as `.internalError`) means absence
-            // was never established, so proceeding to `create` could collide with a container
-            // that's still there. Only a confirmed `.notFound` excuses the original delete error.
+            // `ContainerClient.delete` wraps every failure as `.internalError` (real error in `cause`), so
+            // notFound can't be matched directly. An --rm container deletes itself on stop (autoRemove
+            // isn't in the snapshot, so it can't be detected up front or preserved), so post-stop absence
+            // counts as success, but only when `get` confirms `.notFound`. Any other outcome (still there,
+            // or a transient XPC failure `list` wraps as `.internalError`) leaves absence unproven, and
+            // `create` could collide with a container that's still there.
             var confirmedAbsent = false
             do {
                 _ = try await client.get(id: id)

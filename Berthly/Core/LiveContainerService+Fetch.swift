@@ -32,13 +32,11 @@ extension LiveContainerService {
         )
     }
 
-    /// The cluster plugin labels every node container it owns — control-plane and workers alike —
-    /// with `plugin=<pluginName>`, the same filter the CLI's own cluster list uses. 1.6.1 renamed
-    /// `container k8s` to `container cluster` (apple/container#2427), changing the value from
-    /// `k8s` to `cluster`; clusters created before the rename keep `k8s`, so both must match.
-    /// Needed so `pruneStoppedContainers()` doesn't delete a stopped cluster node: unlike the
-    /// CLI's cluster delete, Berthly's delete path doesn't also remove the cluster's
-    /// `~/.kube/config` entry, so an unprotected prune would strand a live kubeconfig context.
+    /// The cluster plugin labels every node container it owns with `plugin=<pluginName>`, the filter
+    /// the CLI's cluster list uses. 1.6.1 renamed `container k8s` to `container cluster`
+    /// (apple/container#2427), and clusters created before the rename keep `k8s`, so both must match.
+    /// `pruneStoppedContainers()` skips these: Berthly's delete doesn't remove the cluster's
+    /// `~/.kube/config` entry, so pruning a node would strand a live kubeconfig context.
     nonisolated static let clusterPluginLabelValues: Set<String> = ["k8s", "cluster"]
 
     nonisolated static func isClusterNode(labels: [String: String]) -> Bool {
@@ -271,12 +269,10 @@ extension LiveContainerService {
     }
 
     private func mapVolume(_ cfg: VolumeConfiguration) -> Volume {
-        // Capacity is the *configured* size (`--size`; default 512 GB) — the volume's declared
-        // logical size, i.e. what the user asked for. It is deliberately NOT the backing
-        // image's apparent size: the driver over-provisions tiny volumes to a 128 MB minimum
-        // image, so a `--size 2M` volume lives inside a 128 MB `volume.img`. `usedMB` is that
-        // image's real on-disk footprint (host bytes actually consumed), capped at capacity so
-        // a tiny volume whose ext4 overhead alone exceeds its nominal size can't read past 100%.
+        // Capacity is the *configured* size (`--size`; default 512 GB), not the backing image's
+        // apparent size: the driver over-provisions tiny volumes to a 128 MB minimum image, so a
+        // `--size 2M` volume lives in a 128 MB `volume.img`. `usedMB` is that image's on-disk footprint,
+        // capped at capacity so a tiny volume's ext4 overhead can't read past 100%.
         let configuredMB = cfg.sizeInBytes.map { Int($0 / 1_048_576) } ?? 0
         let footprintMB = Self.volumeFootprintMB(imagePath: cfg.source) ?? 0
         let created = cfg.creationDate.formatted(Date.FormatStyle().day(.defaultDigits).month(.abbreviated).year(.defaultDigits))

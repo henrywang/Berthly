@@ -86,14 +86,10 @@ extension LiveContainerService {
     private nonisolated static let apiServerLabel = "com.apple.container.apiserver"
     private static let servicePrefix = "com.apple.container."
 
-    /// What `startDaemon()`'s connect-phase failure should do, given the error it caught.
-    /// Extracted pure so the CancellationError-vs-real-failure distinction — the actual bug
-    /// `runOperation`'s Cancel button used to hit — is unit-testable without a live daemon.
-    /// Cancelling `launchDaemonIfNeeded`/`pingDaemonWithRecovery`/`MachineClient().list()` doesn't
-    /// undo the launchd registration/kickstart already issued, so guessing a resulting state would
-    /// be just as likely wrong as right — `.repoll` defers to a fresh `poll()` to report whatever
-    /// actually happened instead of guessing, or misreporting it as a failure the way a bare
-    /// catch-all used to.
+    /// What `startDaemon()`'s connect-phase failure should do. Cancelling the connect phase doesn't
+    /// undo the launchd registration/kickstart already issued, so `.repoll` lets a fresh `poll()`
+    /// report the real state instead of guessing; a bare catch-all used to report `runOperation`'s
+    /// Cancel button as a failure.
     enum StartDaemonFailureOutcome: Equatable {
         case repoll
         case reportError(String)
@@ -103,12 +99,10 @@ extension LiveContainerService {
         error is CancellationError ? .repoll : .reportError(error.localizedDescription)
     }
 
-    /// Native (launchd, no CLI shelling) implementation of `container system start`: registers
-    /// (or restarts) the `container-apiserver` launchd service, waits for it to respond, and
-    /// bootstraps the vminit filesystem image and default kernel on first run — without asking,
-    /// since this app has no interactive terminal for the CLI's "install the kernel? [Y/n]"
-    /// prompt, and a daemon without a kernel can't run anything anyway. Those bootstrap
-    /// downloads are sizeable, so they report to `onLog` when a caller provides one.
+    /// Native `container system start`: registers (or restarts) the apiserver launchd service, waits
+    /// for it, and installs the vminit image and default kernel on first run without the CLI's
+    /// "install the kernel? [Y/n]" prompt; there's no terminal to answer it, and a daemon without a
+    /// kernel can't run anything.
     func startDaemonImpl(onLog: (@MainActor (String) -> Void)?) async {
         guard !isStarting, !isStopping else { return }
         guard FileManager.default.fileExists(atPath: Self.apiServerExecutablePath) else {
@@ -153,18 +147,15 @@ extension LiveContainerService {
         await poll()
     }
 
-    /// Native (launchd, no CLI shelling) implementation of `container system stop`, mirroring
-    /// `SystemStop.swift`: stops every running container on the machine — not just ones Berthly
-    /// shows; CLI-launched and machine-backed containers are included, matching the real command —
-    /// waits for them to exit, then deregisters the apiserver plus every other
-    /// `com.apple.container.*` launchd service. Every UI entry point into this must make that
-    /// blast radius explicit before calling it; this method itself doesn't ask for confirmation.
+    /// Native `container system stop` (mirrors `SystemStop.swift`): stops every container on the
+    /// machine, including CLI-launched and machine-backed ones, then deregisters every
+    /// `com.apple.container.*` launchd service. It doesn't confirm, so every UI entry point must make
+    /// that blast radius explicit first.
     func stopDaemonImpl() async {
-        // Without this guard, the independent 5-second `poll()` timer keeps running underneath
-        // this (which can itself take 20+ seconds waiting for containers to exit) and races it —
-        // see the guard in `poll()`. `isStarting` is also checked so a stop can't overlap a
-        // start. Logged because a silent early-return here (stuck flag from a prior call that
-        // never reached its `defer`) is otherwise indistinguishable from the toggle doing nothing.
+        // `isStopping` makes the 5-second `poll()` timer stand down during a stop that can take 20+
+        // seconds (see the guard in `poll()`); `isStarting` keeps a stop from overlapping a start.
+        // Logged because a stuck flag from a call that never reached its `defer` would otherwise look
+        // like the toggle doing nothing.
         guard !isStarting, !isStopping else {
             Self.log.warning("stopDaemon() skipped — already in progress", metadata: ["isStarting": "\(isStarting)", "isStopping": "\(isStopping)"])
             return
@@ -248,16 +239,11 @@ extension LiveContainerService {
         }
     }
 
-    /// Registers the `container-apiserver` launchd service, matching `SystemStart.run()`'s own
-    /// plist construction. `ServiceManager.register` shells out to `launchctl bootstrap`, which is
-    /// a no-op if the label is already loaded and won't restart a stopped one — so an
-    /// already-registered label is kickstarted instead of re-registered.
-    ///
-    /// `nonisolated` deliberately: this touches no MainActor state, and every step here
-    /// (`ConfigurationLoader`, `ServiceManager`) shells out to `launchctl`/does file I/O
-    /// synchronously — without `nonisolated`, an `async` method on this `@MainActor` class runs
-    /// that blocking work directly on the main thread; `nonisolated` makes it hop onto the
-    /// cooperative thread pool instead, so starting the daemon doesn't freeze the UI.
+    /// Registers the `container-apiserver` launchd service with `SystemStart.run()`'s plist.
+    /// `ServiceManager.register` (`launchctl bootstrap`) is a no-op for an already-loaded label and
+    /// won't restart a stopped one, so an already-registered label is kickstarted instead.
+    /// `nonisolated` so the synchronous `launchctl`/file I/O runs on the cooperative pool instead of
+    /// freezing the main thread.
     private nonisolated func launchDaemonIfNeeded() async throws {
         // Matches `SystemStart.run()`'s first line: refresh the read-only copy of the user's
         // config that the apiserver itself reads at startup.
@@ -265,11 +251,8 @@ extension LiveContainerService {
 
         let domain = try ServiceManager.getDomainString()
         let fullLabel = "\(domain)/\(Self.apiServerLabel)"
-        // `try?` here means "isRegistered threw" and "isRegistered returned false" both fall
-        // through to the register() path below — which is a safe default (`register` is a no-op
-        // for an already-loaded label) rather than a definitive answer either way; `startDaemon`'s
-        // retry-with-kickstart on a failed post-launch ping is what actually makes this reliable
-        // even when this check picks the "wrong" branch.
+        // A throwing check falls through to register(), a no-op for a loaded label;
+        // `pingDaemonWithRecovery`'s kickstart retry covers a wrong guess either way.
         if (try? ServiceManager.isRegistered(fullServiceLabel: fullLabel)) == true {
             try ServiceManager.kickstart(fullServiceLabel: fullLabel)
             return
@@ -301,11 +284,9 @@ extension LiveContainerService {
         try ServiceManager.register(plistPath: plistURL.path)
     }
 
-    /// Pings the apiserver, with one kickstart-and-retry recovery attempt if the first ping fails.
-    /// This is what actually makes `launchDaemonIfNeeded`'s registered-vs-not check reliable in
-    /// practice: rather than depending on that check having picked the right branch (register is a
-    /// silent no-op for an already-loaded-but-stopped label), a failed ping here is treated as the
-    /// real signal to force a restart before giving up.
+    /// Pings the apiserver, with one kickstart-and-retry if the first ping fails: the real recovery
+    /// when `launchDaemonIfNeeded` picks the wrong branch (register is a silent no-op for an
+    /// already-loaded but stopped label).
     private nonisolated func pingDaemonWithRecovery(onLog: (@MainActor (String) -> Void)? = nil) async throws {
         do {
             _ = try await ClientHealthCheck.ping()
@@ -330,11 +311,9 @@ extension LiveContainerService {
            (try? await existing.getSnapshot(platform: .current)) != nil {
             return
         }
-        // Emit a static line up front — unlike the builder pull, this download can land on a path
-        // that reports no size events at all (a resolved-but-not-unpacked layer set, or a mid-pull
-        // failure before a size event fires), and the user should still see something happened
-        // rather than silence until "installed"/an error. The reporter's own throttled
-        // "Downloading… N MB" lines follow once real bytes move.
+        // Static line up front: unlike the builder pull, this download can report no size events at
+        // all (a resolved but not unpacked layer set, or a failure before the first size event), which
+        // would leave the user with silence until "installed" or an error.
         onLog?("Downloading base container filesystem (\(reference))…")
         let reporter = onLog.map { onLog in
             DownloadReporter(label: "Downloading base container filesystem (\(reference))", onLog: onLog)
@@ -360,7 +339,7 @@ extension LiveContainerService {
 
     /// Downloads and installs the recommended default kernel if none is configured yet — mirrors
     /// `SystemStart.installDefaultKernel`, but always installs rather than prompting (see
-    /// `startDaemon`'s doc comment for why). Soft-fails like `installVminitImageIfNeeded`.
+    /// `startDaemonImpl` for why). Soft-fails like `installVminitImageIfNeeded`.
     private func installDefaultKernelIfNeeded(
         containerSystemConfig: ContainerSystemConfig,
         onLog: (@MainActor (String) -> Void)? = nil

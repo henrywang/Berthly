@@ -88,13 +88,10 @@ extension LiveContainerService {
         return try raw.split(separator: ",").map { try Platform(from: $0.trimmingCharacters(in: .whitespaces)) }
     }
 
-    /// Maps `BuildOptions.ssh` onto `Builder.BuildConfig.ssh`'s string encoding — `"default"`
-    /// forwards the host's SSH agent socket, `""` requests nothing. Throws up front when the box
-    /// is checked but there's no socket to forward, matching `BuildCommand`'s own `--ssh`
-    /// validation ("`--ssh default requires SSH_AUTH_SOCK to be set`") — the alternative is
-    /// silently telling buildkit to expect a forwarded agent that `startBuilderContainer` (via
-    /// `resolveBuilderSSH`) never actually wires into the builder container, which would surface
-    /// as a confusing failure deep inside a `RUN --mount=type=ssh` step instead of here.
+    /// Maps `BuildOptions.ssh` to `Builder.BuildConfig.ssh`: `"default"` forwards the host's agent
+    /// socket, `""` requests nothing. Throws when ssh is requested without `SSH_AUTH_SOCK`, matching
+    /// `BuildCommand`'s `--ssh` validation; otherwise buildkit would expect an agent the builder never
+    /// gets, and fail confusingly inside a `RUN --mount=type=ssh` step.
     nonisolated static func buildConfigSSH(for options: BuildOptions, environment: [String: String] = ProcessInfo.processInfo.environment) throws -> String {
         guard options.ssh else { return "" }
         guard environment["SSH_AUTH_SOCK"] != nil else {
@@ -103,33 +100,18 @@ extension LiveContainerService {
         return "default"
     }
 
-    /// Whether the builder container should actually get SSH agent forwarding: the user asked for
-    /// it *and* a socket is available to forward. Matches upstream's `BuilderStart.start()`
-    /// (`ssh && ProcessInfo.processInfo.environment["SSH_AUTH_SOCK"] != nil`). By the time this
-    /// runs, `buildImage`'s `buildConfigSSH` call has already thrown if `options.ssh` were true
-    /// with no socket present, so this is a defensive mirror of upstream's own check (also covers
-    /// the direct `startBuilder(_:)` System-page path, which always passes `ssh: false` and never
-    /// touches `buildConfigSSH` at all) rather than the sole gate.
+    /// Whether the builder container gets SSH agent forwarding: requested *and* a socket exists, as
+    /// upstream's `BuilderStart.start()` checks. A defensive mirror: `buildConfigSSH` already throws
+    /// for a build requesting ssh without a socket, and `startBuilder(_:)` passes `ssh: false`.
     nonisolated static func resolveBuilderSSH(requested: Bool, environment: [String: String] = ProcessInfo.processInfo.environment) -> Bool {
         requested && environment["SSH_AUTH_SOCK"] != nil
     }
 
-    /// Resolves the builder to this build's requested cpus/memory/ssh, then dials it over VSOCK.
-    /// `startBuilderContainer` runs first, unconditionally — not just when a dial fails — so an
-    /// already-running builder whose settings no longer match gets recreated instead of silently
-    /// reused. Matches `BuildCommand.run`'s own ordering (its comment: "Ensure the builder is
-    /// started (or restarted) with the correct SSH configuration before attempting to dial. This
-    /// handles the case where the builder is already running but was not started with SSH
-    /// forwarding enabled."). Cheap when nothing changed — the running-builder path in
-    /// `startBuilderContainer` is a health ping, a `client.get`, and an early return, no image
-    /// fetch or container churn — so this doesn't slow down the common case. One side effect:
-    /// requesting a differing cpus/memory (not just ssh) now also recreates the builder — matching
-    /// upstream, and fixing a latent gap where those changes were previously silently ignored
-    /// whenever the builder happened to already be running (recreation only used to run once dial
-    /// failed) — but it does mean a malformed `--memory` string, which `Parser.resources` rejects,
-    /// now surfaces even on that path instead of being silently skipped. The dial itself still
-    /// retries every 5s up to a 300s deadline, since `startBuilderContainer` returning doesn't
-    /// guarantee the shim's gRPC server inside the guest is already accepting connections.
+    /// Resolves the builder to this build's cpus/memory/ssh, then dials it over VSOCK.
+    /// `startBuilderContainer` always runs first, as in `BuildCommand.run`, so a running builder with
+    /// stale settings is recreated instead of silently reused (a cheap no-op when nothing changed).
+    /// So a malformed `--memory` fails here even when a builder is already running. The dial retries
+    /// every 5s up to 300s: the shim's gRPC server may not be accepting connections yet.
     private func dialOrStartBuilder(
         containerSystemConfig: ContainerSystemConfig,
         cpus: Int64?,
@@ -355,18 +337,12 @@ extension LiveContainerService {
         }
     }
 
-    /// Native (XPC/gRPC, no CLI shelling) implementation of `container build`. Dials (and
-    /// auto-starts, if needed) the "buildkit" builder container, then drives the same
-    /// `Builder.build(_:)` gRPC pipeline the CLI uses.
-    ///
-    /// Log capture: `Builder.build` has no structured output callback — output is written
-    /// directly to `config.terminal?.handle ?? FileHandle.standardError`. Passing a `Terminal`
-    /// captures output but also switches the remote builder into ANSI/cursor-redraw "tty" mode,
-    /// which isn't line-log friendly. Passing `terminal: nil` instead gets clean, line-oriented
-    /// "plain" output (the same mode the old CLI-based implementation requested via
-    /// `--progress plain`) — written to *this process's* stderr, so we temporarily dup2 fd 2 to a
-    /// pipe for the duration of the build and restore it afterward. Polling is paused for the same
-    /// window since it's the only other plausible stderr writer in this process.
+    /// Native `container build`: dials (auto-starting if needed) the "buildkit" builder and drives the
+    /// CLI's `Builder.build(_:)` gRPC pipeline. `Builder.build` has no output callback; it writes to
+    /// `config.terminal?.handle ?? stderr`, and a `Terminal` switches buildkit to ANSI "tty" mode. So
+    /// `terminal: nil` gets plain line output on *this process's* stderr, which is dup2'd to a pipe
+    /// for the build and restored after. Polling is paused for that window, as the only other
+    /// plausible stderr writer.
     func buildImageImpl(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {
         // Guards against two overlapping builds corrupting each other's stderr redirection below
         // (see the dup2 discussion further down) — e.g. a Cancel that doesn't wait for the

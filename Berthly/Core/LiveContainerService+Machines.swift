@@ -37,12 +37,9 @@ extension LiveContainerService {
         return "\(imageName)-\(suffix)"
     }
 
-    /// Pure translation of `MachineCreateOptions` into the vendored package's own
-    /// `Flags.MachineManagement`/`Flags.Registry` — see `runManagementFlags` for why this
-    /// replaces CLI-argument-array construction. `Flags.MachineManagement` has no full
-    /// memberwise init, so every property is assigned explicitly post-construction to move it
-    /// out of ArgumentParser's unset `.definition` state (the same trap `Flags.ImageFetch()`'s
-    /// empty init has).
+    /// `MachineCreateOptions` as the vendored `Flags.MachineManagement` (see `runManagementFlags`).
+    /// It has no full memberwise init, so every property is assigned explicitly to move it out of
+    /// ArgumentParser's unset `.definition` state (the same trap as `Flags.ImageFetch()`).
     nonisolated static func machineManagementFlags(for options: MachineCreateOptions) -> Flags.MachineManagement {
         var management = Flags.MachineManagement()
         management.arch = Arch.hostArchitecture().rawValue
@@ -134,13 +131,9 @@ extension LiveContainerService {
             Self.rememberInsecureHost(host)
         }
 
-        // From here on, a machine exists — checked cancellation points below (rather than just
-        // relying on setDefault/bootMachineNatively's own awaits) mean a cancelled create doesn't
-        // silently keep going through setDefault/boot; on cancellation the catch below deletes the
-        // just-created machine so it doesn't linger with no user-visible trace that it happened.
-        // A genuine (non-cancellation) setDefault/boot failure leaves the machine in place instead —
-        // bootMachineNatively already stops it on failure, and the user can retry via startMachine
-        // rather than losing the fetched/unpacked image and having to recreate from scratch.
+        // A machine exists from here on. On cancellation the catch deletes it, so it doesn't linger
+        // untraced. A real setDefault/boot failure keeps it (bootMachineNatively already stopped it),
+        // so the user can retry via startMachine without re-fetching the image.
         do {
             try Task.checkCancellation()
             if options.setDefault {
@@ -161,12 +154,10 @@ extension LiveContainerService {
         await refresh()
     }
 
-    /// Boots a container machine and runs the in-VM user setup for the host user (see
-    /// `machineUserSetupProcessConfiguration`) — without it, a fresh machine boots but is unusable.
-    /// This mirrors the CLI's own (non-public) `bootMachine` helper, but swaps `ProcessIO` (which
-    /// wires to the CLI's own terminal) for a plain `stdio: [nil, nil, nil]` process — we don't
-    /// need the init script's output, only its exit code, matching the detached-run pattern in
-    /// `runContainer`. On failure, the machine is stopped to leave it in a clean state.
+    /// Boots a machine and runs the in-VM user setup (`machineUserSetupProcessConfiguration`);
+    /// without it a fresh machine is unusable. Mirrors the CLI's non-public `bootMachine`, with
+    /// `stdio: [nil, nil, nil]` instead of `ProcessIO` since only the exit code matters. Stops the
+    /// machine on failure.
     @discardableResult
     func bootMachineNatively(id: String, client: MachineClient) async throws -> MachineSnapshot {
         var dynamicEnv: [String: String] = [:]

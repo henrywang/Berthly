@@ -143,11 +143,9 @@ extension LiveContainerService {
         }
     }
 
-    /// Maps a copy `direction` plus the two user-entered paths to the `(source, destination)` pair
-    /// the client expects. Pure and `nonisolated` so it's unit-testable without a daemon: the whole
-    /// point is that `.outOfContainer` swaps which side is the source, and getting that backwards is
-    /// the obvious bug. `hostPath` for `.outOfContainer` should already be a full target path (see
-    /// `resolvedHostDestination`), since `copyOut` writes to the exact path given, not into a folder.
+    /// Maps a copy `direction` and the two paths to the client's `(source, destination)`;
+    /// `.outOfContainer` swaps which side is the source. Its `hostPath` must be a full target path
+    /// (see `resolvedHostDestination`): `copyOut` writes to the exact path, not into a folder.
     nonisolated static func copyArguments(direction: CopyDirection, hostPath: String, containerPath: String) -> (source: String, destination: String) {
         switch direction {
         case .intoContainer:  return (source: hostPath, destination: containerPath)
@@ -227,18 +225,13 @@ extension LiveContainerService {
         await refresh()
     }
 
-    /// Native replication of `container builder start` with default resources: reuses the same
-    /// create-or-bootstrap path builds go through (`startBuilderContainer`), so a matching stopped
-    /// builder is booted in place and a config-drifted one (image/cpu/memory/ssh — see the `ssh:
-    /// false` note below) is recreated. Log output is dropped — the row's spinner covers the
-    /// (fast, image-already-present) boot; first-ever builder creation with its image download
-    /// normally happens via a build, which does stream logs.
+    /// Native `container builder start` with default resources, through the create-or-bootstrap path
+    /// builds use (`startBuilderContainer`): a matching stopped builder boots in place, a drifted one
+    /// is recreated. Log output is dropped; the row's spinner covers the boot.
     func startBuilderImpl(_ id: String) async throws {
         let config = await resolvedSystemConfig()
-        // Matches the CLI's plain `container builder start`, which has no --ssh flag and so
-        // always passes ssh: false to BuilderStart.start() — an ssh-enabled builder started
-        // manually here (rather than by a build requesting it) gets recreated without forwarding,
-        // same as upstream.
+        // ssh: false, like the CLI's `container builder start` (no --ssh flag): an ssh-enabled builder
+        // started here is recreated without forwarding, same as upstream.
         try await startBuilderContainer(containerSystemConfig: config, cpus: nil, memory: nil, ssh: false, onLog: { _ in })
         await refresh()
     }

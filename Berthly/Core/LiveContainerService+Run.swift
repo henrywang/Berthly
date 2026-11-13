@@ -23,14 +23,10 @@ internal import ContainerPersistence
 internal import ContainerPlugin
 
 extension LiveContainerService {
-    /// Pure translation of `RunOptions` into the vendored `container` package's own
-    /// `Flags.Process`/`Flags.Management`/`Flags.Resource`/`Flags.Registry` argument bags —
-    /// the same types the CLI's `run`/`create` commands build from parsed command-line flags,
-    /// constructed here directly so `Utility.containerConfigFromFlags` can be called in-process
-    /// over the native XPC API instead of shelling out to the `container` binary.
-    /// Treats an empty string the same as `nil` — the UI already nils out blank fields before
-    /// constructing `RunOptions`, but mapping this defensively keeps a blank field from turning
-    /// into e.g. `cwd: ""` (a real, if empty, override) instead of "unset, use the image default".
+    /// Treats an empty string as `nil`, so a blank field can't become a real override like `cwd: ""`
+    /// instead of "unset, use the image default". Used by the `run*Flags`/`machine*Flags`
+    /// translations into the vendored package's `Flags` bags, which let the `*ConfigFromFlags`
+    /// helpers run in-process over XPC instead of shelling out.
     nonisolated static func nilIfEmpty(_ s: String?) -> String? {
         guard let s, !s.isEmpty else { return nil }
         return s
@@ -51,12 +47,9 @@ extension LiveContainerService {
         return config
     }
 
-    /// Builds the `ProcessConfiguration` for a machine's login shell — same approach the CLI's
-    /// `container machine run` uses (`MachineRun.run()`): exec `/sbin.machine/init -s` (the
-    /// machine bundle's init binary, which resolves the right shell for the user itself) inside
-    /// the container backing the machine, rather than execing a shell directly. Takes `home`/
-    /// `user` directly rather than a whole `MachineSnapshot` — those are the only two fields
-    /// used, and it keeps this testable without constructing vendored OCI/platform fixtures.
+    /// A machine's login shell, as `container machine run` builds it (`MachineRun.run()`): exec the
+    /// machine bundle's `/sbin.machine/init -s`, which resolves the user's shell itself. Takes
+    /// `home`/`user` instead of a `MachineSnapshot` so tests needn't build OCI/platform fixtures.
     nonisolated static func machineShellProcessConfiguration(home: String, user: ProcessConfiguration.User) -> ProcessConfiguration {
         ProcessConfiguration(
             executable: "/\(MachineBundle.sbinDirectory)/\(MachineBundle.initFile)",
@@ -162,13 +155,10 @@ extension LiveContainerService {
         try writeOwnerOnlyData(Data(id.utf8), to: URL(fileURLWithPath: path), replaceExisting: false)
     }
 
-    /// Native (XPC API, no CLI shelling) implementation of `container run`/`container create`.
-    /// Reuses the vendored package's own `Utility.containerConfigFromFlags` — the same image
-    /// fetch/unpack, kernel resolution, volume/network/DNS resolution the CLI itself runs — so
-    /// this doesn't have to reimplement any of that. `start == false` stops after `create`
-    /// (left provisioned, not bootstrapped). `start && !attach` bootstraps and starts detached.
-    /// `start && attach` captures the container's own stdout via our own pipe and waits for exit
-    /// — for one-shot commands like `pwd`. This app never attaches an interactive terminal.
+    /// Native `container run`/`create` via the vendored `Utility.containerConfigFromFlags` (the CLI's
+    /// own image fetch, kernel, and volume/network/DNS resolution). `start == false` stops after
+    /// `create`; `start && !attach` starts detached; `start && attach` captures stdout through our own
+    /// pipe and waits for exit, for one-shot commands like `pwd`. Never attaches a terminal.
     func runContainerImpl(options: RunOptions, onLog: (@MainActor (String) -> Void)?) async throws -> String {
         let id = Utility.createContainerID(name: options.name)
         guard ManagedContainer.nameValid(id) else {
@@ -267,11 +257,9 @@ extension LiveContainerService {
                 Task { try? await process.kill(SIGTERM) }
             }
 
-            // A cancelled run kills the process via SIGTERM above, which makes `process.wait()`
-            // return a real (non-zero) exit code rather than throwing — check cancellation
-            // explicitly so this surfaces as `CancellationError` (caught below, cleaned up, and
-            // recognized by callers as "the user cancelled") instead of a misleading
-            // "command failed" `ContainerCLIError`.
+            // The SIGTERM above makes `process.wait()` return a non-zero exit code rather than throw, so
+            // check cancellation explicitly: callers then see `CancellationError` (cleaned up below), not a
+            // misleading "command failed" `ContainerCLIError`.
             try Task.checkCancellation()
 
             await refresh()

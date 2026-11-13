@@ -30,14 +30,10 @@ extension LiveContainerService {
         diskUsage = Self.mapDiskUsage(stats)
     }
 
-    /// Pure image selection, extracted from the live client calls so the decision is unit-testable
-    /// (see `PruneSelectionTests`). Mirrors the daemon's own `reclaimable` definition so freed space
-    /// matches the number shown next to the button rather than exceeding it: the daemon counts an
-    /// image as unused only when **no** container references it — running *or* stopped, machine or
-    /// builder (`getActiveImageReferences` iterates every container). So the caller passes image
-    /// references from the *current full* container list; an image referenced only by a stopped
-    /// container is protected here even though that container may be removed separately — it's left
-    /// for the next cleanup. Honest beats maximal.
+    /// Pure image selection (see `PruneSelectionTests`). Mirrors the daemon's `reclaimable`
+    /// definition so freed space matches the number shown: an image is unused only when no container
+    /// references it, running or stopped, machine or builder (`getActiveImageReferences`). So an
+    /// image used only by a stopped container is kept for the next cleanup.
     nonisolated static func unusedImageReferences(allImageReferences: [String], containerImageReferences: [String]) -> [String] {
         let inUse = Set(containerImageReferences)
         return allImageReferences.filter { !inUse.contains($0) }
@@ -85,17 +81,10 @@ extension LiveContainerService {
     /// share one fetch with `pruneImages()` instead of each phase fetching its own.
     func pruneStoppedContainers(allContainers: [ContainerSnapshot]) async throws -> PruneResult {
         let client = ContainerClient()
-        // Machine-backed containers, identified the same way `refreshAll()` separates them: a
-        // container whose id is a machine's `containerId`. Builders are identified by the same
-        // label server-side filter that populates the `builders` list (`fetchBuilderSnaps()`), and
-        // cluster nodes by the same label check that hides them from the Compute list
-        // (`isClusterNode`), so this can never disagree with what those UIs themselves show. All
-        // three are infrastructure and must never be deleted, even when stopped.
-        //
-        // Unlike `refreshAll()`'s best-effort `try?` (a display refresh can tolerate showing stale
-        // data), a failure here must abort the whole prune rather than silently treating every
-        // machine/builder/cluster container as ordinary — proceeding with an empty infrastructure
-        // set on a transient XPC error would risk deleting a stopped VM, builder, or cluster node.
+        // Machines (a machine's `containerId`), builders (`fetchBuilderSnaps()`), and cluster nodes
+        // (`isClusterNode`) are identified exactly as `refreshAll()` and the UI do, and are never
+        // deleted. Unlike `refreshAll()`'s `try?`, a failed lookup aborts the prune: an empty
+        // infrastructure set on a transient XPC error would delete a stopped VM, builder, or node.
         let machineSnaps = try await MachineClient().list()
         let machineContainerIds = Set(machineSnaps.compactMap { $0.containerId })
         let builderIds = Set(try await Self.fetchBuilderSnaps().map { $0.id })
@@ -397,12 +386,9 @@ extension LiveContainerService {
         return (process, pipe)
     }
 
-    /// Decodes one `log stream --style ndjson` event and re-joins its timestamp/level/message as
-    /// `"timestamp\tlevel\tmessage"` — the format `DaemonLogView.parseLine` (SystemView.swift)
-    /// splits back apart — instead of leaving the daemon's own logging format to be guessed from
-    /// free text. Returns `nil` for non-JSON lines, e.g. the "Filtering the log data..." banner
-    /// `log stream` prints before the first event, so the log view never shows a stray unparsed
-    /// line for it.
+    /// Decodes one `log --style ndjson` event into `"timestamp\tlevel\tmessage"`, the format
+    /// `DaemonLogView.parseLine` (SystemView.swift) splits back apart. Returns `nil` for non-JSON
+    /// lines such as the "Filtering the log data..." banner `log stream` prints first.
     nonisolated static func formatDaemonLogEvent(_ ndjsonLine: String) -> String? {
         struct Event: Decodable {
             let timestamp: String

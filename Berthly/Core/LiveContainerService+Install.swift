@@ -97,13 +97,11 @@ extension LiveContainerService {
         return destination.path
     }
 
-    /// The exact leaf-certificate identity `pkgutil --check-signature` prints for apple/container
-    /// release pkgs, including Apple's Containerization team ID — verified against the real
-    /// signed 1.2.0 pkg. Deliberately NOT the generic "signed by a developer certificate issued
-    /// by Apple" status line: every registered Developer ID on earth matches that phrase, which
-    /// would let any developer's pkg through this gate. If upstream ever rotates its signing
-    /// identity, installs fail closed with the verification error until this is re-pinned
-    /// (re-check alongside `ContainerCompatibility.requiredVersion` bumps).
+    /// The leaf-certificate identity `pkgutil --check-signature` prints for apple/container release
+    /// pkgs, with Apple's Containerization team ID (verified against the signed 1.2.0 pkg). Not the
+    /// generic "signed by a developer certificate issued by Apple" line, which every Developer ID
+    /// matches. If upstream rotates its identity, installs fail closed until this is re-pinned
+    /// (re-check on `ContainerCompatibility.requiredVersion` bumps).
     nonisolated static let appleSignatureMarkers = [
         "Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
     ]
@@ -163,12 +161,10 @@ extension LiveContainerService {
         "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
-    /// The elevated install command. The pkg was already signature-checked in user space (so a
-    /// bad download fails before the password prompt), but that copy sits in the user-writable
-    /// temp directory — anything running as this user could swap it between that check and the
-    /// root install. So the elevated shell copies the pkg into a root-owned staging directory
-    /// (mode 700 under sticky /tmp, untouchable by the user), re-verifies the signature on the
-    /// copy, and installs that copy: what got verified is exactly what gets installed.
+    /// The elevated install command. The user-space signature check runs before the password prompt,
+    /// but that pkg sits in a user-writable temp dir and could be swapped before the root install.
+    /// So the elevated shell copies it into a root-owned staging dir (mode 700 under sticky /tmp),
+    /// re-verifies the copy, and installs exactly that copy.
     nonisolated static func stagedInstallCommand(pkgPath: String) -> String {
         let grepMarkers = appleSignatureMarkers.map { "-e \(shellQuoted($0))" }.joined(separator: " ")
         // The signature is captured into a variable rather than piped straight into `grep` —
@@ -183,12 +179,10 @@ extension LiveContainerService {
             + "; status=$?; /bin/rm -rf \"$staging\"; exit $status"
     }
 
-    /// Builds the AppleScript source for an elevated shell command. The command is embedded in
-    /// an AppleScript string literal, so backslashes and double quotes are escaped — without
-    /// that, a command containing a quoted path would terminate the literal early and execute a
-    /// mangled script. The elevated shell gets a fixed system-only PATH. Every non-system
-    /// executable is invoked by an absolute path after its ownership and signature have been
-    /// checked, so a writable package-manager directory can never provide a root command.
+    /// AppleScript source for an elevated shell command. Backslashes and double quotes are escaped so
+    /// a quoted path can't end the string literal early. The fixed system-only PATH means a writable
+    /// package-manager directory can never provide a root command; any other executable is invoked
+    /// by absolute path after its ownership and signature are checked.
     nonisolated static func privilegedAppleScript(for shellCommand: String) -> String {
         let escaped = shellCommand
             .replacingOccurrences(of: "\\", with: "\\\\")
@@ -196,13 +190,10 @@ extension LiveContainerService {
         return "do shell script \"export PATH=/usr/bin:/bin:/usr/sbin:/sbin; \(escaped)\" with administrator privileges"
     }
 
-    /// `osascript` reports the user dismissing the admin-password dialog as
-    /// `execution error: User canceled. (-128)` on stderr with exit code 1 — indistinguishable
-    /// from a real failure by exit code alone. The message text is localized on non-English
-    /// systems, so only the trailing error code is matched — but anchored to the end of the
-    /// line (after trimming trailing whitespace some locales append), so command output that
-    /// merely *mentions* -128 mid-line can't masquerade as a cancellation and silently suppress
-    /// a real failure.
+    /// `osascript` reports a dismissed admin-password dialog as `execution error: User canceled.
+    /// (-128)` with exit code 1, same as a real failure. The message is localized, so only the
+    /// trailing code is matched, anchored to the line end (after trimming trailing whitespace some
+    /// locales append) so output that merely mentions -128 can't mask a real failure.
     nonisolated static func userCancelledAdminPrompt(_ outputLines: [String]) -> Bool {
         outputLines.contains { $0.trimmingCharacters(in: .whitespaces).hasSuffix("(-128)") }
     }
@@ -217,13 +208,10 @@ extension LiveContainerService {
         return "The elevated command failed (exit code \(exitCode)):\n\(tail)"
     }
 
-    /// Runs a shell command elevated via `osascript ... with administrator privileges`,
-    /// which shows the native macOS admin-password dialog — no custom UI, no deprecated
-    /// `AuthorizationExecuteWithPrivileges`. The process is tracked in `privilegedProcess` and
-    /// killed on task cancellation and app quit: an orphaned osascript sits on its password
-    /// dialog forever and silently blocks every subsequent authorization prompt on the system.
-    /// `onLog` hops back to `MainActor` per line. Dismissing the password dialog surfaces as
-    /// `CancellationError`, same as the in-app Cancel button.
+    /// Runs a shell command elevated via `osascript ... with administrator privileges` (the native
+    /// admin-password dialog). The process is tracked in `privilegedProcess` and killed on task
+    /// cancellation and app quit: an orphaned osascript sits on its dialog forever and blocks every
+    /// later authorization prompt on the system. A dismissed dialog throws `CancellationError`.
     private func runPrivilegedShellCommand(
         _ shellCommand: String,
         onLog: @MainActor @escaping (String) -> Void
