@@ -200,16 +200,10 @@ private struct ContainerComputeRow: View {
 
     private var isRunning: Bool { container.status == .running }
 
-    /// `container export` accepts a running container as of daemon 1.2.1
-    /// (apple/container#1630); older daemons only support a stopped one.
     private var canExportFilesystem: Bool {
         switch container.status {
-        case .stopped:
-            return true
-        case .running:
-            return ContainerCompatibility.isAtLeast(installed: service.installedContainerVersion ?? "", "1.2.1")
-        case .error, .paused:
-            return false
+        case .stopped, .running: true
+        case .error, .paused: false
         }
     }
 
