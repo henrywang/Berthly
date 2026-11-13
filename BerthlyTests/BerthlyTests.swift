@@ -826,6 +826,16 @@ struct MockContainerServiceTests {
         #expect(firsts[0] == firsts[1])
     }
 
+    /// A subclass that misses an override must stop a Debug build rather than silently report
+    /// success through the base class's neutral return (#248).
+    @Test func baseServiceTrapsOnMissingOverride() async {
+        await #expect(processExitsWith: .failure) {
+            await MainActor.run {
+                _ = ContainerServiceBase().isKnownInsecureRegistry(forReference: "example.com/app")
+            }
+        }
+    }
+
     /// Catches retain cycles (e.g. a Task or closure capturing `self` strongly instead of
     /// weakly): if nothing outside this scope holds a reference, ARC deallocates `service` the
     /// moment the `do` block ends, so `weakRef` reads nil. Scoped to the mock rather than

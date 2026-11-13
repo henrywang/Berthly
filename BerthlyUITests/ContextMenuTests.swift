@@ -75,6 +75,25 @@ final class ContextMenuTests: XCTestCase {
         app.typeKey(.escape, modifierFlags: [])
     }
 
+    /// Export Filesystem is disabled for an errored ("edge-proxy") or paused ("sandbox")
+    /// container: the daemon can only export a stopped or running one.
+    @MainActor
+    func testContainerContextMenuDisablesExportForErrorAndPaused() throws {
+        let app = launchMock()
+        for name in ["edge-proxy", "sandbox"] {
+            let row = app.staticTexts["computeRow-\(name)"]
+            XCTAssertTrue(row.waitForExistence(timeout: 5))
+            row.rightClick()
+
+            let exportItem = app.menuItems["Export Filesystem…"]
+            XCTAssertTrue(exportItem.waitForExistence(timeout: 5))
+            XCTAssertFalse(exportItem.isEnabled, "\(name) can't be exported")
+
+            app.typeKey(.escape, modifierFlags: [])
+            XCTAssertTrue(exportItem.waitForNonExistence(timeout: 5))
+        }
+    }
+
     @MainActor
     func testContainerContextMenuCopyNameWritesToPasteboard() throws {
         let app = launchMock()

@@ -4,11 +4,11 @@
 import XCTest
 
 /// Export Filesystem coverage against a real daemon — previously untested at any layer beyond
-/// unit (mock exportContainer) and mock UI (menu enablement only). Covers both paths:
-/// stopped and running (`ComputeListView.canExportFilesystem` gates it on daemon 1.2.1, added in
-/// #107 per apple/container#1630). The running half once skipped below 1.2.1, but its version
-/// probe read `apiserver.version`, which current CLIs print as `server.version`, so it skipped on
-/// every daemon (#212). Berthly's 1.6.1 floor makes that gate moot, so the half is unconditional.
+/// unit (mock exportContainer) and mock UI (menu enablement only). Covers both states
+/// `ComputeListView.canExportFilesystem` allows: stopped and running (running export landed in
+/// daemon 1.2.1 per apple/container#1630, below Berthly's version floor, so neither is gated).
+/// The running half once skipped below 1.2.1, but its version probe read `apiserver.version`,
+/// which current CLIs print as `server.version`, so it skipped on every daemon (#212).
 ///
 /// `ComputeListView.exportFilesystem()` calls `NSSavePanel.runModal()` directly — no sheet, no
 /// existing test seam, same shape as Save/Load before `UITEST_SAVE_DESTINATION` — so this adds
