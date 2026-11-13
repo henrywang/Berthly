@@ -125,6 +125,9 @@ final class MockContainerService: ContainerServiceBase {
         pinnedContainerOrder.removeAll { $0 == id }
     }
 
+    // No real registries to remember anything about.
+    override func isKnownInsecureRegistry(forReference reference: String) -> Bool { false }
+
     override func checkForImageUpdates(force: Bool = false) async {
         guard !isCheckingImageUpdates else { return }
         isCheckingImageUpdates = true
@@ -618,6 +621,9 @@ final class MockContainerService: ContainerServiceBase {
         try? await Task.sleep(for: .milliseconds(200))
         daemonState = .installedButStopped
     }
+
+    // Mock state changes only through its own operations; there is no daemon to poll.
+    override func refresh() async {}
 
     override func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
         await stopDaemon()

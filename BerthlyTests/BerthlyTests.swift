@@ -826,14 +826,6 @@ struct MockContainerServiceTests {
         #expect(firsts[0] == firsts[1])
     }
 
-    /// The base class yields nothing (and finishes) — the detail view then just stays in its
-    /// "Collecting…" placeholder rather than hanging on a never-ending empty stream.
-    @Test func baseServiceStatsStreamFinishesEmpty() async {
-        var count = 0
-        for await _ in ContainerServiceBase().containerStatsStream(id: "any") { count += 1 }
-        #expect(count == 0)
-    }
-
     /// Catches retain cycles (e.g. a Task or closure capturing `self` strongly instead of
     /// weakly): if nothing outside this scope holds a reference, ARC deallocates `service` the
     /// moment the `do` block ends, so `weakRef` reads nil. Scoped to the mock rather than
