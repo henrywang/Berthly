@@ -638,21 +638,6 @@ struct SystemProperty: Identifiable, Hashable {
     var id: String { key }
 }
 
-/// Full set of arguments for installing/switching the default kernel — mirrors
-/// `container system kernel set`. `tarSource` may be a local file path or a
-/// remote URL; when set, `binaryPath` names the member to extract from the
-/// archive rather than a path on the local disk.
-nonisolated struct KernelSetOptions {
-    var binaryPath: String
-    var tarSource: String?
-    var architecture: String  // "arm64" or "amd64"
-    var force: Bool = false
-    /// `sha256:<hex>`-style digest verified against the downloaded/local tar archive before
-    /// install. Required upstream for remote tar URLs; optional (but still checked if given)
-    /// for local ones.
-    var digest: String?
-}
-
 struct SystemConfigInfo: Hashable {
     let vminitImage: String
     let kernelBinaryPath: String

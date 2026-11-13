@@ -24,7 +24,7 @@ Berthly lives in your menu bar and opens a full SwiftUI window, giving Apple's c
 
 - **Images** — list, pull from a registry, build from a Dockerfile, and inspect layers and metadata.
 - **Containers** — create and run containers, view details, and stream logs live.
-- **Machines** — create and manage VMs, set the kernel, and inspect resources.
+- **Machines** — create and manage VMs and inspect resources.
 - **Networks & volumes** — create, list, and remove them without touching a terminal.
 - **Registries** — sign in to private registries and manage saved hosts.
 - **Integrated terminal** — a real terminal attached to your containers, built on SwiftTerm.
@@ -58,9 +58,9 @@ around the *workflow*, with a tier of features the CLI doesn't have:
   containers running them; "Recreate with Latest Image" pulls and rebuilds the
   container with its exact configuration, volumes intact.
 
-And yes — Berthly also covers the `container` CLI's full feature surface — see
-[PARITY.md](PARITY.md) for the subcommand-by-subcommand mapping and the few
-expert flags left to the CLI.
+And yes — Berthly also covers most of the `container` CLI.
+[PARITY.md](PARITY.md) maps it subcommand by subcommand and lists
+[what's deliberately left to the CLI](PARITY.md#deliberate-gaps).
 
 ## Requirements
 

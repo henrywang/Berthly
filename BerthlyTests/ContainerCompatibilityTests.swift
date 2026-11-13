@@ -83,8 +83,8 @@ struct ContainerCompatibilityTests {
     }
 
     // isAtLeast is patch-precise, unlike isCompatible/mismatch's major.minor-only floor — for
-    // gating a capability that landed in a specific patch release (e.g. running-container export,
-    // added in 1.2.1) rather than overall daemon compatibility.
+    // gating a capability that landed in a specific patch release rather than overall daemon
+    // compatibility.
     @Test func isAtLeastExactMatchIsTrue() {
         #expect(ContainerCompatibility.isAtLeast(installed: "1.2.1", "1.2.1"))
     }

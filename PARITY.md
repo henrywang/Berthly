@@ -104,7 +104,7 @@ set, and recreates the builder when its DNS changes (#233).
 |---|---|
 | `start` / `stop` / `status` | Daemon controls + connection state throughout the app |
 | `df` | Disk usage cards with reclaimable-space breakdown |
-| `kernel` | Kernel info + Set Kernel sheet (binary, tar/URL, arch, force, digest) |
+| `kernel` | Kernel info |
 | `logs` | Daemon Logs viewer |
 | `property` | System properties list, including the `container.dns.*` defaults (#234) |
 | `version` | Versions shown on the System page |
@@ -197,3 +197,6 @@ to the CLI:
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
   charts instead; an all-containers dashboard would be a new feature, not a
   parity item.
+- **`kernel set`** — Berthly installs the default kernel on first daemon
+  start, so switching to a non-default kernel binary or archive is left to the
+  CLI (#249).

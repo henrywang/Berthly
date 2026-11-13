@@ -114,9 +114,9 @@ class ContainerServiceBase {
     /// flush or clean up; the container itself remains, stopped.
     func killContainer(_ id: String) async throws {}
     func deleteContainer(_ id: String) async throws {}
-    /// Export a stopped container's filesystem as a tar archive at `path` (like `container
-    /// export -o`). The daemon refuses a non-stopped container, so callers gate the action on
-    /// stopped status. No progress reporting — the export API offers none.
+    /// Export a stopped or running container's filesystem as a tar archive at `path` (like
+    /// `container export -o`); callers gate the action on those two states. No progress
+    /// reporting — the export API offers none.
     func exportContainer(_ id: String, to path: String) async throws {}
     /// Snapshot a container's filesystem into a new local image (like `container commit`).
     /// Returns the normalized reference created, as `tagImage` does.
@@ -260,7 +260,6 @@ class ContainerServiceBase {
     func fetchSystemConfig() async throws {}
     /// Refreshes `systemProperties` from the resolved system configuration.
     func fetchSystemProperties() async {}
-    func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
     func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
 
     /// Refreshes `registries` from the Keychain. Page-specific, fetched on demand (like
