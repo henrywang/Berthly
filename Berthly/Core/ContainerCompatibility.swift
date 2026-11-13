@@ -60,9 +60,9 @@ nonisolated enum ContainerCompatibility {
     }
 
     /// Full major.minor.patch comparison, unlike `mismatch`'s major.minor-only floor — for gating
-    /// a capability that landed in a specific patch release (e.g. running-container export, added
-    /// in 1.2.1) rather than the daemon's overall API compatibility. `false` on an unparseable
-    /// version: the safe default when a feature's availability can't be confirmed.
+    /// a capability that landed in a specific patch release rather than the daemon's overall API
+    /// compatibility. `false` on an unparseable version: the safe default when a feature's
+    /// availability can't be confirmed.
     static func isAtLeast(installed: String, _ required: String) -> Bool {
         guard let installedComponents = fullVersion(of: installed),
               let requiredComponents = fullVersion(of: required) else {
@@ -75,10 +75,9 @@ nonisolated enum ContainerCompatibility {
     /// Same major.minor as `requiredVersion` (so `mismatch` sees it as fully compatible and
     /// never blocks the app) but behind the exact pinned patch — e.g. daemon 1.7.1 against a
     /// Berthly pinned to `requiredVersion` 1.7.2. `mismatch` ignores patch above `patchFloor`, so this
-    /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`, e.g.
-    /// running-container export added in 1.2.1) can sit unreachable with no signal why. Drives
-    /// the System page's non-blocking "Update available" affordance, distinct from the hard
-    /// `.versionMismatch` gate that `mismatch` drives.
+    /// is the only check that notices; without it, a patch-gated capability (`isAtLeast`) can
+    /// sit unreachable with no signal why. Drives the System page's non-blocking "Update
+    /// available" affordance, distinct from the hard `.versionMismatch` gate that `mismatch` drives.
     static func isPatchBehind(installed: String, required: String = requiredVersion, floor: String? = patchFloor) -> Bool {
         isCompatible(installed: installed, required: required, floor: floor) && !isAtLeast(installed: installed, required)
     }
