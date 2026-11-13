@@ -100,6 +100,7 @@ UNIT_COUNT=$(grep -cE "Test case .* passed" "$DIST/test.log")
 read -r CORE_COVERAGE LOGIC_COVERAGE < <(xcrun xccov view --report --json "$RESULT_BUNDLE" | /usr/bin/python3 -c '
 import json, sys
 IO_FILES = {"LiveContainerService.swift", "TerminalSession.swift", "AppNotifier.swift", "UpdaterService.swift"}
+is_io = lambda path: path.split("/")[-1] in IO_FILES or path.split("/")[-1].startswith("LiveContainerService+")
 report = json.load(sys.stdin)
 core_c = core_t = logic_c = logic_t = 0
 for target in report.get("targets", []):
@@ -109,7 +110,7 @@ for target in report.get("targets", []):
             continue
         c, t = f.get("coveredLines", 0), f.get("executableLines", 0)
         core_c += c; core_t += t
-        if path.split("/")[-1] not in IO_FILES:
+        if not is_io(path):
             logic_c += c; logic_t += t
 pct = lambda c, t: f"{100 * c / t:.0f}" if t else "?"
 print(pct(core_c, core_t), pct(logic_c, logic_t))

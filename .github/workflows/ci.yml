@@ -140,12 +140,13 @@ jobs:
           PCT=$(xcrun xccov view --report --json TestResults.xcresult | /usr/bin/python3 -c '
           import json, sys
           IO_FILES = {"LiveContainerService.swift", "TerminalSession.swift", "AppNotifier.swift", "UpdaterService.swift"}
+          is_io = lambda path: path.split("/")[-1] in IO_FILES or path.split("/")[-1].startswith("LiveContainerService+")
           report = json.load(sys.stdin)
           covered = total = 0
           for target in report.get("targets", []):
               for f in target.get("files", []):
                   path = f.get("path", "")
-                  if "/Berthly/Core/" in path and path.split("/")[-1] not in IO_FILES:
+                  if "/Berthly/Core/" in path and not is_io(path):
                       covered += f.get("coveredLines", 0)
                       total += f.get("executableLines", 0)
           print(round(100 * covered / total) if total else 0)

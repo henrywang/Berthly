@@ -2,9 +2,7 @@
 # Thresholds were set from the codebase's real shape when lint was adopted
 # (2026-07-17): rules that catch bugs stay strict; size metrics are a
 # ratchet — set just above the current largest offender so existing code is
-# green but meaningful growth trips the gate. LiveContainerService (the one
-# deliberate monolith) carries its own file-level disable instead of
-# stretching these numbers to cover it.
+# green but meaningful growth trips the gate.
 
 excluded:
   - design # one-off icon rasterizer script, not shipped code

@@ -54,6 +54,7 @@ import json, sys
 # Keep in sync with scripts/release.sh: Core files whose coverage belongs to
 # the real-daemon E2E layer, not in-process tests.
 IO_FILES = {"LiveContainerService.swift", "TerminalSession.swift", "AppNotifier.swift", "UpdaterService.swift"}
+is_io = lambda path: path.split("/")[-1] in IO_FILES or path.split("/")[-1].startswith("LiveContainerService+")
 
 report = json.load(open(sys.argv[1]))
 
@@ -80,7 +81,7 @@ def bucket(pred):
 print("\nApp breakdown:")
 for label, pred in [
     ("Core (all)", lambda p: "/Berthly/Core/" in p),
-    ("Core logic (minus I/O)", lambda p: "/Berthly/Core/" in p and p.split("/")[-1] not in IO_FILES),
+    ("Core logic (minus I/O)", lambda p: "/Berthly/Core/" in p and not is_io(p)),
     ("Views", lambda p: "/Berthly/Views/" in p),
     ("Design", lambda p: "/Berthly/Design/" in p),
 ]:
