@@ -21,10 +21,9 @@ Before committing, run and get clean output from:
 Fix findings rather than suppressing them. A `swiftlint:disable` needs a
 one-line justification comment and the narrowest possible scope (`:next` /
 `:this`, or a `disable`/`enable` pair around a fixture block) — see
-`MockContainerService.swift` and `LiveContainerService.swift` for the
-existing precedents. Size-metric thresholds in `.swiftlint.yml` are a
-ratchet set just above the current largest offender: don't raise them to
-absorb growth.
+`MockContainerService.swift` for the existing precedents. Size-metric
+thresholds in `.swiftlint.yml` are a ratchet set just above the current
+largest offender: don't raise them to absorb growth.
 
 # Testing
 
