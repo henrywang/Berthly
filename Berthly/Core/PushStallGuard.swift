@@ -19,14 +19,17 @@ nonisolated func containsRealProgress(_ events: [ProgressUpdateEvent]) -> Bool {
     }
 }
 
-/// Safety net for a real bug in the vendored `ContainerizationOCI` registry client: on a
-/// 401/403 it fetches a fresh Bearer token and retries, with an escape hatch
-/// (`TokenResponse.isValid(scope:)`) meant to stop the retries once a good token is in hand.
-/// That check defaults `expiresIn` to 0 when a registry omits it, so "elapsed < expiresIn" is
-/// false forever and the hatch never fires. That retry branch also has no `maxRetries` cap, so
-/// a registry that keeps issuing scope-insufficient tokens loops forever with no thrown error —
-/// reproduced pushing to a registry that requires sign-in with none configured. Not fixable
-/// here: it's Apple's code, not Berthly's.
+/// Safety net for an unbounded retry in the vendored `ContainerizationOCI` registry client
+/// (containerization 0.54.0, `RegistryClient.request`): on a 401/403 Bearer challenge it fetches
+/// a token and retries, incrementing `retryCount` but never checking it against `maxRetries`.
+/// The only exit is the previous token passing `TokenResponse.isValid(scope:)` (or the token
+/// endpoint itself failing). So if the token endpoint keeps returning 200 while `isValid` keeps
+/// failing — an explicit `expires_in: 0`, or a challenge scope that differs from the one the
+/// token was requested for — it loops forever with no thrown error.
+///
+/// The original hang (repro'd on 0.35.0: push to a sign-in-required registry with no
+/// credentials) was a missing `expires_in` decoding to 0; apple/containerization#919 (in 0.54.0)
+/// now defaults it to 60s, but the uncapped loop above remains. Not fixable here: Apple's code.
 ///
 /// A real transfer reports progress well before any reasonable timeout, so "zero progress yet"
 /// is a safe cancel signal — it won't false-positive on a large or slow push.

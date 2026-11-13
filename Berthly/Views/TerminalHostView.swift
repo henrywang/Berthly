@@ -165,11 +165,7 @@ struct TerminalHostView: NSViewRepresentable {
         }
 
         @objc private func openSettings(_ sender: NSMenuItem) {
-            if #available(macOS 14, *) {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            } else {
-                NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-            }
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
         }
 
         /// A compact strip of the theme's first 8 ANSI colors, so each menu entry previews the

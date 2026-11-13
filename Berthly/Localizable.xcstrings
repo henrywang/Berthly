@@ -110,9 +110,6 @@
     "192.168.70.0/24" : {
 
     },
-    "A local domain lets this Mac resolve containers by name under it (e.g. web.test). Adding or removing one modifies /etc/resolver, so macOS asks for an administrator password." : {
-
-    },
     "A named volume on the local driver" : {
 
     },
@@ -131,9 +128,6 @@
     "A newer image was pulled — recreate the container to apply it" : {
 
     },
-    "A vmlinux binary already on disk." : {
-
-    },
     "Account" : {
 
     },
@@ -144,9 +138,6 @@
 
     },
     "Add a host, then sign in — stored in the Keychain" : {
-
-    },
-    "Add a local DNS domain" : {
 
     },
     "Add a network, or one created for a container will appear here." : {
@@ -164,9 +155,6 @@
     "Add capabilities" : {
 
     },
-    "Add Domain…" : {
-
-    },
     "Add Network…" : {
 
     },
@@ -174,9 +162,6 @@
 
     },
     "Add Volume…" : {
-
-    },
-    "Adding domain…" : {
 
     },
     "Advanced" : {
@@ -201,9 +186,6 @@
 
     },
     "Applying…" : {
-
-    },
-    "Architecture" : {
 
     },
     "Archive" : {
@@ -365,9 +347,6 @@
     "Container is not installed" : {
 
     },
-    "Container names under %@ will stop resolving on this Mac. You'll be asked for an administrator password." : {
-
-    },
     "Container not found" : {
 
     },
@@ -500,9 +479,6 @@
     "Delete Container" : {
 
     },
-    "Delete Domain" : {
-
-    },
     "Delete failed" : {
 
     },
@@ -513,9 +489,6 @@
 
     },
     "Delete Network" : {
-
-    },
-    "Delete the %@ domain?" : {
 
     },
     "Delete Volume" : {
@@ -579,9 +552,6 @@
 
     },
     "Dockerfile (auto-detected)" : {
-
-    },
-    "Domain (e.g. test)" : {
 
     },
     "Done" : {
@@ -675,9 +645,6 @@
 
     },
     "Force Kill" : {
-
-    },
-    "Force re-install" : {
 
     },
     "Forces HTTP instead of HTTPS and remembers this host as insecure for future update checks. Only use for private registries without TLS." : {
@@ -813,9 +780,6 @@
     "Kernel" : {
 
     },
-    "Kernel Binary" : {
-
-    },
     "Kernel boot arguments" : {
 
     },
@@ -844,9 +808,6 @@
 
     },
     "Loading…" : {
-
-    },
-    "Local DNS" : {
 
     },
     "local/myapp:1.0" : {
@@ -921,9 +882,6 @@
     "New reference" : {
 
     },
-    "New VMs pick up the kernel · running containers are unaffected." : {
-
-    },
     "Newer than Berthly supports" : {
 
     },
@@ -943,9 +901,6 @@
 
     },
     "No Images" : {
-
-    },
-    "No local domains — containers are reachable by IP only." : {
 
     },
     "No logs" : {
@@ -1032,9 +987,6 @@
     "Ports" : {
 
     },
-    "Pre-filled from config.toml's recommended kernel — edit to install a different one. The digest is verified against the archive before install; a remote URL requires one." : {
-
-    },
     "Properties" : {
 
     },
@@ -1102,9 +1054,6 @@
 
     },
     "Pushing image" : {
-
-    },
-    "Re-applies even if the selected kernel already matches the active one." : {
 
     },
     "Read-only root filesystem" : {
@@ -1279,12 +1228,6 @@
 
     },
     "Set as default machine" : {
-
-    },
-    "Set Kernel" : {
-
-    },
-    "Set Kernel…" : {
 
     },
     "Shared memory size" : {
@@ -1498,9 +1441,6 @@
     "Tag…" : {
 
     },
-    "Tar Archive" : {
-
-    },
     "target path" : {
 
     },
@@ -1671,9 +1611,6 @@
     "Use docker.io/%@" : {
 
     },
-    "Use Recommended" : {
-
-    },
     "User" : {
 
     },
@@ -1726,9 +1663,6 @@
 
     },
     "You may be asked for your admin password. This can take a few minutes." : {
-
-    },
-    "You'll be asked for an administrator password." : {
 
     }
   },

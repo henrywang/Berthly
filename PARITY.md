@@ -104,8 +104,7 @@ set, and recreates the builder when its DNS changes (#233).
 |---|---|
 | `start` / `stop` / `status` | Daemon controls + connection state throughout the app |
 | `df` | Disk usage cards with reclaimable-space breakdown |
-| `dns` | Local DNS domains list / create / delete |
-| `kernel` | Kernel info + Set Kernel sheet (binary, tar/URL, arch, force, digest) |
+| `kernel` | Kernel info |
 | `logs` | Daemon Logs viewer |
 | `property` | System properties list, including the `container.dns.*` defaults (#234) |
 | `version` | Versions shown on the System page |
@@ -115,6 +114,12 @@ set, and recreates the builder when its DNS changes (#233).
 Expert or scripting-oriented flags and commands the GUI intentionally leaves
 to the CLI:
 
+- **`system dns`** — registering a local DNS domain is a one-time setup step
+  that needs an administrator password and writes `/etc/resolver`; run
+  `sudo container system dns create <domain>` instead. Berthly removed its
+  Local DNS section (#251), which was also the only place it ran the
+  `container` CLI as root. Container DNS settings (the run sheet's DNS
+  fields, network aliases, the `container.dns.*` defaults) are unaffected.
 - **`kill --signal` / `stop --signal --time`** — the GUI offers force-kill
   (SIGKILL) as the unwedge action and default stop only; arbitrary signals
   and custom stop timeouts stay a CLI affair.
@@ -192,3 +197,6 @@ to the CLI:
 - **`stats` as a fleet-wide table** — Berthly shows richer per-container
   charts instead; an all-containers dashboard would be a new feature, not a
   parity item.
+- **`kernel set`** — Berthly installs the default kernel on first daemon
+  start, so switching to a non-default kernel binary or archive is left to the
+  CLI (#249).

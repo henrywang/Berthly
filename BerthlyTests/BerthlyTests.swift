@@ -672,9 +672,9 @@ struct StartDaemonFailureOutcomeTests {
 struct PrivilegedCommandHelperTests {
 
     @Test func appleScriptUsesOnlySystemDirectoriesInPath() {
-        let script = LiveContainerService.privilegedAppleScript(for: "/usr/local/bin/container system dns create 'test'")
+        let script = LiveContainerService.privilegedAppleScript(for: "/usr/sbin/installer -pkg '/tmp/container.pkg' -target /")
         #expect(script.hasPrefix("do shell script \"export PATH=/usr/bin:/bin:/usr/sbin:/sbin; "))
-        #expect(script.contains("/usr/local/bin/container system dns create 'test'"))
+        #expect(script.contains("/usr/sbin/installer -pkg '/tmp/container.pkg' -target /"))
         #expect(!script.contains("$PATH"))
         #expect(script.hasSuffix("with administrator privileges"))
     }
@@ -739,25 +739,6 @@ struct PrivilegedCommandHelperTests {
         let output = "1. Developer ID Installer: Apple Inc. - Containerization (UPBK2H6LZM)"
         #expect(!LiveContainerService.isAcceptableSignature(output: output, terminationStatus: 1))
         #expect(!LiveContainerService.isAcceptableSignature(output: "", terminationStatus: 0))
-    }
-
-    @Test func privilegedExecutableCheckRequiresAppleSignatureAndRootOnlyWrites() {
-        let output = """
-        Authority=Developer ID Application: Apple Inc. - Containerization (UPBK2H6LZM)
-        TeamIdentifier=UPBK2H6LZM
-        """
-        #expect(LiveContainerService.isTrustedPrivilegedExecutable(
-            ownerID: 0, permissions: 0o755, signatureOutput: output, terminationStatus: 0
-        ))
-        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
-            ownerID: 501, permissions: 0o755, signatureOutput: output, terminationStatus: 0
-        ))
-        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
-            ownerID: 0, permissions: 0o775, signatureOutput: output, terminationStatus: 0
-        ))
-        #expect(!LiveContainerService.isTrustedPrivilegedExecutable(
-            ownerID: 0, permissions: 0o755, signatureOutput: "TeamIdentifier=EVIL", terminationStatus: 0
-        ))
     }
 
     /// The elevated command must stage the pkg out of the user-writable temp dir, re-verify the
