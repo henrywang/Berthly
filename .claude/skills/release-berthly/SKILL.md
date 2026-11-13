@@ -1,6 +1,6 @@
 ---
 name: release-berthly
-description: Cut a new Berthly release — bump version, run scripts/release.sh, write a real "What's Changed" summary from the actual diff, and verify the published artifact. Use when the user asks to release, ship, cut a version, or publish a new Berthly build.
+description: Cut a new Berthly release — bump version, run scripts/release.sh, write a real "What's Changed" summary from the actual diff, verify the published artifact, update berthly.net, and draft the X and LinkedIn posts. Use when the user asks to release, ship, cut a version, or publish a new Berthly build.
 user-invocable: true
 allowed-tools:
   - Read
@@ -177,6 +177,43 @@ follow up:
   `curl -sI -L https://github.com/henrywang/Berthly/releases/latest/download/Berthly-<version>.dmg`
   should end in a `200`/redirect chain to the asset, not a `404` — this
   is the check that catches a forgotten step 2 bump.
+
+## 6. Update berthly.net
+
+The site is `henrywang/Berthly-Web`, checked out at
+`~/Workspace/project/Berthly-Web` (Astro, deployed by Vercel on every push to
+`main`). Each release is one direct commit to `main`:
+`feat: bump homepage to Berthly <version> and add release notes`. Use
+`git show` on the previous one as the template.
+
+1. Add `src/content/blog/berthly-<x-y-z>.mdx` (frontmatter `title`,
+   `description`, `date`, `tags: [release]`). Write it for users from the
+   What's Changed notes, and end with the same "Getting it" and "Testing"
+   sections as the last post. Take the Testing numbers from `dist/notes.md`,
+   not from memory.
+2. In `src/pages/index.astro`, bump all three version spots: `softwareVersion`
+   in the JSON-LD, the hero badge (link and text), and the DMG name in the
+   Download step.
+3. If the release removed or renamed a feature, grep `src/` (homepage feature
+   cards, `src/content/docs/`) for it and fix the copy. Leave old blog posts as
+   they are.
+4. `npm run build` must pass. The repo uses npm (`package-lock.json`).
+5. Run /no-ai-slop on the post, show the user the post and the site diff, and
+   push only after they confirm: the push deploys production. Push only after
+   the GitHub release exists, since the post links to it.
+
+## 7. Draft the social posts
+
+Draft an X post and a LinkedIn post announcing the release, both linking the
+blog post (`https://berthly.net/blog/berthly-<x-y-z>/`), and run /no-ai-slop
+on them.
+
+- X: at most 280 characters, counting the link as 23.
+- LinkedIn: a few short paragraphs. Say what Berthly is in one line for
+  readers who don't know it, then the two or three changes users will notice,
+  then how to get it.
+- Check every claim against the code or the notes (counts, "only", "all").
+- Hand the drafts to the user; never post them yourself.
 
 ## Don'ts
 
