@@ -8,6 +8,8 @@ import TerminalProgress
 /// Observable base class for the container service layer.
 /// Inject via .environment(service as ContainerServiceBase).
 /// Access in views via @Environment(ContainerServiceBase.self).
+/// A class rather than a protocol because `@Environment` needs a concrete `@Observable` type, so
+/// abstract operations trap instead: a missing override must not silently report success.
 @Observable
 @MainActor
 class ContainerServiceBase {
@@ -102,61 +104,113 @@ class ContainerServiceBase {
         pinnedMachineOrder = PinOrder.moved(
             visible: visible, sources: sources, before: target, remembered: pinnedMachineOrder)
     }
-    func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {}
+    func buildImage(options: BuildOptions, onLog: @MainActor @escaping (String) -> Void) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     @discardableResult
-    func runContainer(options: RunOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws -> String { "" }
-    func createMachine(options: MachineCreateOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws {}
-    func createVolume(options: VolumeCreateOptions) async throws {}
-    func createNetwork(options: NetworkCreateOptions) async throws {}
+    func runContainer(options: RunOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws -> String {
+        assertionFailure("\(#function) must be overridden")
+        return ""
+    }
+    func createMachine(options: MachineCreateOptions, onLog: (@MainActor (String) -> Void)? = nil) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func createVolume(options: VolumeCreateOptions) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func createNetwork(options: NetworkCreateOptions) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
 
-    func startContainer(_ id: String) async throws {}
-    func stopContainer(_ id: String) async throws {}
-    func restartContainer(_ id: String) async throws {}
+    func startContainer(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func stopContainer(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func restartContainer(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Send SIGKILL to a running container (like `container kill`) — the unwedge path for a
     /// container that ignores `stopContainer`'s graceful SIGTERM. The process gets no chance to
     /// flush or clean up; the container itself remains, stopped.
-    func killContainer(_ id: String) async throws {}
-    func deleteContainer(_ id: String) async throws {}
+    func killContainer(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func deleteContainer(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Export a stopped container's filesystem as a tar archive at `path` (like `container
     /// export -o`). The daemon refuses a non-stopped container, so callers gate the action on
     /// stopped status. No progress reporting — the export API offers none.
-    func exportContainer(_ id: String, to path: String) async throws {}
+    func exportContainer(_ id: String, to path: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Snapshot a container's filesystem into a new local image (like `container commit`).
     /// Returns the normalized reference created, as `tagImage` does.
     @discardableResult
-    func commitContainer(_ id: String, reference: String) async throws -> String { reference }
+    func commitContainer(_ id: String, reference: String) async throws -> String {
+        assertionFailure("\(#function) must be overridden")
+        return reference
+    }
 
     /// Copy a file or directory between the host and container `containerID`'s filesystem.
     /// `hostPath` is a path on the Mac, `containerPath` a path inside the container; `direction`
     /// decides which is the source. Missing parent directories on the destination are created
     /// automatically. See `LiveContainerService.copyArguments(...)` for the source/destination
     /// mapping and `resolvedHostDestination(...)` for how a chosen host *folder* becomes a target.
-    func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {}
-    func startMachine(_ id: String) async throws {}
-    func stopMachine(_ id: String) async throws {}
-    func deleteMachine(_ id: String) async throws {}
+    func copyFiles(direction: CopyDirection, containerID: String, hostPath: String, containerPath: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func startMachine(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func stopMachine(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func deleteMachine(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Make `id` the default machine (like `container machine set-default`) — the target of
     /// `container machine run` with no ID. Reflected in `Machine.isDefault` on the next refresh.
-    func setDefaultMachine(_ id: String) async throws {}
+    func setDefaultMachine(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Reconfigure an existing machine's boot settings (like `container machine set`). Changes
     /// apply the next time the machine boots — a running machine keeps its current resources
     /// until stopped and started again.
-    func updateMachine(_ id: String, options: MachineUpdateOptions) async throws {}
-    func deleteImage(_ reference: String) async throws {}
-    func deleteVolume(_ name: String) async throws {}
-    func deleteNetwork(_ id: String) async throws {}
+    func updateMachine(_ id: String, options: MachineUpdateOptions) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func deleteImage(_ reference: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func deleteVolume(_ name: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func deleteNetwork(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Boot the stopped builder container — like `container builder start`. Uses the configured
     /// default CPU/memory (the CLI's `-c`/`-m` overrides stay a CLI affair); a later build reuses
     /// the running builder instead of paying the boot cost itself.
-    func startBuilder(_ id: String) async throws {}
-    func stopBuilder(_ id: String) async throws {}
+    func startBuilder(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func stopBuilder(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Delete the (stopped) builder container and its build cache — like `container builder
     /// delete`. The next build recreates the builder automatically, so this is the "reset a
     /// wedged/bloated builder" action, not a permanent removal. Callers gate on stopped status
     /// (the CLI requires `--force` to delete a running builder; the GUI just doesn't offer it).
-    func deleteBuilder(_ id: String) async throws {}
+    func deleteBuilder(_ id: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     func pullImage(reference: String, platform: String? = nil, insecure: Bool = false,
-                   progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {}
+                   progress: ProgressUpdateHandler? = nil, onUnpacking: (() -> Void)? = nil) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
 
     func updateAvailability(for image: ContainerImage) -> ImageUpdateAvailability {
         ImageStaleness.availability(image: image, info: imageUpdateInfo[image.id])
@@ -167,79 +221,119 @@ class ContainerServiceBase {
     }
     /// Whether `reference`'s registry host has been remembered as insecure (Pull/Push/Run/
     /// Sign-in's "Allow insecure registry" toggle) — used to prefill Pull Latest's own toggle so
-    /// re-pulling a known-insecure host's tag doesn't need re-asking. Base `false`: mock mode has
-    /// no real registries to remember anything about.
-    func isKnownInsecureRegistry(forReference reference: String) -> Bool { false }
+    /// re-pulling a known-insecure host's tag doesn't need re-asking.
+    func isKnownInsecureRegistry(forReference reference: String) -> Bool {
+        assertionFailure("\(#function) must be overridden")
+        return false
+    }
     /// Compare each eligible local image's digest against its registry (HEAD manifest, no pull)
     /// and record the results in `imageUpdateInfo`. Failures are silent per image — a background
     /// nicety must never alert; a failed check just means no badge.
-    func checkForImageUpdates(force: Bool = false) async {}
+    func checkForImageUpdates(force: Bool = false) async {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Watchtower-style update: optionally pull the container's tag, then stop/delete/recreate it
     /// from the stored configuration with the fresh image digest, restoring the prior run state.
     /// `onPhase` narrates steps for the sheet; only the pull phase honors cancellation.
     @discardableResult
     func recreateContainer(_ id: String, pullFirst: Bool, progress: ProgressUpdateHandler? = nil,
                            onPhase: @MainActor @escaping (RecreatePhase) -> Void) async throws -> RecreateResult {
-        RecreateResult(wasRunning: false, didPull: false, oldImageDigest: "", newImageDigest: "")
+        assertionFailure("\(#function) must be overridden")
+        return RecreateResult(wasRunning: false, didPull: false, oldImageDigest: "", newImageDigest: "")
     }
     /// Garbage-collect content blobs no longer referenced by any image — what a same-tag re-pull
     /// leaves behind (apple/container *replaces* the reference, so there's no dangling image row
     /// to delete, only orphaned bytes). Returns freed bytes.
     @discardableResult
-    func reclaimOrphanedImageBlobs() async throws -> UInt64 { 0 }
+    func reclaimOrphanedImageBlobs() async throws -> UInt64 {
+        assertionFailure("\(#function) must be overridden")
+        return 0
+    }
     /// Create an additional local reference for an existing image (like `container image tag`).
     /// Returns the reference actually created: normalization can add a default registry host,
     /// a `library/` namespace, or `:latest` — the UI shows the result so that isn't a surprise.
     @discardableResult
-    func tagImage(reference: String, newReference: String) async throws -> String { newReference }
+    func tagImage(reference: String, newReference: String) async throws -> String {
+        assertionFailure("\(#function) must be overridden")
+        return newReference
+    }
     /// Export images as an OCI tar archive at `path` (like `container image save -o`). No
     /// progress reporting: the daemon's save API offers none, so callers show indeterminate
     /// progress. `platform` limits the archive to one platform; `nil` saves every variant.
-    func saveImages(references: [String], to path: String, platform: String? = nil) async throws {}
+    func saveImages(references: [String], to path: String, platform: String? = nil) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Import images from an OCI tar archive (like `container image load -i`) and unpack each
     /// (`progress` reports the unpack phase — the load phase itself is silent). `force` loads
     /// despite invalid archive member files, which are skipped and reported in the summary.
     func loadImages(from path: String, force: Bool = false, progress: ProgressUpdateHandler? = nil) async throws -> ImageLoadSummary {
-        ImageLoadSummary(loadedReferences: [], rejectedMembers: [])
+        assertionFailure("\(#function) must be overridden")
+        return ImageLoadSummary(loadedReferences: [], rejectedMembers: [])
     }
     /// Push a local image to a registry. When `destination` is set and differs from `reference`,
     /// the image is retagged to that registry-qualified reference before pushing — the native push
     /// requires a registry host in the reference, which a locally-built name like `local/web:1.4`
     /// lacks. Progress mirrors `pullImage`.
     func pushImage(reference: String, destination: String? = nil, platform: String? = nil,
-                   insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {}
+                   insecure: Bool = false, progress: ProgressUpdateHandler? = nil) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// `onLog` reports slow first-run bootstrap steps (kernel/vminit downloads) that otherwise
     /// happen silently inside daemon startup — the guided install flow shows them in its log.
-    func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {}
-    func stopDaemon() async {}
-    func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
+    func startDaemon(onLog: (@MainActor (String) -> Void)? = nil) async {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func stopDaemon() async {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func upgradeContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// First-time guided install of the `container` toolchain: download the pinned release's
     /// signed pkg, verify its signature, run the installer (admin prompt), then start the daemon.
-    func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {}
-    func refresh() async {}
+    func installContainer(onLog: @MainActor @escaping (String) -> Void) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func refresh() async {
+        assertionFailure("\(#function) must be overridden")
+    }
 
     /// Live resource samples for a running container, one every couple of seconds, already in
     /// display units (see `ContainerStatsSample`). The stream runs until the consuming task is
     /// cancelled (the detail view ties it to `.task`); a stopped or missing container simply
-    /// yields nothing further. Base yields nothing at all — the detail view then stays in its
-    /// "Collecting…" placeholder.
+    /// yields nothing further.
     func containerStatsStream(id: String) -> AsyncStream<ContainerStatsSample> {
-        AsyncStream { $0.finish() }
+        assertionFailure("\(#function) must be overridden")
+        return AsyncStream { $0.finish() }
     }
 
-    func fetchDiskUsage() async throws {}
+    func fetchDiskUsage() async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Remove images not used by any container. Safe/re-pullable cache cleanup. Returns what was freed.
-    func pruneImages() async throws -> PruneResult { PruneResult() }
+    func pruneImages() async throws -> PruneResult {
+        assertionFailure("\(#function) must be overridden")
+        return PruneResult()
+    }
     /// Delete stopped containers (never machines or builders). More consequential than image
     /// cleanup — removes the container and its writable layer. Returns what was freed.
-    func pruneStoppedContainers() async throws -> PruneResult { PruneResult() }
+    func pruneStoppedContainers() async throws -> PruneResult {
+        assertionFailure("\(#function) must be overridden")
+        return PruneResult()
+    }
     /// Delete volumes not mounted by any container (like `container volume prune`). The most
     /// consequential cleanup of all — an unattached volume can hold real data — so it never runs
     /// as part of `pruneAll()`; only its own explicitly-confirmed action calls it.
-    func pruneVolumes() async throws -> PruneResult { PruneResult() }
+    func pruneVolumes() async throws -> PruneResult {
+        assertionFailure("\(#function) must be overridden")
+        return PruneResult()
+    }
     /// Delete networks with no container connections (like `container network prune`). Never
     /// deletes the built-in default network. Frees no disk space, only tidies the network list.
-    func pruneNetworks() async throws -> PruneResult { PruneResult() }
+    func pruneNetworks() async throws -> PruneResult {
+        assertionFailure("\(#function) must be overridden")
+        return PruneResult()
+    }
     /// "Clean Up All": runs image and stopped-container cleanup independently so a failure in one
     /// doesn't skip or discard a successful result from the other. Subclasses with a live daemon
     /// connection can override this to share a single container-list fetch between the two phases
@@ -259,12 +353,18 @@ class ContainerServiceBase {
         }
         return CleanUpAllResult(result: combined, failureMessages: failures)
     }
-    func fetchKernelInfo() async throws {}
-    func fetchSystemConfig() async throws {}
+    func fetchKernelInfo() async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func fetchSystemConfig() async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Refreshes `dnsDomains` from the host's resolver configuration. Read-only, no elevation.
     func fetchDNSDomains() async {}
     /// Refreshes `systemProperties` from the resolved system configuration.
-    func fetchSystemProperties() async {}
+    func fetchSystemProperties() async {
+        assertionFailure("\(#function) must be overridden")
+    }
     /// Register a local DNS domain for containers (like `container system dns create`). Writes
     /// `/etc/resolver`, so the live implementation shows the macOS administrator-password prompt;
     /// dismissing it surfaces as `CancellationError`.
@@ -272,13 +372,21 @@ class ContainerServiceBase {
     /// Remove a local DNS domain (like `container system dns delete`). Elevated like create.
     func deleteDNSDomain(_ name: String) async throws {}
     func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
-    func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
+    func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
 
     /// Refreshes `registries` from the Keychain. Page-specific, fetched on demand (like
     /// `fetchDiskUsage`/`fetchKernelInfo`) rather than on every poll tick.
-    func loadRegistries() async {}
-    func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {}
-    func signOutRegistry(host: String) async throws {}
+    func loadRegistries() async {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func signInRegistry(host: String, username: String, password: String, insecure: Bool = false) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
+    func signOutRegistry(host: String) async throws {
+        assertionFailure("\(#function) must be overridden")
+    }
 
     var isConnected: Bool {
         if case .connected = daemonState { return true }
