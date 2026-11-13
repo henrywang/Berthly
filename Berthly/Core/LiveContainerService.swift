@@ -3555,10 +3555,9 @@ final class LiveContainerService: ContainerServiceBase {
         }
         // Raced against a stall watchdog via `raceAgainstStall` (NOT a plain `withThrowingTaskGroup`
         // — see PushStallGuard.swift's doc comment: that implicitly awaits every child before
-        // returning, which hangs forever if the XPC push call itself ignores cancellation). An auth
-        // failure against some registries can retry forever inside the vendored registry client
-        // with no error ever thrown, so without this, a stuck push hangs the call (and the UI)
-        // indefinitely instead of failing fast.
+        // returning, which hangs forever if the XPC push call itself ignores cancellation). The
+        // vendored registry client's Bearer retry is still uncapped in containerization 0.54.0 (see
+        // `PushStallMonitor`), so without this a stuck auth loop hangs the call and the UI.
         let stallMonitor = PushStallMonitor()
         let watchedProgress: ProgressUpdateHandler = { events in
             // Only genuine completion events arm the watchdog — see `containsRealProgress`'s doc
