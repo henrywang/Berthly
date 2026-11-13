@@ -440,10 +440,6 @@ final class MockContainerService: ContainerServiceBase {
         kernelInfo = KernelInfo(path: "/opt/kata/share/kata-containers/vmlinux-6.18.35-197-debug", platform: "linux/arm64")
     }
 
-    override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
-        kernelInfo = KernelInfo(path: options.binaryPath, platform: "linux/\(options.architecture)")
-    }
-
     override func fetchSystemProperties() async {
         systemProperties = [
             SystemProperty(key: "build.rosetta", value: "true"),
