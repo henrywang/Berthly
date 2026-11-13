@@ -19,7 +19,6 @@ struct SystemView: View {
             KernelSection(kernel: service.kernelInfo)
             SystemConfigSection(config: service.systemConfigInfo)
             SystemPropertiesSection(properties: service.systemProperties)
-            LocalDNSSection()
             BuilderSection()
             DaemonLogsSection()
         }
@@ -29,9 +28,8 @@ struct SystemView: View {
             async let disk: Void? = try? service.fetchDiskUsage()
             async let kernel: Void? = try? service.fetchKernelInfo()
             async let config: Void? = try? service.fetchSystemConfig()
-            async let dns: Void = service.fetchDNSDomains()
             async let props: Void = service.fetchSystemProperties()
-            _ = await (disk, kernel, config, dns, props)
+            _ = await (disk, kernel, config, props)
         }
     }
 }
@@ -544,126 +542,6 @@ private struct SystemPropertiesSection: View {
     }
 }
 
-// MARK: - Local DNS
-
-/// Local DNS domains for containers (`container system dns list/create/delete`). Mutations
-/// touch `/etc/resolver`, which needs root — the service layer shows the standard macOS
-/// administrator-password prompt, so rows stay enabled and the OS handles the authorization UX.
-private struct LocalDNSSection: View {
-    @Environment(ContainerServiceBase.self) private var service
-    @State private var showAddPrompt = false
-    @State private var newDomain = ""
-    @State private var isCreating = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        Section {
-            if let domains = service.dnsDomains {
-                if domains.isEmpty {
-                    Text("No local domains — containers are reachable by IP only.")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(domains, id: \.self) { domain in
-                    DNSDomainRow(domain: domain)
-                }
-                if isCreating {
-                    HStack(spacing: 8) {
-                        ProgressView().controlSize(.small)
-                        Text("Adding domain…").foregroundStyle(.secondary)
-                    }
-                } else {
-                    Button("Add Domain…") {
-                        newDomain = ""
-                        showAddPrompt = true
-                    }
-                }
-            } else {
-                LabeledContent("Loading…") { EmptyView() }
-                    .foregroundStyle(.secondary)
-            }
-        } header: {
-            sectionHeader("Local DNS", systemImage: "globe")
-        } footer: {
-            Text("""
-                A local domain lets this Mac resolve containers by name under it (e.g. web.test). \
-                Adding or removing one modifies /etc/resolver, so macOS asks for an administrator \
-                password.
-                """)
-        }
-        .alert("Add a local DNS domain", isPresented: $showAddPrompt) {
-            TextField("Domain (e.g. test)", text: $newDomain)
-            Button("Add") { performCreate() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("You'll be asked for an administrator password.")
-        }
-        .errorAlert($errorMessage)
-    }
-
-    private func performCreate() {
-        let domain = newDomain
-        isCreating = true
-        Task {
-            do {
-                try await service.createDNSDomain(domain)
-            } catch is CancellationError {
-                // Dismissed the admin prompt — not an error.
-            } catch {
-                errorMessage = error.localizedDescription
-            }
-            isCreating = false
-        }
-    }
-}
-
-private struct DNSDomainRow: View {
-    let domain: String
-    @Environment(ContainerServiceBase.self) private var service
-    @State private var showDeleteConfirm = false
-    @State private var isDeleting = false
-    @State private var errorMessage: String?
-
-    var body: some View {
-        LabeledContent {
-            if isDeleting {
-                ProgressView().controlSize(.small)
-            } else {
-                Button(role: .destructive) { showDeleteConfirm = true } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help("Delete Domain")
-                .accessibilityIdentifier("dnsDeleteButton-\(domain)")
-            }
-        } label: {
-            Text(domain)
-                .fontDesign(.monospaced)
-                .textSelection(.enabled)
-        }
-        .opacity(isDeleting ? 0.4 : 1)
-        .alert("Delete the \(domain) domain?", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                isDeleting = true
-                Task {
-                    do {
-                        try await service.deleteDNSDomain(domain)
-                    } catch is CancellationError {
-                        // Dismissed the admin prompt — not an error.
-                    } catch {
-                        errorMessage = error.localizedDescription
-                    }
-                    isDeleting = false
-                }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Container names under \(domain) will stop resolving on this Mac. You'll be asked for an administrator password.")
-        }
-        .errorAlert($errorMessage)
-    }
-}
-
 // MARK: - Builder
 
 private struct BuilderSection: View {
@@ -941,7 +819,6 @@ private struct DaemonLogView: View {
         containers: .init(total: 6, active: 2, sizeBytes: 240_000_000, reclaimableBytes: 90_000_000),
         volumes: .init(total: 3, active: 1, sizeBytes: 512_000_000, reclaimableBytes: 180_000_000)
     )
-    mock.dnsDomains = ["test"]
     mock.systemProperties = [
         SystemProperty(key: "build.rosetta", value: "true"),
         SystemProperty(key: "dns.domain", value: "test"),

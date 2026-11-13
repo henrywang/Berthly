@@ -110,9 +110,6 @@
     "192.168.70.0/24" : {
 
     },
-    "A local domain lets this Mac resolve containers by name under it (e.g. web.test). Adding or removing one modifies /etc/resolver, so macOS asks for an administrator password." : {
-
-    },
     "A named volume on the local driver" : {
 
     },
@@ -143,9 +140,6 @@
     "Add a host, then sign in — stored in the Keychain" : {
 
     },
-    "Add a local DNS domain" : {
-
-    },
     "Add a network, or one created for a container will appear here." : {
 
     },
@@ -161,9 +155,6 @@
     "Add capabilities" : {
 
     },
-    "Add Domain…" : {
-
-    },
     "Add Network…" : {
 
     },
@@ -171,9 +162,6 @@
 
     },
     "Add Volume…" : {
-
-    },
-    "Adding domain…" : {
 
     },
     "Advanced" : {
@@ -359,9 +347,6 @@
     "Container is not installed" : {
 
     },
-    "Container names under %@ will stop resolving on this Mac. You'll be asked for an administrator password." : {
-
-    },
     "Container not found" : {
 
     },
@@ -494,9 +479,6 @@
     "Delete Container" : {
 
     },
-    "Delete Domain" : {
-
-    },
     "Delete failed" : {
 
     },
@@ -507,9 +489,6 @@
 
     },
     "Delete Network" : {
-
-    },
-    "Delete the %@ domain?" : {
 
     },
     "Delete Volume" : {
@@ -573,9 +552,6 @@
 
     },
     "Dockerfile (auto-detected)" : {
-
-    },
-    "Domain (e.g. test)" : {
 
     },
     "Done" : {
@@ -834,9 +810,6 @@
     "Loading…" : {
 
     },
-    "Local DNS" : {
-
-    },
     "local/myapp:1.0" : {
 
     },
@@ -928,9 +901,6 @@
 
     },
     "No Images" : {
-
-    },
-    "No local domains — containers are reachable by IP only." : {
 
     },
     "No logs" : {
@@ -1693,9 +1663,6 @@
 
     },
     "You may be asked for your admin password. This can take a few minutes." : {
-
-    },
-    "You'll be asked for an administrator password." : {
 
     }
   },
