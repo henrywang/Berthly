@@ -416,26 +416,19 @@ private struct DiskUsageGridRow: View {
 
 private struct KernelSection: View {
     let kernel: KernelInfo?
-    @Environment(ContainerServiceBase.self) private var service
-    @State private var showSetKernel = false
 
     var body: some View {
         Section {
             if let kernel {
                 pathRow("Path", kernel.path)
                 LabeledContent("Platform") { monoValue(kernel.platform) }
-                Button("Set Kernel…") { showSetKernel = true }
             } else {
                 LabeledContent("Kernel") {
                     Text("Not configured").foregroundStyle(.secondary)
                 }
-                Button("Set Kernel…") { showSetKernel = true }
             }
         } header: {
             sectionHeader("Kernel", systemImage: "cpu")
-        }
-        .sheet(isPresented: $showSetKernel) {
-            SetKernelSheet(service: service, currentKernel: kernel)
         }
     }
 }

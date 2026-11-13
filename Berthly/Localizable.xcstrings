@@ -131,9 +131,6 @@
     "A newer image was pulled — recreate the container to apply it" : {
 
     },
-    "A vmlinux binary already on disk." : {
-
-    },
     "Account" : {
 
     },
@@ -201,9 +198,6 @@
 
     },
     "Applying…" : {
-
-    },
-    "Architecture" : {
 
     },
     "Archive" : {
@@ -677,9 +671,6 @@
     "Force Kill" : {
 
     },
-    "Force re-install" : {
-
-    },
     "Forces HTTP instead of HTTPS and remembers this host as insecure for future update checks. Only use for private registries without TLS." : {
 
     },
@@ -813,9 +804,6 @@
     "Kernel" : {
 
     },
-    "Kernel Binary" : {
-
-    },
     "Kernel boot arguments" : {
 
     },
@@ -919,9 +907,6 @@
 
     },
     "New reference" : {
-
-    },
-    "New VMs pick up the kernel · running containers are unaffected." : {
 
     },
     "Newer than Berthly supports" : {
@@ -1032,9 +1017,6 @@
     "Ports" : {
 
     },
-    "Pre-filled from config.toml's recommended kernel — edit to install a different one. The digest is verified against the archive before install; a remote URL requires one." : {
-
-    },
     "Properties" : {
 
     },
@@ -1102,9 +1084,6 @@
 
     },
     "Pushing image" : {
-
-    },
-    "Re-applies even if the selected kernel already matches the active one." : {
 
     },
     "Read-only root filesystem" : {
@@ -1279,12 +1258,6 @@
 
     },
     "Set as default machine" : {
-
-    },
-    "Set Kernel" : {
-
-    },
-    "Set Kernel…" : {
 
     },
     "Shared memory size" : {
@@ -1498,9 +1471,6 @@
     "Tag…" : {
 
     },
-    "Tar Archive" : {
-
-    },
     "target path" : {
 
     },
@@ -1669,9 +1639,6 @@
 
     },
     "Use docker.io/%@" : {
-
-    },
-    "Use Recommended" : {
 
     },
     "User" : {

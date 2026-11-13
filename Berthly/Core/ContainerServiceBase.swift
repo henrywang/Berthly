@@ -271,7 +271,6 @@ class ContainerServiceBase {
     func createDNSDomain(_ name: String) async throws {}
     /// Remove a local DNS domain (like `container system dns delete`). Elevated like create.
     func deleteDNSDomain(_ name: String) async throws {}
-    func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {}
     func streamDaemonLogs(onLine: @MainActor @escaping (String) -> Void) async throws {}
 
     /// Refreshes `registries` from the Keychain. Page-specific, fetched on demand (like

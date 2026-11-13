@@ -1941,27 +1941,6 @@ final class LiveContainerService: ContainerServiceBase {
         KernelInfo(path: kernel.path.path, platform: "\(kernel.platform.os.rawValue)/\(kernel.platform.architecture.rawValue)")
     }
 
-    /// Native replication of `container system kernel set --binary`/`--tar`: installs a
-    /// user-chosen kernel binary (local file) or archive member (local tar or remote URL) as the
-    /// new default for the given architecture. There's no "list installed kernels" or update-check
-    /// API on this daemon — this is the full extent of what `ClientKernel` supports.
-    override func setKernel(options: KernelSetOptions, progress: ProgressUpdateHandler? = nil) async throws {
-        let platform: SystemPlatform = options.architecture == "amd64" ? .linuxAmd : .linuxArm
-        if let tarSource = options.tarSource {
-            try await ClientKernel.installKernelFromTar(
-                tarFile: tarSource,
-                kernelFilePath: options.binaryPath,
-                platform: platform,
-                progressUpdate: progress,
-                expectedDigest: options.digest,
-                force: options.force
-            )
-        } else {
-            try await ClientKernel.installKernel(kernelFilePath: options.binaryPath, platform: platform, force: options.force)
-        }
-        try await fetchKernelInfo()
-    }
-
     override func fetchSystemConfig() async throws {
         let config = await resolvedSystemConfig()
         systemConfigInfo = Self.mapSystemConfig(config)

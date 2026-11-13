@@ -704,34 +704,6 @@ final class BerthlyUITests: XCTestCase {
                        "Return from a field without its own .onSubmit should still submit the sheet")
     }
 
-    @MainActor
-    func testReturnSubmitsSetKernelFromAnyField() throws {
-        let app = XCUIApplication.berthly()
-        app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
-        app.launch()
-
-        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 10))
-        app.staticTexts["System"].click()
-
-        let setKernelButton = app.buttons["Set Kernel…"]
-        XCTAssertTrue(setKernelButton.waitForExistence(timeout: 5))
-        setKernelButton.click()
-
-        let archiveField = app.windows.textFields.firstMatch
-        XCTAssertTrue(archiveField.waitForExistence(timeout: 5), "SetKernelSheet archive field should appear")
-        archiveField.click()
-        archiveField.typeText("https://example.com/kernel.tar.zst")
-
-        // Move focus to the "Path inside archive" field (no field-specific .onSubmit) before
-        // pressing Return.
-        app.typeKey(.tab, modifierFlags: [])
-        app.typeText("opt/kata/share/kata-containers/vmlinux")
-        app.typeKey(.return, modifierFlags: [])
-
-        XCTAssertTrue(app.buttons["Set Kernel"].waitForNonExistence(timeout: 5),
-                       "Return from a field without its own .onSubmit should still submit the sheet")
-    }
-
     /// Delete is irreversible, so unlike the Run/Build/Create sheets (where Return submits),
     /// Return must never confirm it — only an explicit click can. Guards against a future change
     /// (e.g. adding `.keyboardShortcut(.defaultAction)` to "Delete" for consistency with the other
