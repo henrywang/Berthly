@@ -37,12 +37,31 @@ final class AppIntentsSystemTests: XCTestCase {
     private func worker() async throws -> AnyAppEntity {
         let matches: [AnyAppEntity]
         do {
-            matches = try await definitions.entities["ContainerEntity"].entities(matching: "worker")
+            matches = try await workerMatchesOnceRegistered()
         } catch let error as NSError where error.domain == "AppIntentsServicesSecurityErrorDomain" && error.code == 800 {
             throw XCTSkip("AppIntentsTesting needs a test runner signed by the app's team; this one is ad-hoc (CI).")
         }
         XCTAssertEqual(matches.count, 1, "The mock seeds exactly one container named worker")
         return try XCTUnwrap(matches.first)
+    }
+
+    /// A freshly built app can be queried before linkd has indexed it: CI's macOS 27 leg once got
+    /// AppIntentsServicesMetadataErrorDomain 400 "app.berthly.Berthly is not present" instead of
+    /// the 800 the skip above expects. Retry only that error, for a bounded time, so a real
+    /// registration problem (e.g. duplicate app.berthly.Berthly copies hiding this build from
+    /// linkd) still fails.
+    @MainActor
+    private func workerMatchesOnceRegistered() async throws -> [AnyAppEntity] {
+        let deadline = ContinuousClock.now + .seconds(15)
+        while true {
+            do {
+                return try await definitions.entities["ContainerEntity"].entities(matching: "worker")
+            } catch let error as NSError
+                where error.domain == "AppIntentsServicesMetadataErrorDomain" && error.code == 400
+                && ContinuousClock.now < deadline {
+                try await Task.sleep(for: .milliseconds(500))
+            }
+        }
     }
 
     @MainActor

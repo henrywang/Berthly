@@ -1,6 +1,7 @@
 // Copyright 2026 Berthly Contributors
 // Licensed under the Apache License, Version 2.0
 
+import Foundation
 import Testing
 import TerminalProgress
 @testable import Berthly
@@ -78,27 +79,29 @@ struct RaceAgainstStallTests {
     /// implicitly awaits every child before returning — including the operation that just lost the
     /// race. An XPC call to the daemon (what `operation` stands in for here) has no obligation to
     /// honor Swift's cooperative cancellation, so awaiting it after cancelling it can hang forever.
-    /// This operation deliberately swallows `CancellationError` in a loop to simulate exactly that
-    /// non-cooperative shape, and asserts the race still returns promptly rather than waiting for it.
-    @Test func returnsPromptlyEvenWhenOperationIgnoresCancellation() async throws {
+    ///
+    /// Asserts ordering, not wall-clock time: an earlier `< 2.5s` bound flaked on CI (2.72s
+    /// observed while a trivial sibling test took 2.67s). That version's operation also looped
+    /// `try? await Task.sleep`, which returns immediately once cancelled — so a regressed
+    /// task-group implementation would have finished in ~80ms and passed anyway.
+    @Test func returnsWhileOperationIgnoringCancellationIsStillRunning() async {
         let monitor = PushStallMonitor()
-        let clock = ContinuousClock()
-        let start = clock.now
+        let gate = UncancellableGate()
+        // Keeps a regressed implementation (one that waits for the operation) from hanging the suite.
+        let safetyValve = Task {
+            try? await Task.sleep(for: .seconds(10))
+            gate.open()
+        }
 
         await #expect(throws: PushStalledError.self) {
             try await raceAgainstStall(timeout: .milliseconds(80), monitor: monitor) {
-                for _ in 0..<50 {
-                    try? await Task.sleep(for: .milliseconds(100))  // ignores cancellation via try?
-                }
-                return ()
+                await gate.wait()
             }
         }
 
-        // Must return around the 80ms timeout, not the ~5s the ignored-cancellation operation
-        // would otherwise run for. The bound is deliberately loose: on a contended CI runner,
-        // task-scheduling latency alone can add over a second (observed 1.4s on a cold
-        // GitHub macos-26 runner), and the regression this guards produces ~5s, not ~2s.
-        #expect(clock.now - start < .seconds(2.5))
+        let raceReturnedBeforeOperation = gate.open()
+        safetyValve.cancel()
+        #expect(raceReturnedBeforeOperation, "raceAgainstStall waited for the abandoned operation to finish")
     }
 
     @Test func returnsTheOperationsResultWhenItWinsTheRace() async throws {
@@ -118,5 +121,42 @@ struct RaceAgainstStallTests {
                 throw SomeError()
             }
         }
+    }
+}
+
+/// Parks callers until `open()`, deliberately ignoring task cancellation — the shape of a daemon
+/// XPC call that never checks for it.
+private final class UncancellableGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            guard !isOpen else {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            waiters.append(continuation)
+            lock.unlock()
+        }
+    }
+
+    /// Returns `false` if the gate was already open.
+    @discardableResult
+    func open() -> Bool {
+        lock.lock()
+        guard !isOpen else {
+            lock.unlock()
+            return false
+        }
+        isOpen = true
+        let pending = waiters
+        waiters = []
+        lock.unlock()
+        pending.forEach { $0.resume() }
+        return true
     }
 }

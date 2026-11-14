@@ -16,6 +16,11 @@ depend on a real daemon connection:
   `LiveContainerService`.
 - `UITEST_INITIAL_DAEMON_STATE` — seeds `daemonState` (`installedButStopped`,
   `notInstalled`, `checking`) for tests that need a specific connection state.
+- `UITEST_MOCK_PROGRESS_STAGE_MS` — per-line delay of the mock's fake progress
+  (`runContainer`, `createMachine`, `startDaemon`; default 1200). Tests that
+  assert on mid-flight log lines raise it, because completion swaps the log view
+  out. Asserting an earlier line after waiting for the last one raced
+  completion on CI at 1200ms.
 
 New UI tests should default to mock mode for determinism. Only skip it (via
 `XCTSkip` when the relevant button is disabled/absent, matching

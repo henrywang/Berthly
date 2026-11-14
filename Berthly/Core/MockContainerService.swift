@@ -21,6 +21,12 @@ extension Container {
 @MainActor
 final class MockContainerService: ContainerServiceBase {
 
+    /// How long each fake progress line stays on screen before the next stage (or completion,
+    /// which swaps the log view out). Progress UI tests raise it via
+    /// `UITEST_MOCK_PROGRESS_STAGE_MS`: at 1200ms, a CI wait that caught the last line late
+    /// (~1s per XCUITest query) left the follow-up `.exists` checks running after completion.
+    var progressStageDelay: Duration = .milliseconds(1200)
+
     init(dataset: MockDataset = .default) {
         super.init()
         daemonState = .connected
@@ -610,9 +616,9 @@ final class MockContainerService: ContainerServiceBase {
         // 400ms-per-stage version finished *before the first poll fired* and never got caught) —
         // gives a UI test real room to catch the ProgressLogScreen mid-flight.
         onLog?("Starting container-apiserver…")
-        try? await Task.sleep(for: .milliseconds(1200))
+        try? await Task.sleep(for: progressStageDelay)
         onLog?("Waiting for the daemon to respond…")
-        try? await Task.sleep(for: .milliseconds(1200))
+        try? await Task.sleep(for: progressStageDelay)
         daemonState = .connected
     }
 
@@ -833,13 +839,14 @@ extension MockContainerService {
 extension MockContainerService {
     /// Shared by `runContainer` and `createMachine`, mirroring how a real fetch reports staged
     /// progress. Log-then-sleep (matching `startDaemon`'s onLog pacing) gives even the *last*
-    /// line a full 1200ms on screen before the sheet flips to its success state — staged well
-    /// past XCUITest's ~1s `waitForExistence` polling cadence, so a UI test has real room to
-    /// catch the log mid-flight instead of racing a run that finishes before the first poll fires.
+    /// line a full `progressStageDelay` on screen before the sheet flips to its success state —
+    /// staged well past XCUITest's ~1s `waitForExistence` polling cadence, so a UI test has real
+    /// room to catch the log mid-flight instead of racing a run that finishes before the first
+    /// poll fires.
     fileprivate func emitFakeProgress(_ lines: [String], onLog: (@MainActor (String) -> Void)?) async throws {
         for line in lines {
             onLog?(line)
-            try? await Task.sleep(for: .milliseconds(1200))
+            try? await Task.sleep(for: progressStageDelay)
             try Task.checkCancellation()
         }
     }
