@@ -663,8 +663,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4H628G9PWH;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H628G9PWH;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyUITests;
@@ -682,8 +682,8 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = 4H628G9PWH;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H628G9PWH;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = app.berthly.BerthlyUITests;
