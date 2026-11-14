@@ -114,8 +114,17 @@ jobs:
       - name: Download Metal toolchain
         run: xcodebuild -downloadComponent MetalToolchain
 
+      # Retried: resolution downloads Sparkle's binary zip from GitHub
+      # releases, and one transient download failure (exit 74, 2026-10-28)
+      # failed a whole leg.
       - name: Resolve package dependencies
-        run: xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly
+        run: |
+          for attempt in 1 2 3; do
+            xcodebuild -resolvePackageDependencies -project Berthly.xcodeproj -scheme Berthly && exit 0
+            echo "Package resolution failed (attempt $attempt)"
+            sleep $((attempt * 15))
+          done
+          exit 1
 
       - name: Build and run ${{ matrix.name }}
         run: |

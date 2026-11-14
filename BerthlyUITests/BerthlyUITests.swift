@@ -38,6 +38,9 @@ extension XCUIApplication {
 
 final class BerthlyUITests: XCTestCase {
 
+    /// See `MockContainerService.progressStageDelay` for why the default 1200ms flaked.
+    static let progressStageMilliseconds = "4000"
+
     override func setUpWithError() throws {
         continueAfterFailure = false
 
@@ -166,6 +169,7 @@ final class BerthlyUITests: XCTestCase {
         let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
         app.launchEnvironment["UITEST_INITIAL_DAEMON_STATE"] = "installedButStopped"
+        app.launchEnvironment["UITEST_MOCK_PROGRESS_STAGE_MS"] = Self.progressStageMilliseconds
         app.launch()
 
         let startButton = app.buttons["Start Container System"]
@@ -177,11 +181,11 @@ final class BerthlyUITests: XCTestCase {
         // guarantees the message and the first line are already on screen. Checking each line
         // with its own `waitForExistence` compounds this harness's ~1s per-poll overhead enough
         // that the mock's whole (short) operation can finish before a later wait even starts.
-        XCTAssertTrue(app.staticTexts["Waiting for the daemon to respond…"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["Waiting for the daemon to respond…"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["operationProgressMessage"].exists)
         XCTAssertTrue(app.staticTexts["Starting container-apiserver…"].exists)
 
-        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["web-frontend"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.buttons["Start Container System"].exists)
     }
 
@@ -194,6 +198,7 @@ final class BerthlyUITests: XCTestCase {
     func testRunContainerShowsProgressLog() throws {
         let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_MOCK_PROGRESS_STAGE_MS"] = Self.progressStageMilliseconds
         app.launch()
 
         let runButton = app.buttons["runToolbarButton"]
@@ -211,7 +216,7 @@ final class BerthlyUITests: XCTestCase {
         // coordinates to race; the sheet already bubbles Return from any field to submit.
         app.typeKey(.return, modifierFlags: [])
 
-        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Fetching image… 12.0 MB / 45.0 MB"].exists)
     }
 
@@ -221,6 +226,7 @@ final class BerthlyUITests: XCTestCase {
     func testCreateMachineShowsProgressLog() throws {
         let app = XCUIApplication.berthly()
         app.launchEnvironment["UITEST_USE_MOCK_SERVICE"] = "1"
+        app.launchEnvironment["UITEST_MOCK_PROGRESS_STAGE_MS"] = Self.progressStageMilliseconds
         app.launch()
 
         app.typeKey("k", modifierFlags: .command)
@@ -236,7 +242,7 @@ final class BerthlyUITests: XCTestCase {
         // Return, not a coordinate click — see testRunContainerShowsProgressLog's comment.
         app.typeKey(.return, modifierFlags: [])
 
-        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Unpacking image…"].waitForExistence(timeout: 15))
         XCTAssertTrue(app.staticTexts["Fetching image… 20.0 MB / 60.0 MB"].exists)
     }
 

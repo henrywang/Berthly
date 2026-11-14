@@ -55,7 +55,8 @@ struct BerthlyApp: App {
     /// UI tests set `UITEST_USE_MOCK_SERVICE` to get deterministic state instead of a real
     /// daemon connection, optionally seeded via `UITEST_INITIAL_DAEMON_STATE` and
     /// `UITEST_STARTUP_WARNING` (the latter for `DaemonStatusBar`'s "Running (warning)" state,
-    /// which only shows while `.connected` — the mock's default state).
+    /// which only shows while `.connected` — the mock's default state), and paced via
+    /// `UITEST_MOCK_PROGRESS_STAGE_MS` (`MockContainerService.progressStageDelay`).
     private static func makeService() -> ContainerServiceBase {
         let env = ProcessInfo.processInfo.environment
         guard env["UITEST_USE_MOCK_SERVICE"] != nil else {
@@ -80,6 +81,9 @@ struct BerthlyApp: App {
         }
         if let warning = env["UITEST_STARTUP_WARNING"] {
             mock.lastStartupWarning = warning
+        }
+        if let stageMilliseconds = env["UITEST_MOCK_PROGRESS_STAGE_MS"].flatMap(Int.init) {
+            mock.progressStageDelay = .milliseconds(stageMilliseconds)
         }
         return mock
     }

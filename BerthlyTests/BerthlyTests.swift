@@ -1007,6 +1007,27 @@ struct MockContainerServiceTests {
         #expect(mock.daemonState.isConnectedCase)
     }
 
+    /// Progress UI tests raise `progressStageDelay` so each log line stays on screen long enough
+    /// to assert. Lower bounds only: a sleep never ends early, but a loaded runner can stretch it.
+    @Test func progressStageDelayPacesEveryFakeProgressStage() async throws {
+        let mock = MockContainerService()
+        mock.progressStageDelay = .milliseconds(150)
+        let clock = ContinuousClock()
+
+        var machineLogs: [String] = []
+        let machineStart = clock.now
+        try await mock.createMachine(options: MachineCreateOptions(reference: "ubuntu:24.04")) {
+            machineLogs.append($0)
+        }
+        #expect(clock.now - machineStart >= .milliseconds(300))
+        #expect(machineLogs == ["Fetching image… 20.0 MB / 60.0 MB", "Unpacking image…"])
+
+        mock.daemonState = .installedButStopped
+        let daemonStart = clock.now
+        await mock.startDaemon()
+        #expect(clock.now - daemonStart >= .milliseconds(300))
+    }
+
     @Test func stopDaemonTransitionsConnectedToStopped() async {
         let mock = MockContainerService()
         mock.daemonState = .connected
